@@ -4,7 +4,7 @@ terraform {
 }
 
 variable "environment" {
-  description = "A label for the example environment."
+  description = "A label for the secret example environment."
   type        = string
   default     = "demo"
 }
