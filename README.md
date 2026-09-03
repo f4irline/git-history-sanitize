@@ -13,13 +13,50 @@ The original sandbox-specific prototype is preserved in
 database, but is not part of this tool. The separate `examples/` namespace is
 reserved for samples that use this tool.
 
+## Choose an installation
+
+| Situation | Recommended route |
+| --- | --- |
+| CI, Docker, devcontainer, or sandbox integration | Digest-pinned GHCR image |
+| Developer workstation with supported prerequisites | Pinned PyPI package |
+| Air-gapped or internally mirrored environment | Source distribution or mirrored OCI image |
+
+### Production OCI image
+
+The public image is the recommended production installation because it bundles
+the supported Git, Python, and `git-filter-repo` runtime. Pin the published
+digest rather than a mutable tag:
+
+```bash
+docker run --rm \
+  -v "$PWD/.git:/input.git:ro" \
+  -v "$PWD/policy.yml:/policy.yml:ro" \
+  -v "$PWD/build:/output" \
+  ghcr.io/f4irline/git-history-sanitize@sha256:<published-digest> \
+  rewrite --source /input.git --output /output/sanitized.git --policy /policy.yml
+```
+
+### PyPI command-line package
+
+Install a pinned release with `pipx`:
+
+```bash
+pipx install git-history-sanitize==<version>
+git-history-sanitize doctor
+```
+
+The PyPI package requires Git 2.36 or later and `git-filter-repo` on `PATH`.
+Use `doctor` to confirm the installed tools before processing a repository. The
+OCI image is the supported alternative when supplying those prerequisites on a
+workstation or runner is inconvenient.
+
 ## Requirements
 
 - Python 3.11 or later
 - Git 2.36 or later
 - `git-filter-repo` on `PATH`
 
-Install during development:
+For development from a checkout:
 
 ```bash
 pipx install .
