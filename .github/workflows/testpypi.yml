@@ -33,6 +33,8 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+      - name: Give the prototype source a symbolic HEAD
+        run: git switch --force-create ci-history-fixture HEAD
       - name: Run the prototype history fixture
         working-directory: proto
         run: >-
