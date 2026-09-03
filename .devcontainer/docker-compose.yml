@@ -3,6 +3,11 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile.devcontainer
+      additional_contexts:
+        # Available only to the BuildKit mount in the sanitizer stage. The
+        # sandbox Dockerfile's dedicated .dockerignore excludes .git from its
+        # regular context without affecting other Docker build contexts.
+        trusted_git: ../.git
     volumes:
       - ${WORKSPACE_PATH:-..}:/workspace:cached
       - ./.empty:/workspace/secret.json:ro
@@ -12,6 +17,9 @@ services:
       - internal
     tmpfs:
       - /workspace/infra
+      # Masks the host bind mount's real .git. The entrypoint populates this
+      # empty filesystem with the sanitized repository from the image.
+      - /workspace/.git
 
 networks:
   internal:
@@ -20,4 +28,3 @@ networks:
     driver_opts:
       com.docker.network.bridge.gateway_mode_ipv4: "isolated"
       com.docker.network.bridge.gateway_mode_ipv6: "isolated"
-

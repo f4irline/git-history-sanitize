@@ -1,12 +1,46 @@
-FROM ubuntu:26.04@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b
+# syntax=docker/dockerfile:1.7
+FROM ubuntu:26.04@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b AS base
 
-RUN apt-get update -qq && apt-get install -qq -y npm vim curl iputils-ping && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq && apt-get install -qq -y npm vim curl iputils-ping git git-filter-repo python3 && rm -rf /var/lib/apt/lists/*
 RUN npm install -g opencode-ai@1.18.26
+
+FROM base AS git-sanitizer
+
+COPY .devcontainer/git-history-filter.txt /git-history-filter.txt
+COPY .devcontainer/scripts/sanitize-git-history.sh /usr/local/bin/sanitize-git-history
+
+# `trusted_git` is an additional BuildKit context containing only the host
+# .git directory. It is mounted for this one instruction and is never copied
+# into a layer. The disposable clone and all original objects are removed before
+# the layer is committed; only the sanitized .git directory remains.
+RUN --mount=from=trusted_git,target=/trusted-git,ro \
+    git clone --no-checkout --no-local /trusted-git /rewrite && \
+    /usr/local/bin/sanitize-git-history /rewrite /git-history-filter.txt && \
+    mkdir -p /sanitized && \
+    mv /rewrite/.git /sanitized/.git && \
+    rm -rf /rewrite
+
+FROM git-sanitizer AS git-history-test
+
+COPY .devcontainer/scripts/verify-git-history-sanitization.sh /usr/local/bin/verify-git-history-sanitization
+COPY .devcontainer/scripts/test-git-history-sanitization.sh /usr/local/bin/test-git-history-sanitization
+RUN chmod 0555 /usr/local/bin/verify-git-history-sanitization /usr/local/bin/test-git-history-sanitization && \
+    /usr/local/bin/test-git-history-sanitization \
+      /usr/local/bin/sanitize-git-history \
+      /usr/local/bin/verify-git-history-sanitization
+
+FROM base AS final
 
 COPY .devcontainer/opencode.json /root/.config/opencode/opencode.json
 COPY .devcontainer/opencode-system-prompt.md /root/.config/opencode/opencode-system-prompt.md
+COPY .devcontainer/scripts/prepare-sanitized-git.sh /usr/local/bin/prepare-sanitized-git
+COPY .devcontainer/scripts/verify-git-history-sanitization.sh /usr/local/bin/verify-git-history-sanitization
+COPY --from=git-sanitizer /sanitized/.git/ /opt/sandbox-git/
+RUN chmod 0555 /usr/local/bin/prepare-sanitized-git /usr/local/bin/verify-git-history-sanitization && \
+    chmod -R a-w /opt/sandbox-git
 
 WORKDIR /workspace
 
 # nosemgrep dockerfile.security.missing-user.missing-user
+ENTRYPOINT ["/usr/local/bin/prepare-sanitized-git"]
 CMD ["sleep", "infinity"]

@@ -1,0 +1,6 @@
+# Applies only when building the sandbox Dockerfile. Other Docker build
+# contexts remain free to include .git when they intentionally need it.
+.git
+.git/**
+
+node_modules
