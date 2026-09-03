@@ -5,10 +5,13 @@ services:
       dockerfile: .devcontainer/Dockerfile.devcontainer
     volumes:
       - ${WORKSPACE_PATH:-..}:/workspace:cached
+      - ./.empty:/workspace/secret.json:ro
     security_opt:
       - no-new-privileges:true
     networks:
       - internal
+    tmpfs:
+      - /workspace/infra
 
 networks:
   internal:
