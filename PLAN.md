@@ -187,13 +187,13 @@ runtime responsibilities.
 
 ## Milestones
 
-### M1: Extract the prototype
+### M1: Extract the prototype — implemented
 
-- Create the Python package and CLI.
-- Define and validate policy version 1.
-- Port cutoff compaction, path filtering, cleanup, and verification.
-- Preserve the current linear-history fail-closed behavior.
-- Add fixture and end-to-end tests.
+- [x] Create the Python package and CLI.
+- [x] Define and validate policy version 1.
+- [x] Port cutoff compaction, path filtering, cleanup, and verification.
+- [x] Preserve the current linear-history fail-closed behavior.
+- [x] Add fixture and end-to-end tests.
 
 ### M2: Production Git graph support
 
@@ -230,8 +230,6 @@ runtime responsibilities.
 
 ## Open decisions
 
-- Project name and command name.
-- MIT versus Apache-2.0 licensing.
 - Whether cutoff-by-commit should take precedence when both cutoff forms are
   present.
 - Whether path names in reports are considered sensitive.

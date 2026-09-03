@@ -6,8 +6,9 @@ services:
       additional_contexts:
         # Available only to the BuildKit mount in the sanitizer stage. The
         # sandbox Dockerfile's dedicated .dockerignore excludes .git from its
-        # regular context without affecting other Docker build contexts.
-        trusted_git: ../.git
+        # regular context without affecting other Docker build contexts. This
+        # prototype lives one directory below the repository root.
+        trusted_git: ../../.git
     volumes:
       - ${WORKSPACE_PATH:-..}:/workspace:cached
       - ./.empty:/workspace/secret.json:ro

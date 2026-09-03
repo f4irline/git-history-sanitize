@@ -1,0 +1,10 @@
+# Applies only to the standalone product image. Other Docker build contexts
+# can deliberately include Git metadata when they need it.
+.git
+.git/**
+
+examples/
+proto/
+
+__pycache__/
+*.py[cod]
