@@ -2,11 +2,36 @@
 # Validate a repository already rewritten by sanitize-git-history.sh.
 set -euo pipefail
 
-repository="${1:?usage: verify-git-history-sanitization.sh REPOSITORY FILTER_FILE [forbidden-string ...]}"
-filter_file="${2:?usage: verify-git-history-sanitization.sh REPOSITORY FILTER_FILE [forbidden-string ...]}"
-shift 2
+repository="${1:?usage: verify-git-history-sanitization.sh REPOSITORY FILTER_FILE CUTOFF_FILE [forbidden-string ...]}"
+filter_file="${2:?usage: verify-git-history-sanitization.sh REPOSITORY FILTER_FILE CUTOFF_FILE [forbidden-string ...]}"
+cutoff_file="${3:?usage: verify-git-history-sanitization.sh REPOSITORY FILTER_FILE CUTOFF_FILE [forbidden-string ...]}"
+shift 3
 
 git -C "$repository" rev-parse --is-inside-work-tree >/dev/null
+
+cutoff_epoch="$(python3 - "$cutoff_file" <<'PY'
+import datetime as dt
+import sys
+
+values = [
+    line.strip()
+    for line in open(sys.argv[1], encoding="utf-8")
+    if line.strip() and not line.lstrip().startswith("#")
+]
+if len(values) != 1:
+    raise SystemExit("Cutoff file must contain exactly one timestamp")
+parsed = dt.datetime.fromisoformat(values[0].replace("Z", "+00:00"))
+if parsed.tzinfo is None or parsed.utcoffset() is None:
+    raise SystemExit("Cutoff timestamp must include a timezone")
+print(int(parsed.timestamp()))
+PY
+)"
+
+if git -C "$repository" log --all --format=%ct | \
+    awk -v cutoff="$cutoff_epoch" '$1 < cutoff { found = 1 } END { exit !found }'; then
+  echo "A reachable commit predates the configured cutoff." >&2
+  exit 1
+fi
 
 while IFS= read -r path || [[ -n "$path" ]]; do
   path="${path#"${path%%[![:space:]]*}"}"

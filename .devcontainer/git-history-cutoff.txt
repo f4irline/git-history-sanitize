@@ -1,0 +1,4 @@
+# Commits with a committer timestamp before this instant are collapsed into
+# the first commit at or after it. Use an RFC 3339 timestamp with an explicit
+# timezone so builds behave identically on every machine.
+2026-09-03T00:00:00+03:00

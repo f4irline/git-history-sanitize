@@ -3,8 +3,9 @@
 # This script is deliberately run only in the trusted Docker build stage.
 set -euo pipefail
 
-repository="${1:?usage: sanitize-git-history.sh REPOSITORY FILTER_FILE}"
-filter_file="${2:?usage: sanitize-git-history.sh REPOSITORY FILTER_FILE}"
+repository="${1:?usage: sanitize-git-history.sh REPOSITORY FILTER_FILE CUTOFF_FILE}"
+filter_file="${2:?usage: sanitize-git-history.sh REPOSITORY FILTER_FILE CUTOFF_FILE}"
+cutoff_file="${3:?usage: sanitize-git-history.sh REPOSITORY FILTER_FILE CUTOFF_FILE}"
 
 if ! git -C "$repository" rev-parse --is-inside-work-tree >/dev/null; then
   echo "Not a Git work tree: $repository" >&2
@@ -12,6 +13,10 @@ if ! git -C "$repository" rev-parse --is-inside-work-tree >/dev/null; then
 fi
 if [[ ! -f "$filter_file" ]]; then
   echo "Missing Git-history filter file: $filter_file" >&2
+  exit 2
+fi
+if [[ ! -f "$cutoff_file" ]]; then
+  echo "Missing Git-history cutoff file: $cutoff_file" >&2
   exit 2
 fi
 
@@ -35,6 +40,26 @@ if [[ -z "$head_ref" ]]; then
   echo "The trusted repository must have a symbolic HEAD." >&2
   exit 2
 fi
+
+# Remove remotes first so Git cleans up remote HEAD symrefs coherently.
+while IFS= read -r remote; do
+  [[ -z "$remote" ]] || git -C "$repository" remote remove "$remote"
+done < <(git -C "$repository" remote)
+
+# Remove every remaining ref except the checked-out branch before cutoff
+# compaction. Old tags, notes, or stashes must not keep the discarded prefix in
+# the subsequent filter-repo input.
+while IFS= read -r ref; do
+  [[ "$ref" == "$head_ref" ]] || git -C "$repository" update-ref -d "$ref"
+done < <(git -C "$repository" for-each-ref --format='%(refname)')
+
+git -C "$repository" config --local --remove-section "branch.${head_ref#refs/heads/}" 2>/dev/null || true
+
+# Collapse the disallowed history first so the more expensive path filtering
+# only processes the retained suffix. This intermediate repository remains
+# inside the trusted, single-layer Docker build instruction.
+script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+python3 "$script_directory/compact-git-history.py" "$repository" "$cutoff_file"
 
 export GIT_HISTORY_FILTER_FILE="$(cd "$(dirname "$filter_file")" && pwd)/$(basename "$filter_file")"
 
@@ -81,11 +106,6 @@ while IFS= read -r ref; do
   [[ "$ref" == "$head_ref" ]] || git -C "$repository" update-ref -d "$ref"
 done < <(git -C "$repository" for-each-ref --format='%(refname)')
 
-while IFS= read -r remote; do
-  [[ -z "$remote" ]] || git -C "$repository" remote remove "$remote"
-done < <(git -C "$repository" remote)
-
-git -C "$repository" config --local --remove-section "branch.${head_ref#refs/heads/}" 2>/dev/null || true
 git -C "$repository" reflog expire --expire=now --expire-unreachable=now --all
 rm -rf "$repository/.git/logs" "$repository/.git/refs/original" "$repository/.git/filter-repo"
 git -C "$repository" gc --prune=now --aggressive

@@ -7,6 +7,8 @@ RUN npm install -g opencode-ai@1.18.26
 FROM base AS git-sanitizer
 
 COPY .devcontainer/git-history-filter.txt /git-history-filter.txt
+COPY .devcontainer/git-history-cutoff.txt /git-history-cutoff.txt
+COPY .devcontainer/scripts/compact-git-history.py /usr/local/bin/compact-git-history.py
 COPY .devcontainer/scripts/sanitize-git-history.sh /usr/local/bin/sanitize-git-history
 
 # `trusted_git` is an additional BuildKit context containing only the host
@@ -15,7 +17,8 @@ COPY .devcontainer/scripts/sanitize-git-history.sh /usr/local/bin/sanitize-git-h
 # the layer is committed; only the sanitized .git directory remains.
 RUN --mount=from=trusted_git,target=/trusted-git,ro \
     git clone --no-checkout --no-local /trusted-git /rewrite && \
-    /usr/local/bin/sanitize-git-history /rewrite /git-history-filter.txt && \
+    /usr/local/bin/sanitize-git-history \
+      /rewrite /git-history-filter.txt /git-history-cutoff.txt && \
     mkdir -p /sanitized && \
     mv /rewrite/.git /sanitized/.git && \
     rm -rf /rewrite
