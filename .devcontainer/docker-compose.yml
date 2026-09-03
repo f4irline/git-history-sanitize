@@ -1,0 +1,20 @@
+services:
+  devcontainer:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile.devcontainer
+    volumes:
+      - ${WORKSPACE_PATH:-..}:/workspace:cached
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+networks:
+  internal:
+    internal: true
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: "isolated"
+      com.docker.network.bridge.gateway_mode_ipv6: "isolated"
+

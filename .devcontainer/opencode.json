@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
+  "share": "disabled",
+  "instructions": [
+    "/root/.config/opencode/opencode-system-prompt.md"
+  ],
+  "permission": {
+    "*": "deny",
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "todowrite": "allow",
+    "question": "allow",
+    "edit": "ask",
+    "bash": "ask",
+    "lsp": "deny",
+    "task": "deny",
+    "skill": "deny",
+    "external_directory": "deny",
+    "webfetch": "deny",
+    "websearch": "deny"
+  },
+  "experimental": {
+    "openTelemetry": false
+  }
+}

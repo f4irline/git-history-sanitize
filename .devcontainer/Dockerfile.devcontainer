@@ -1,0 +1,12 @@
+FROM ubuntu:26.04@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b
+
+RUN apt-get update -qq && apt-get install -qq -y npm vim curl iputils-ping && rm -rf /var/lib/apt/lists/*
+RUN npm install -g opencode-ai@1.18.26
+
+COPY .devcontainer/opencode.json /root/.config/opencode/opencode.json
+COPY .devcontainer/opencode-system-prompt.md /root/.config/opencode/opencode-system-prompt.md
+
+WORKDIR /workspace
+
+# nosemgrep dockerfile.security.missing-user.missing-user
+CMD ["sleep", "infinity"]
