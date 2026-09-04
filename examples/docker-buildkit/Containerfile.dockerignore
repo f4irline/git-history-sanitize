@@ -1,0 +1,7 @@
+# This applies only when building this Containerfile. The ordinary build context
+# never receives a Git object database; `trusted_git` is a separate read-only
+# BuildKit context.
+.git
+.git/**
+.work
+.work/**

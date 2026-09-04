@@ -1,0 +1,8 @@
+{
+  "name": "Sanitized proto-style workspace",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  "overrideCommand": false,
+  "remoteUser": "root"
+}

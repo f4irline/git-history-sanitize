@@ -1,0 +1,68 @@
+# Copy this template to .github/workflows/sanitized-history.yml. The project
+# root must contain .git-history-sanitize.yml like the included project does.
+name: produce sanitized Git history
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trusted-producer:
+    runs-on: ubuntu-24.04
+    steps:
+      # v4.2.2, pinned to an immutable commit. This runner is trusted because
+      # it receives the repository's complete source history.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Plan, rewrite, and verify with the published artifact
+        run: |
+          mkdir "$RUNNER_TEMP/sanitized-artifact"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/.git:/input.git:ro" \
+            -v "$GITHUB_WORKSPACE/.git-history-sanitize.yml:/policy.yml:ro" \
+            ghcr.io/f4irline/git-history-sanitize@sha256:3ff42939fc1c3199193d9492dff0c80d53db1d073fa75a691ff293371a720ebd \
+            plan --source /input.git --policy /policy.yml
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/.git:/input.git:ro" \
+            -v "$GITHUB_WORKSPACE/.git-history-sanitize.yml:/policy.yml:ro" \
+            -v "$RUNNER_TEMP/sanitized-artifact:/output" \
+            ghcr.io/f4irline/git-history-sanitize@sha256:3ff42939fc1c3199193d9492dff0c80d53db1d073fa75a691ff293371a720ebd \
+            rewrite --source /input.git --output /output/sanitized.git --policy /policy.yml
+          cp .git-history-sanitize.yml "$RUNNER_TEMP/sanitized-artifact/policy.yml"
+          docker run --rm \
+            -v "$RUNNER_TEMP/sanitized-artifact:/artifact:ro" \
+            ghcr.io/f4irline/git-history-sanitize@sha256:3ff42939fc1c3199193d9492dff0c80d53db1d073fa75a691ff293371a720ebd \
+            verify --repository /artifact/sanitized.git --policy /artifact/policy.yml
+
+      # v4.6.2, pinned to an immutable commit. Publication is reachable only
+      # after every earlier command has passed verification.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sanitized-git-history
+          path: ${{ runner.temp }}/sanitized-artifact
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: true
+
+  isolated-consumer:
+    needs: trusted-producer
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      # v4.3.0, pinned to an immutable commit. There is intentionally no
+      # checkout: this job receives only the uploaded artifact.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: sanitized-git-history
+          path: sanitized-artifact
+
+      - name: Verify the downloaded artifact without source checkout
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/sanitized-artifact:/artifact:ro" \
+            ghcr.io/f4irline/git-history-sanitize@sha256:3ff42939fc1c3199193d9492dff0c80d53db1d073fa75a691ff293371a720ebd \
+            verify --repository /artifact/sanitized.git --policy /artifact/policy.yml

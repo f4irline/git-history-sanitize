@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1.7
+# This is the published v0.1.1 multi-platform image index, pinned by digest.
+FROM ghcr.io/f4irline/git-history-sanitize@sha256:3ff42939fc1c3199193d9492dff0c80d53db1d073fa75a691ff293371a720ebd AS sanitizer
+
+FROM sanitizer AS sanitized-builder
+COPY .git-history-sanitize.yml /policy.yml
+# BuildKit contexts are immutable during RUN. The source Git database is never
+# copied into a layer: only the verified sanitized database crosses stages.
+RUN --mount=type=bind,from=trusted_git,source=.,target=/trusted.git,ro \
+    python3 -m git_history_sanitize plan --source /trusted.git --policy /policy.yml && \
+    python3 -m git_history_sanitize rewrite --source /trusted.git --output /sanitized.git --policy /policy.yml && \
+    python3 -m git_history_sanitize verify --repository /sanitized.git --policy /policy.yml && \
+    mv /sanitized.git /sanitized-repository
+
+FROM scratch AS export
+COPY --from=sanitized-builder /sanitized-repository /

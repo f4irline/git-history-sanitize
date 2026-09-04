@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1.7
+# Published v0.1.1 image index, pinned by immutable digest.
+FROM ghcr.io/f4irline/git-history-sanitize@sha256:3ff42939fc1c3199193d9492dff0c80d53db1d073fa75a691ff293371a720ebd AS sanitizer
+
+FROM sanitizer AS sanitized-builder
+COPY .git-history-sanitize.yml /policy.yml
+# `trusted_git` is a separate immutable BuildKit context. It is mounted only
+# here and is never copied to a layer or the runtime stage.
+RUN --mount=type=bind,from=trusted_git,source=.,target=/trusted.git,ro \
+    python3 -m git_history_sanitize plan --source /trusted.git --policy /policy.yml && \
+    python3 -m git_history_sanitize rewrite --source /trusted.git --output /sanitized.git --policy /policy.yml && \
+    python3 -m git_history_sanitize verify --repository /sanitized.git --policy /policy.yml && \
+    mv /sanitized.git /sanitized-repository
+
+FROM ubuntu:26.04 AS runtime
+RUN apt-get update -qq \
+    && apt-get install -qq -y git \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=sanitized-builder /sanitized-repository /opt/sanitized.git
+COPY .devcontainer/install-sanitized-git.sh /usr/local/bin/install-sanitized-git
+RUN chmod 0555 /usr/local/bin/install-sanitized-git
+ENTRYPOINT ["/usr/local/bin/install-sanitized-git"]
+CMD ["sleep", "infinity"]

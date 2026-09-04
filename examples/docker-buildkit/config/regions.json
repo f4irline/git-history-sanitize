@@ -1,0 +1,4 @@
+{
+  "primaryRegion": "eu-north-1",
+  "queueName": "orders-events"
+}

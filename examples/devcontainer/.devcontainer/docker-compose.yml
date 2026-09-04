@@ -1,0 +1,27 @@
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: .devcontainer/Containerfile
+      additional_contexts:
+        trusted_git: ${TRUSTED_GIT:?Set TRUSTED_GIT to the source .git directory}
+    volumes:
+      - type: bind
+        source: ${WORKSPACE:?Set WORKSPACE to the project working tree}
+        target: /workspace
+      # The source working tree may be mounted, but its real Git database is
+      # hidden before the runtime entrypoint installs the verified replacement.
+      - type: tmpfs
+        target: /workspace/.git
+      - type: bind
+        source: /dev/null
+        target: /workspace/secret.json
+        read_only: true
+      - type: tmpfs
+        target: /workspace/infra
+    networks:
+      - isolated
+
+networks:
+  isolated:
+    internal: true

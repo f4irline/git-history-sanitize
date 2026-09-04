@@ -11,7 +11,9 @@ moved to the requested output path only after verification succeeds.
 The original sandbox-specific prototype is preserved in
 [`proto/`](proto/). It demonstrates one possible consumer of a sanitized Git
 database, but is not part of this tool. The separate `examples/` namespace is
-reserved for samples that use this tool.
+for runnable samples that use published Git History Sanitize artifacts. Start
+with the [`examples/` index](examples/README.md) for CLI, BuildKit, GitHub
+Actions, and proto-style devcontainer integrations.
 
 ## Choose an installation
 
