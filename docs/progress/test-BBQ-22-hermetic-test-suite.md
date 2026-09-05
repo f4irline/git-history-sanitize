@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:24
+**Last Updated:** 2026-09-05 07:30
 
 ## Overview
 
@@ -79,6 +79,13 @@ Per the three-round review limit, implementation is paused pending direction on 
 non-vacuous established error contract to exercise. No push, PR, or ticket state
 change to In Review has occurred.
 
+### 2026-09-05 07:30
+
+The user confirmed option 1: no established error/redaction contract exists for
+this version, so no redaction regression is required. Removed the vacuous
+assertions while retaining the controlled-failure source-immutability regression.
+This is a ticket-scope clarification, not a House Rules exception.
+
 ## Technical Notes
 
 - House Rules: security-first isolation, predictable CLI output, no unnecessary
@@ -105,6 +112,4 @@ change to In Review has occurred.
 
 ## Blockers
 
-- Final implementation review did not pass after three rounds. The remaining
-  finding requires direction on an established error path that can carry sensitive
-  source/configuration data for meaningful human/JSON redaction assertions.
+None.
