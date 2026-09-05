@@ -18,23 +18,27 @@ Follow these steps:
 
 ## Setup
 
+**Mandatory House Rules Gate:**
+- Before doing repository work, capture the launching checkout with `git rev-parse --show-toplevel` as `workflow_root` and initially set `worktree_path` to the same value.
+- Use the Read tool directly on `{workflow_root}/.opencode/HOUSE_RULES.md`.
+- Do not use Glob, Grep, or directory listing to locate or test this known path.
+- Treat the loaded rules as binding for the entire workflow; do not require or load a copy from the ticket worktree.
+- If the direct read fails, stop with `BBQ_PHASE_RESULT: FAILED` and report the read error.
+- If any requested change conflicts with House Rules, call it out and request explicit exception handling.
+
 1. Use the git-find-ticket-branch skill to find the branch for this ticket
 2. Use the `git-worktree-find` skill to locate the existing worktree for that branch
    - If no worktree exists yet, create one under `.opencode/.bbq-worktrees/` using `git-worktree-prepare`
    - New worktrees mirror local-only files from `.opencode/worktree-local-files`
-   - Capture outputs as `branch_name` and `worktree_path`
+   - Capture outputs as `workflow_root`, `branch_name`, and `worktree_path`
+   - If the branch is already checked out in the root checkout, use `workflow_root` as `worktree_path`; do not create another worktree
 3. From this point forward, run all git/code actions in the resolved worktree path
    - Prefer explicit path-aware commands (`git -C "{worktree_path}" ...`) when possible
-   - Do not rely on current working directory after worktree resolution
+   - Do not rely on the process current directory; this applies whether `worktree_path` is the root checkout or a dedicated worktree
 4. Pull the latest changes in that worktree and resolve any conflicts (ask for help if conflicts are complex)
 5. **Check for existing progress doc** at `docs/progress/{branch-name}.md` in that worktree
     - If it exists, read it and check the Workflow Checklist for current status
     - If not, create one using the progress-doc skill with a review-specific workflow checklist (see below)
-
-**House Rules Gate (always):**
-- Check if `.opencode/HOUSE_RULES.md` exists.
-- If it exists, read it before making review fixes and treat it as binding.
-- If any requested change conflicts with House Rules, call it out and request explicit exception handling.
 
 ## Address Review Comments (Phase 1: Implementation)
 

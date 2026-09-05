@@ -19,25 +19,30 @@ Follow these steps:
 
 ## Before Cooking
 
+**Mandatory House Rules Gate:**
+- Before doing repository work, capture the launching checkout with `git rev-parse --show-toplevel` as `workflow_root` and initially set `worktree_path` to the same value.
+- Use the Read tool directly on `{workflow_root}/.opencode/HOUSE_RULES.md`.
+- Do not use Glob, Grep, or directory listing to locate or test this known path.
+- Treat the loaded rules as binding for the entire workflow; do not require or load a copy from the ticket worktree.
+- If the direct read fails, stop with `BBQ_PHASE_RESULT: FAILED` and report the read error.
+- Track any required exception explicitly in progress documentation.
+
 1. Move the ticket to "In Progress" status using Linear MCP
 2. Read the full ticket details from Linear, including research and planning comments
 3. **Check the pantry for learnings**: If `docs/learnings/` exists, scan all files for learnings relevant to this ticket's domain. Keep these in mind during implementation.
 
-**House Rules Gate (always):**
-- Check if `.opencode/HOUSE_RULES.md` exists.
-- If it exists, read it before writing code and treat it as binding for implementation choices, testing, and PR scope.
-- Track any required exception explicitly in progress documentation.
-
 4. Ask clarifying questions if anything is unclear before starting
 5. Use the `git-branch-create` skill to resolve a properly named ticket branch
-6. Use the `git-worktree-prepare` skill to create or reuse a dedicated worktree for that branch
+6. Unless the user or active workflow explicitly requires working in the root checkout, use the `git-worktree-prepare` skill to create or reuse a dedicated worktree for that branch
    - Worktree behavior is **default-on** for `/bbq.fire`
    - Worktrees are created under `.opencode/.bbq-worktrees/` in the project root
    - Local-only files are mirrored from `.opencode/worktree-local-files`
-   - Capture outputs as `branch_name` and `worktree_path`
+   - Capture outputs as `workflow_root`, `branch_name`, and `worktree_path`
+   - If working without a dedicated worktree, keep `worktree_path` equal to `workflow_root` and use worktree state `root`
+
 7. From this point forward, run **all git, code, test, and documentation actions in that worktree path**
    - Prefer explicit path-aware commands (`git -C "{worktree_path}" ...`) when possible
-   - Do not rely on current working directory after worktree creation
+   - Do not rely on the process current directory; this applies whether `worktree_path` is the root checkout or a dedicated worktree
 8. Use the `git-push-remote` skill with explicit inputs `worktree_path` and `branch_name`
 
 ## Fire the Grill (Phase 1: Implementation)
@@ -108,7 +113,7 @@ Ensure all tests pass before proceeding.
 
 ## Implementation Review Gate
 
-After implementation and validation are complete, use the Task tool to spawn the `health-inspector` subagent from `worktree_path`. Give it the ticket ID, user context, `worktree_path`, and this task: review the completed implementation and its diff against the full Linear ticket, Technical Plan, House Rules, relevant learnings, and validation results.
+After implementation and validation are complete, use the Task tool to spawn the `health-inspector` subagent from `worktree_path`. Give it the ticket ID, user context, `workflow_root`, `worktree_path`, and this task: review the completed implementation and its diff against the full Linear ticket, Technical Plan, House Rules, relevant learnings, and validation results.
 
 - If it returns `REVIEW_RESULT: PASS`, continue with the Learnings phase.
 - If it returns `REVIEW_RESULT: CHANGES_REQUIRED`, resolve every blocking and important finding in `worktree_path`, update tests and progress documentation as needed, run the relevant validation again, commit the revisions with the git-commit skill, then spawn a fresh `health-inspector` review.
