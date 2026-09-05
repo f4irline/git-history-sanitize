@@ -137,7 +137,14 @@ class GitFixture:
                 env=self._runtime_environment(),
                 text=True,
             )
-        return [str(runtime / "bin" / "git-history-sanitize"), *arguments]
+        launcher = (runtime / "bin" / "git-history-sanitize").resolve(strict=True)
+        try:
+            launcher.relative_to(runtime.resolve(strict=True))
+        except ValueError as error:
+            raise RuntimeError(
+                "wheel console script must resolve inside the fixture-owned wheel venv"
+            ) from error
+        return [str(launcher), *arguments]
 
     def _container_cli(self, arguments: tuple[str, ...]) -> list[str]:
         image = os.environ.get("GHS_CONTAINER_IMAGE")
@@ -231,6 +238,26 @@ class GitFixture:
             *translated,
         ]
 
+    def _assert_container_result_redacted(
+        self, result: subprocess.CompletedProcess[str], arguments: tuple[str, ...]
+    ) -> None:
+        host_paths = [
+            self.root,
+            self.source,
+            self.home,
+            self.xdg_config,
+            self.global_config,
+            self.template_dir,
+            self.hooks_dir,
+        ]
+        path_options = {"--source", "--repository", "--policy", "--output"}
+        host_paths.extend(
+            Path(arguments[index + 1]).resolve()
+            for index, argument in enumerate(arguments[:-1])
+            if argument in path_options
+        )
+        self.assert_redacted(result.stdout + result.stderr, *(str(path) for path in host_paths))
+
     def run_cli(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
         runtime = os.environ.get("GHS_TEST_RUNTIME", "source")
         if runtime == "source":
@@ -241,13 +268,16 @@ class GitFixture:
             command = self._container_cli(arguments)
         else:
             raise RuntimeError(f"unsupported GHS_TEST_RUNTIME: {runtime}")
-        return subprocess.run(
+        result = subprocess.run(
             command,
             check=check,
             capture_output=True,
             env=self._runtime_environment(),
             text=True,
         )
+        if runtime == "container":
+            self._assert_container_result_redacted(result, arguments)
+        return result
 
     def write_policy(
         self,
@@ -408,7 +438,7 @@ class GitFixture:
     def assert_redacted(output: str, *sensitive_values: str) -> None:
         for value in sensitive_values:
             if value:
-                assert value not in output, f"sensitive value leaked: {value!r}"
+                assert value not in output, "sensitive value leaked in command output"
 
     def assertEqual(self, first: object, second: object, message: str = "") -> None:
         if first != second:

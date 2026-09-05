@@ -81,8 +81,9 @@ class GitFixtureTests(unittest.TestCase):
 
     def test_redaction_assertion_accepts_context_but_rejects_sensitive_values(self) -> None:
         self.fixture.assert_redacted("error: cannot read policy", "customer-secret", "private/secret.txt")
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as error:
             self.fixture.assert_redacted('{"error": "customer-secret"}', "customer-secret")
+        self.assertNotIn("customer-secret", str(error.exception))
 
     def test_source_runner_uses_isolated_installed_module_without_pythonpath(self) -> None:
         environment = self.fixture.environment | {"PYTHONPATH": "/host/checkout/src"}
@@ -104,6 +105,53 @@ class GitFixtureTests(unittest.TestCase):
         with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "wheel"}, clear=False):
             with self.assertRaisesRegex(RuntimeError, "GHS_WHEEL"):
                 self.fixture.run_cli("doctor")
+
+    def test_wheel_runner_rejects_console_script_outside_fixture_venv(self) -> None:
+        wheel = self.fixture.root / "fixture.whl"
+        wheel.touch()
+        launcher = self.fixture.root / "wheel-runtime" / "bin" / "git-history-sanitize"
+        launcher.parent.mkdir(parents=True)
+        launcher.symlink_to(self.fixture.python_executable)
+
+        with patch.dict(os.environ, {"GHS_WHEEL": str(wheel)}, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "fixture-owned wheel venv"):
+                self.fixture._wheel_cli(("doctor",))
+
+    def test_container_runner_allows_translated_paths_in_success_output(self) -> None:
+        arguments = self._container_rewrite_arguments()
+        result = subprocess.CompletedProcess([], 0, "/input.git /output/output.git\n", "/policy.yml\n")
+
+        with (
+            patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container", "GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+            patch("tests.support.git_fixture.subprocess.run", return_value=result),
+        ):
+            self.assertIs(self.fixture.run_cli(*arguments), result)
+
+    def test_container_runner_rejects_host_paths_in_expected_failure_output(self) -> None:
+        arguments = self._container_rewrite_arguments()
+        result = subprocess.CompletedProcess([], 2, "", f"cannot read {self.fixture.global_config}\n")
+
+        with (
+            patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container", "GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+            patch("tests.support.git_fixture.subprocess.run", return_value=result),
+        ):
+            with self.assertRaisesRegex(AssertionError, "sensitive value leaked in command output") as error:
+                self.fixture.run_cli(*arguments, check=False)
+        self.assertNotIn(str(self.fixture.global_config), str(error.exception))
+
+    def _container_rewrite_arguments(self) -> tuple[str, ...]:
+        policy = self.fixture.write_policy()
+        return (
+            "rewrite",
+            "--source",
+            str(self.fixture.source / ".git"),
+            "--output",
+            str(self.fixture.root / "output.git"),
+            "--policy",
+            str(policy),
+        )
 
     def test_container_runner_translates_fixture_paths_and_uses_allowlisted_environment(self) -> None:
         policy = self.fixture.write_policy()

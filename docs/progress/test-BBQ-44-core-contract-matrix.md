@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 16:20
+**Last Updated:** 2026-09-05 16:35
 
 ## Overview
 
@@ -185,6 +185,16 @@ the build did not continue to fetch, compile, or execute the pinned Git source.
 This is an external keyserver-availability blocker for the full wheel/OCI
 matrix, not a runtime-entrypoint result.
 
+### 2026-09-05 16:35
+
+Resolved the latest review findings in the fixture harness. The wheel console
+script now resolves strictly inside the fixture-owned wheel venv before use.
+OCI runtime results now redact host fixture, source, policy, output, and
+configuration paths for both successful and expected-failure commands while
+allowing the translated fixed container paths. `assert_redacted` now emits a
+generic failure diagnostic that does not repeat the sensitive value. Focused
+deterministic fixture coverage and the full feasible source suite passed.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -205,6 +215,8 @@ matrix, not a runtime-entrypoint result.
   validates its source-checkout test stage, not the runtime OCI entrypoint)
 - [x] Shell, Python, YAML, and whitespace static checks for toolchain changes
 - [x] Focused deterministic runner and toolchain tests (12 tests)
+- [x] Latest review-finding fixture tests (11 tests) and full feasible source
+  suite (46 tests) in `.venv-verify`
 - [x] Latest source-only helper phase (16 tests) and source runtime inventory
   (27 tests) in an isolated editable venv without `PYTHONPATH`
 - [ ] Full pinned runtime image and contract matrix (not run locally; this host
