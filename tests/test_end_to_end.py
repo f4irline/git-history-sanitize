@@ -187,6 +187,25 @@ refs:
         self.assertEqual(failed.returncode, 2)
         self.assertIn("Output path already exists", failed.stderr)
         self.fixture.assert_redacted(failed.stderr, "customer-secret", "private/secret.txt")
+
+        json_failed = self.fixture.run_cli(
+            "rewrite",
+            "--source",
+            str(self.source / ".git"),
+            "--output",
+            str(output),
+            "--policy",
+            str(self.root / "policy.yml"),
+            "--json",
+            check=False,
+        )
+        self.assertEqual(json_failed.returncode, 2)
+        self.assertIn("Output path already exists", json_failed.stderr)
+        self.fixture.assert_redacted(
+            json_failed.stdout + json_failed.stderr,
+            "customer-secret",
+            "private/secret.txt",
+        )
         self.fixture.assert_source_snapshot(source_snapshot)
 
 

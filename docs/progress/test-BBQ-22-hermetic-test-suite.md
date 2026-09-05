@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:10
+**Last Updated:** 2026-09-05 07:18
 
 ## Overview
 
@@ -64,6 +64,12 @@ and verifier-invariant regressions. `PYTHONPATH=src python3 -m unittest discover
 Implementation review required stronger fixture-owned HOME/XDG setup and explicit
 physical-object/ref/output snapshot coverage. Added targeted regression assertions;
 validation and review will be rerun before proceeding.
+
+### 2026-09-05 07:18
+
+Second review requested an explicit failed `--json` CLI invocation. The controlled
+failure test now checks useful error context and sensitive-value redaction in both
+normal and JSON-mode output; validation and the final review are being rerun.
 
 ## Technical Notes
 
