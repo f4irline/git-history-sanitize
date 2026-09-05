@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 14:27
+**Last Updated:** 2026-09-05 14:31
 
 ## Overview
 
@@ -110,6 +110,15 @@ tag `v2.47.0` at the planned commit emits `a40bce548d2c`, not the planned
 `bc98e38e057b`. The checker retains the planned fingerprint and the matrix is
 blocked pending a corrected, approved toolchain pin.
 
+### 2026-09-05 14:31
+
+Implementation Review Gate round 3 returned changes required. It found that
+the new runtime selectors are not yet consumed by `GitFixture`, the planned
+toolchain fingerprint conflicts with the output from its pinned source, and
+the deterministic checker tests plus signed-tag verification are still absent.
+This is the third review round, so the workflow stops for user direction rather
+than relaxing the fail-closed toolchain policy.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -117,6 +126,8 @@ blocked pending a corrected, approved toolchain pin.
   mirroring because `proto/.devcontainer/.env` is absent.
 - Initial exploration confirms core focused tests can consume the existing
   hermetic fixture. Owner-dependent contracts remain fail-closed.
+- Learning captured in `docs/learnings/gotchas.md`: validate a tool fingerprint
+  from the exact pinned source before treating it as an approved contract.
 
 ## Testing
 
@@ -147,3 +158,4 @@ blocked pending a corrected, approved toolchain pin.
 - `Containerfile` - pinned runtime toolchain and isolated test/runtime venvs
 - `.github/workflows/ci.yml` - source, wheel, and OCI contract matrix
 - `README.md` - pinned toolchain prerequisites and local matrix commands
+- `docs/learnings/gotchas.md` - pinned-source fingerprint mismatch gotcha
