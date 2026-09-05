@@ -2,7 +2,7 @@
 
 **Branch:** `test/BBQ-44-core-contract-matrix`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
-**Status:** Complete
+**Status:** In Progress
 **Started:** 2026-09-05
 **Last Updated:** 2026-09-05 15:40 EEST
 
@@ -59,6 +59,15 @@ all 50 tests with the repaired bootstrap.
 The rerun exposed a stale bootstrap-fixture assertion that still expected the
 old signer fingerprint. Updated the deterministic assertion alongside the
 bootstrap repair before republishing the branch.
+
+### 2026-09-05 17:48
+
+OCI contracts reached the application but Git rejected the mounted standalone
+`.git` directory as a repository. The container fixture now mounts the
+worktree parent read-only and passes `/input/.git`, matching the source
+contract's repository layout. Added deterministic command-construction
+coverage. Local Docker is unavailable because its daemon socket is absent, so
+the OCI runtime validation remains delegated to CI.
 
 ### 2026-09-05 16:50
 

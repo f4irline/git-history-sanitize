@@ -176,8 +176,8 @@ class GitFixture:
                     if input_mounted:
                         raise ValueError("container CLI accepts only one input repository")
                     input_mounted = True
-                    mounts.extend(["--mount", f"type=bind,src={host_path},dst=/input.git,readonly"])
-                    translated[index + 1] = "/input.git"
+                    mounts.extend(["--mount", f"type=bind,src={host_path.parent},dst=/input,readonly"])
+                    translated[index + 1] = "/input/.git"
                     continue
                 if host_path.name in {"", "."}:
                     raise ValueError(f"{argument} requires a named path")
@@ -193,6 +193,10 @@ class GitFixture:
                 if input_mounted:
                     raise ValueError("container CLI accepts only one input repository")
                 input_mounted = True
+                if host_path.name == ".git":
+                    mounts.extend(["--mount", f"type=bind,src={host_path.parent},dst=/input,readonly"])
+                    translated[index + 1] = "/input/.git"
+                    continue
             mounts.extend(["--mount", f"type=bind,src={host_path},dst={fixed_path},readonly"])
             translated[index + 1] = fixed_path
         if any(str(self.root) in argument for argument in translated):
