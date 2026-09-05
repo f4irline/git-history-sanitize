@@ -40,15 +40,41 @@ class GitFixtureTests(unittest.TestCase):
         )
 
         self.assertEqual(outside.stdout.strip(), "Hostile Host")
+        self.assertTrue(self.fixture.home.is_dir())
+        self.assertTrue(self.fixture.xdg_config.is_dir())
+        self.assertNotEqual(self.fixture.environment["HOME"], os.environ.get("HOME"))
+        self.assertNotEqual(
+            self.fixture.environment["GIT_CONFIG_GLOBAL"], os.environ.get("GIT_CONFIG_GLOBAL")
+        )
         self.assertEqual(self.fixture.git(self.fixture.source, "config", "user.name"), "Fixture")
         self.assertEqual(self.fixture.git(self.fixture.source, "config", "--global", "user.name", check=False), "")
 
-    def test_source_snapshot_detects_worktree_and_object_mutation(self) -> None:
+    def test_source_snapshot_detects_worktree_ref_index_and_object_mutation(self) -> None:
         self.fixture.write("allowed.txt", "one\n")
         self.fixture.commit("first", "allowed.txt")
         snapshot = self.fixture.snapshot_source()
 
         self.fixture.write("allowed.txt", "changed\n")
+        with self.assertRaises(AssertionError):
+            self.fixture.assert_source_snapshot(snapshot)
+
+        self.fixture.git(self.fixture.source, "reset", "--hard")
+        snapshot = self.fixture.snapshot_source()
+        self.fixture.branch("unexpected")
+        with self.assertRaises(AssertionError):
+            self.fixture.assert_source_snapshot(snapshot)
+
+        self.fixture.git(self.fixture.source, "branch", "-D", "unexpected")
+        snapshot = self.fixture.snapshot_source()
+        self.fixture.write("staged.txt", "index mutation\n")
+        self.fixture.git(self.fixture.source, "add", "staged.txt")
+        with self.assertRaises(AssertionError):
+            self.fixture.assert_source_snapshot(snapshot)
+
+        self.fixture.git(self.fixture.source, "reset", "--hard")
+        snapshot = self.fixture.snapshot_source()
+        blob = self.fixture.add_unreachable_blob("unreachable object")
+        self.assertIn(blob, self.fixture.all_objects(self.fixture.source))
         with self.assertRaises(AssertionError):
             self.fixture.assert_source_snapshot(snapshot)
 

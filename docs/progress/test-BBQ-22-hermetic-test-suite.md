@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:02
+**Last Updated:** 2026-09-05 07:10
 
 ## Overview
 
@@ -58,6 +58,12 @@ Migrated the end-to-end test through the CLI plan/rewrite/verify flow and added
 hostile-global-config, controlled-failure immutability, cleanup, repeatability,
 and verifier-invariant regressions. `PYTHONPATH=src python3 -m unittest discover
 -s tests -t . -v` passes (11 tests).
+
+### 2026-09-05 07:10
+
+Implementation review required stronger fixture-owned HOME/XDG setup and explicit
+physical-object/ref/output snapshot coverage. Added targeted regression assertions;
+validation and review will be rerun before proceeding.
 
 ## Technical Notes
 
