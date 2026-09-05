@@ -21,6 +21,7 @@ class SourceSnapshot:
 
     refs: str
     reachable_objects: str
+    all_objects: str
     status: str
     index: bytes
     worktree: tuple[tuple[str, bytes], ...]
@@ -47,6 +48,8 @@ class GitFixture:
         self.python_executable = str(Path(sys.executable).resolve())
         self.filter_repo_executable = shutil.which("git-filter-repo")
         self.environment = self._environment()
+        self.home.mkdir()
+        self.xdg_config.mkdir()
         self.global_config.touch()
         self.template_dir.mkdir()
         self.hooks_dir.mkdir()
@@ -165,8 +168,9 @@ class GitFixture:
             if path.is_file() and ".git" not in path.parts
         )
         return SourceSnapshot(
-            refs=self.git(self.source, "for-each-ref", "--format=%(refname) %(objectname)"),
-            reachable_objects=self.git(self.source, "rev-list", "--objects", "--all"),
+            refs=self.refs(self.source),
+            reachable_objects=self.reachable_objects(self.source),
+            all_objects=self.all_objects(self.source),
             status=self.git(self.source, "status", "--porcelain=v1", "--untracked-files=all"),
             index=(self.source / ".git" / "index").read_bytes(),
             worktree=worktree,
@@ -174,6 +178,24 @@ class GitFixture:
 
     def assert_source_snapshot(self, snapshot: SourceSnapshot) -> None:
         self.assertEqual(self.snapshot_source(), snapshot, "source repository was mutated")
+
+    def refs(self, repository: Path) -> str:
+        return self.git(repository, "for-each-ref", "--format=%(refname) %(objectname)")
+
+    def reachable_objects(self, repository: Path) -> str:
+        return self.git(repository, "rev-list", "--objects", "--all")
+
+    def all_objects(self, repository: Path) -> str:
+        return self.git(repository, "cat-file", "--batch-all-objects", "--batch-check=%(objectname)")
+
+    def snapshot_output(self, repository: Path) -> tuple[str, str, str]:
+        """Return refs plus reachable and physical object identities for a bare output."""
+        return self.refs(repository), self.reachable_objects(repository), self.all_objects(repository)
+
+    def assert_output_snapshot(
+        self, repository: Path, snapshot: tuple[str, str, str]
+    ) -> None:
+        self.assertEqual(self.snapshot_output(repository), snapshot, "sanitized output was mutated")
 
     @staticmethod
     def assert_redacted(output: str, *sensitive_values: str) -> None:

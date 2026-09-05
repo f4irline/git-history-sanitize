@@ -120,6 +120,7 @@ refs:
         self.assertNotIn("private/secret.txt", self.fixture.git(output, "ls-tree", "-r", "--name-only", "HEAD"))
         self.assertEqual(self.fixture.git(output, "remote"), "")
         self.assertEqual(self.fixture.git(output, "for-each-ref", "--format=%(refname)"), "refs/heads/main")
+        output_snapshot = self.fixture.snapshot_output(output)
 
         verified = self.fixture.run_cli(
             "verify",
@@ -144,6 +145,7 @@ refs:
             "Annotated tag secret message",
         )
         self.assertEqual(json.loads(verified.stdout)["root"], report["verification"]["root"])
+        self.fixture.assert_output_snapshot(output, output_snapshot)
 
         # The tool accepts its own bare output as a future read-only source.
         second_output = self.root / "sanitized-again.git"

@@ -52,11 +52,7 @@ refs:
         self.assertEqual(
             self.fixture.git(first, "fsck", "--full", "--unreachable", "--no-reflogs"), ""
         )
-        self.assertEqual(self.fixture.git(first, "show-ref"), self.fixture.git(second, "show-ref"))
-        self.assertEqual(
-            self.fixture.git(first, "log", "--all", "--format=%H%n%ct%n%s"),
-            self.fixture.git(second, "log", "--all", "--format=%H%n%ct%n%s"),
-        )
+        self.assertEqual(self.fixture.snapshot_output(first), self.fixture.snapshot_output(second))
         self.assertEqual(first_report, second_report)
 
     def test_verifier_rejects_unexpected_ref_and_unreachable_object(self) -> None:
