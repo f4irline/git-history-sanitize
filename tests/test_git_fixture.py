@@ -130,26 +130,63 @@ class GitFixtureTests(unittest.TestCase):
             [
                 "rewrite",
                 "--source",
-                "/fixture/source.git",
+                "/input.git",
                 "--output",
-                "/fixture/output.git",
+                "/output/output.git",
                 "--policy",
-                "/fixture/policy.yml",
+                "/policy.yml",
             ],
         )
         self.assertNotIn(str(self.fixture.root), command[image_index + 1:])
+        mounts = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--mount"]
+        self.assertIn(
+            f"type=bind,src={(self.fixture.source / '.git').resolve()},dst=/input.git,readonly",
+            mounts,
+        )
+        self.assertIn(f"type=bind,src={policy.resolve()},dst=/policy.yml,readonly", mounts)
+        self.assertIn(f"type=bind,src={output.parent.resolve()},dst=/output", mounts)
+        for host_path, container_path in (
+            (self.fixture.home, "/home/fixture"),
+            (self.fixture.xdg_config, "/xdg-config"),
+            (self.fixture.global_config, "/gitconfig"),
+            (self.fixture.template_dir, "/templates"),
+            (self.fixture.hooks_dir, "/hooks"),
+        ):
+            self.assertIn(f"type=bind,src={host_path},dst={container_path},readonly", mounts)
+        destinations = [mount.split(",dst=", 1)[1].split(",", 1)[0] for mount in mounts]
+        self.assertEqual(len(destinations), len(set(destinations)))
         self.assertIn("--read-only", command)
         self.assertIn("--network=none", command)
         self.assertEqual(
             {command[index + 1] for index, value in enumerate(command[:-1]) if value == "--env"},
             {
-                "HOME=/tmp/home",
+                "HOME=/home/fixture",
+                "XDG_CONFIG_HOME=/xdg-config",
                 "LC_ALL=C",
                 "LANG=C",
                 "TZ=UTC",
                 "GIT_CONFIG_NOSYSTEM=1",
-                "GIT_CONFIG_GLOBAL=/dev/null",
+                "GIT_CONFIG_GLOBAL=/gitconfig",
+                "GIT_TEMPLATE_DIR=/templates",
+                "GIT_AUTHOR_NAME=Fixture",
+                "GIT_AUTHOR_EMAIL=fixture@example.invalid",
+                "GIT_COMMITTER_NAME=Fixture",
+                "GIT_COMMITTER_EMAIL=fixture@example.invalid",
+                "GIT_AUTHOR_DATE=2026-09-03T12:00:00+00:00",
+                "GIT_COMMITTER_DATE=2026-09-03T12:00:00+00:00",
+                "GIT_CONFIG_COUNT=4",
+                "GIT_CONFIG_KEY_0=commit.gpgsign",
+                "GIT_CONFIG_VALUE_0=false",
+                "GIT_CONFIG_KEY_1=tag.gpgSign",
+                "GIT_CONFIG_VALUE_1=false",
+                "GIT_CONFIG_KEY_2=credential.helper",
+                "GIT_CONFIG_VALUE_2=",
+                "GIT_CONFIG_KEY_3=core.hooksPath",
+                "GIT_CONFIG_VALUE_3=/hooks",
             },
+        )
+        self.assertFalse(
+            any(str(self.fixture.root) in value for value in command[image_index + 1:] if value)
         )
 
 

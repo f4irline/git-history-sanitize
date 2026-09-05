@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 15:05
+**Last Updated:** 2026-09-05 16:20
 
 ## Overview
 
@@ -144,6 +144,47 @@ Ran the full isolated source suite with an editable install and no `PYTHONPATH`
 checks also passed. The complete signed bootstrap and OCI matrix remain for CI:
 this host has no `gpg`, and the bootstrap correctly refuses to continue.
 
+### 2026-09-05 16:00
+
+Resolved the remaining health-inspector findings without changing the pinned
+toolchain fingerprint. Container fixture execution now maps one input repository
+to `/input.git`, policy to `/policy.yml`, and the output parent to `/output`, so
+the translated paths cannot shadow each other. It also mounts the fixture-owned
+home, XDG configuration, global Git config, template, and hooks directories
+read-only at distinct container paths, passes only translated allowlisted Git
+environment values, and tests that host fixture paths never reach container CLI
+arguments or environment values.
+
+The CI and README now run `test_git_fixture`, `test_toolchain`, and
+`test_policy` only in the source helper phase. Source, wheel, and OCI runs use
+the same explicit fixture-backed runtime inventory. The prior `--target test`
+container check validates the Containerfile's test stage, which runs the source
+checkout in `/opt/test`; it does not exercise the runtime OCI entrypoint. The
+runtime entrypoint is exercised only by the fixture-backed OCI contract command
+when an image is available.
+
+Bootstrap now exports an isolated HOME, XDG config, global config, and template
+directory before every Git invocation, including signed-tag verification,
+revision resolution, and checkout. Focused helper tests passed locally; full
+pinned toolchain, wheel, and OCI checks remain blocked because this host lacks
+GnuPG.
+
+An isolated editable source validation passed all 16 source-only helper tests
+and all 27 fixture-backed source runtime contracts without `PYTHONPATH`.
+
+The OCI build then exposed a pre-existing one-character regression in the Git
+release signer pin. Restored the v2.47.0 signer fingerprint ending in
+`B0B5E88696AFE6CB` to `4F9036B1FEE7221FC778ECEFB0B5E88696AFE6CB`; the
+git-filter-repo toolchain fingerprint remains `a40bce548d2c`.
+
+### 2026-09-05 16:20
+
+Retried the OCI build after restoring the signer pin. It reached the signed-key
+fetch but `keys.openpgp.org` returned `No data`; the bootstrap failed closed and
+the build did not continue to fetch, compile, or execute the pinned Git source.
+This is an external keyserver-availability blocker for the full wheel/OCI
+matrix, not a runtime-entrypoint result.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -160,11 +201,15 @@ this host has no `gpg`, and the bootstrap correctly refuses to continue.
 - [x] Full isolated source suite (42 tests without `PYTHONPATH`)
 - [x] Package build (`pip3 wheel --no-deps .`)
 - [x] Isolated wheel runtime (`git-history-sanitize doctor --json`)
-- [x] Container suite (24 tests via `docker buildx build --target test -f Containerfile .`)
+- [x] Containerfile test target (`docker buildx build --target test -f Containerfile .`;
+  validates its source-checkout test stage, not the runtime OCI entrypoint)
 - [x] Shell, Python, YAML, and whitespace static checks for toolchain changes
 - [x] Focused deterministic runner and toolchain tests (12 tests)
+- [x] Latest source-only helper phase (16 tests) and source runtime inventory
+  (27 tests) in an isolated editable venv without `PYTHONPATH`
 - [ ] Full pinned runtime image and contract matrix (not run locally; this host
-  lacks GnuPG, so the signed-tag bootstrap correctly fails closed)
+  lacks host GnuPG and the OCI retry was blocked by `keys.openpgp.org` returning
+  `No data`; the signed-tag bootstrap correctly failed closed)
 
 ## Files Changed
 
@@ -186,3 +231,4 @@ this host has no `gpg`, and the bootstrap correctly refuses to continue.
 - `README.md` - pinned toolchain prerequisites and local matrix commands
 - `docs/learnings/gotchas.md` - pinned-source fingerprint mismatch gotcha
 - `tests/test_toolchain.py` - deterministic exact-output checker tests
+- `tests/support/run_runtime_contracts.sh` - shared source/wheel/OCI runtime inventory

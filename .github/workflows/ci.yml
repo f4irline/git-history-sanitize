@@ -31,28 +31,26 @@ jobs:
         run: |
           scripts/bootstrap-test-git.sh "$RUNNER_TEMP/git-2.47.0"
           echo "$RUNNER_TEMP/git-2.47.0/bin" >> "$GITHUB_PATH"
-      - name: Verify contract toolchain before host runtimes
+      - name: Run source-only helpers and verify the contract toolchain
         run: |
           python3 -m venv .venv-source
           .venv-source/bin/python -m pip install --no-deps -e . git-filter-repo==2.47.0
-          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python -m unittest -v tests.test_toolchain
+          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python -m unittest -v tests.test_git_fixture tests.test_toolchain tests.test_policy
           PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python tests/support/toolchain.py
       - name: Run source contracts
-        run: |
-          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=source .venv-source/bin/python -m unittest discover -s tests -t . -v
+        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=source tests/support/run_runtime_contracts.sh .venv-source/bin/python
       - name: Build distributions
         run: |
           python3 -m pip install build==1.3.0
           python3 -m build
       - name: Run wheel contracts
-        run: |
-          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/*.whl)" .venv-source/bin/python -m unittest discover -s tests -t . -v
+        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/*.whl)" tests/support/run_runtime_contracts.sh .venv-source/bin/python
       - name: Build and validate OCI runtime
         run: |
           docker buildx build --load -t git-history-sanitize:local -f Containerfile .
           docker run --rm --entrypoint python3 -v "$PWD/tests/support/toolchain.py:/toolchain.py:ro" git-history-sanitize:local /toolchain.py
       - name: Run OCI contracts
-        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local .venv-source/bin/python -m unittest discover -s tests -t . -v
+        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local tests/support/run_runtime_contracts.sh .venv-source/bin/python
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

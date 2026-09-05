@@ -150,34 +150,73 @@ class GitFixture:
         translated = list(arguments)
         mounts: list[str] = []
         fixed_paths = {
-            "--source": ("/fixture/source.git", "ro"),
-            "--repository": ("/fixture/repository.git", "ro"),
-            "--policy": ("/fixture/policy.yml", "ro"),
-            "--output": ("/fixture/output.git", "rw"),
+            "--source": ("/input.git", "ro"),
+            "--repository": ("/input.git", "ro"),
+            "--policy": ("/policy.yml", "ro"),
         }
+        input_mounted = False
         for index, argument in enumerate(translated):
-            if argument not in fixed_paths:
+            if argument not in {*fixed_paths, "--output"}:
                 continue
             if index + 1 == len(translated):
                 raise ValueError(f"{argument} requires a path")
+            if argument == "--output":
+                host_path = Path(translated[index + 1]).resolve()
+                if host_path.name in {"", "."}:
+                    raise ValueError("--output requires a named path")
+                mounts.extend(
+                    ["--mount", f"type=bind,src={host_path.parent},dst=/output"]
+                )
+                translated[index + 1] = f"/output/{host_path.name}"
+                continue
             fixed_path, mode = fixed_paths[argument]
             host_path = Path(translated[index + 1]).resolve(strict=mode == "ro")
-            mount_source = host_path.parent if argument == "--output" else host_path
-            destination = "/fixture" if argument == "--output" else fixed_path
-            read_only = ",readonly" if mode == "ro" else ""
-            mounts.extend(["--mount", f"type=bind,src={mount_source},dst={destination}{read_only}"])
+            if fixed_path == "/input.git":
+                if input_mounted:
+                    raise ValueError("container CLI accepts only one input repository")
+                input_mounted = True
+            mounts.extend(["--mount", f"type=bind,src={host_path},dst={fixed_path},readonly"])
             translated[index + 1] = fixed_path
         if any(str(self.root) in argument for argument in translated):
             raise ValueError("container CLI arguments must not contain fixture host paths")
 
         environment = {
-            "HOME": "/tmp/home",
+            "HOME": "/home/fixture",
+            "XDG_CONFIG_HOME": "/xdg-config",
             "LC_ALL": "C",
             "LANG": "C",
             "TZ": "UTC",
             "GIT_CONFIG_NOSYSTEM": "1",
-            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_GLOBAL": "/gitconfig",
+            "GIT_TEMPLATE_DIR": "/templates",
+            "GIT_AUTHOR_NAME": self.AUTHOR_NAME,
+            "GIT_AUTHOR_EMAIL": self.AUTHOR_EMAIL,
+            "GIT_COMMITTER_NAME": self.AUTHOR_NAME,
+            "GIT_COMMITTER_EMAIL": self.AUTHOR_EMAIL,
+            "GIT_AUTHOR_DATE": self.TIMESTAMP,
+            "GIT_COMMITTER_DATE": self.TIMESTAMP,
+            "GIT_CONFIG_COUNT": "4",
+            "GIT_CONFIG_KEY_0": "commit.gpgsign",
+            "GIT_CONFIG_VALUE_0": "false",
+            "GIT_CONFIG_KEY_1": "tag.gpgSign",
+            "GIT_CONFIG_VALUE_1": "false",
+            "GIT_CONFIG_KEY_2": "credential.helper",
+            "GIT_CONFIG_VALUE_2": "",
+            "GIT_CONFIG_KEY_3": "core.hooksPath",
+            "GIT_CONFIG_VALUE_3": "/hooks",
         }
+        translated_mounts = (
+            (self.home, "/home/fixture"),
+            (self.xdg_config, "/xdg-config"),
+            (self.global_config, "/gitconfig"),
+            (self.template_dir, "/templates"),
+            (self.hooks_dir, "/hooks"),
+        )
+        mounts.extend(
+            item
+            for host_path, container_path in translated_mounts
+            for item in ("--mount", f"type=bind,src={host_path},dst={container_path},readonly")
+        )
         return [
             runtime,
             "run",

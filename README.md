@@ -80,13 +80,15 @@ scripts/bootstrap-test-git.sh "$PWD/.toolchain/git-2.47.0"
 export PATH="$PWD/.toolchain/git-2.47.0/bin:$PATH"
 ```
 
-Run the source mode without `PYTHONPATH`:
+Run the source-only fixture/toolchain helpers, then the fixture-backed runtime
+contracts without `PYTHONPATH`:
 
 ```bash
 python3 -m venv .venv-source
 .venv-source/bin/python -m pip install --no-deps -e . git-filter-repo==2.47.0
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python -m unittest -v tests.test_git_fixture tests.test_toolchain tests.test_policy
 PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python tests/support/toolchain.py
-PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=source .venv-source/bin/python -m unittest discover -s tests -t . -v
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=source tests/support/run_runtime_contracts.sh .venv-source/bin/python
 ```
 
 Build and run the wheel mode without `PYTHONPATH`:
@@ -97,7 +99,7 @@ python3 -m build
 python3 -m venv .venv-wheel
 .venv-wheel/bin/python -m pip install --no-deps dist/*.whl git-filter-repo==2.47.0
 PATH="$PWD/.venv-wheel/bin:$PATH" env -u PYTHONPATH .venv-wheel/bin/python tests/support/toolchain.py
-PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/*.whl)" .venv-source/bin/python -m unittest discover -s tests -t . -v
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/*.whl)" tests/support/run_runtime_contracts.sh .venv-source/bin/python
 ```
 
 OCI coverage is opt-in locally and mandatory in CI:
@@ -105,7 +107,7 @@ OCI coverage is opt-in locally and mandatory in CI:
 ```bash
 docker buildx build --load -t git-history-sanitize:local -f Containerfile .
 docker run --rm --entrypoint python3 -v "$PWD/tests/support/toolchain.py:/toolchain.py:ro" git-history-sanitize:local /toolchain.py
-PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local .venv-source/bin/python -m unittest discover -s tests -t . -v
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local tests/support/run_runtime_contracts.sh .venv-source/bin/python
 ```
 
 Fixtures use safe markers for sensitive values. Failure diagnostics and test

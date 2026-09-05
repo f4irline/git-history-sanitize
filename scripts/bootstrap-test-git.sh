@@ -3,7 +3,7 @@ set -euo pipefail
 
 readonly git_tag="v2.47.0"
 readonly git_commit="777489f9e09c8d0dd6b12f9d90de6376330577a2"
-readonly git_release_key_fingerprint="E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
+readonly git_release_key_fingerprint="4F9036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
 readonly expected_output="git version 2.47.0"
 
 if [[ $# -ne 1 ]]; then
@@ -17,7 +17,13 @@ prefix="$(cd "$prefix" && pwd)"
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 export GNUPGHOME="$workdir/gnupg"
+export HOME="$workdir/home"
+export XDG_CONFIG_HOME="$workdir/xdg-config"
+export GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_TEMPLATE_DIR="$workdir/templates"
 mkdir -m 700 "$GNUPGHOME"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$GIT_TEMPLATE_DIR"
 
 if ! command -v gpg >/dev/null; then
   printf 'gpg is required to verify Git release tags\n' >&2
@@ -30,8 +36,8 @@ if [[ "$imported_fingerprint" != "$git_release_key_fingerprint" ]]; then
   exit 1
 fi
 
-GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git init -q "$workdir/git"
-GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$workdir/git" \
+git init -q "$workdir/git"
+git -C "$workdir/git" \
   fetch -q --depth=1 https://github.com/git/git.git "refs/tags/$git_tag:refs/tags/$git_tag"
 git -C "$workdir/git" verify-tag "$git_tag"
 resolved="$(git -C "$workdir/git" rev-parse "$git_tag^{commit}")"
