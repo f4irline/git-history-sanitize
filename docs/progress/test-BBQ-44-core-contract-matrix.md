@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 15:23 EEST
+**Last Updated:** 2026-09-05 15:30 EEST
 
 ## Overview
 
@@ -19,7 +19,7 @@ and CLI behavior using the existing `GitFixture` harness.
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
 - [x] Validate feasible local checks
-- [ ] Commit implementation changes — use `git-commit` skill
+- [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
 - [x] Extract learnings (nothing noteworthy beyond the existing fixture pattern)
@@ -230,6 +230,22 @@ source suite passed (50 tests) without `PYTHONPATH`. The installed
 blocked before the full wheel/OCI runtime matrix because `keys.openpgp.org`
 returns `No data` for the required release signer key.
 
+### 2026-09-05 15:30 EEST
+
+Renamed the runtime contract modules to
+`test_output_cleanup_contracts.py` and `test_verify_contracts.py`. Updated the
+runtime inventory, packaging source inventory, and this file; no runtime
+behavior changed. The focused source runtime inventory passed 28 tests. Full
+source discovery passed all 50 tests in the existing isolated `.venv-verify`
+environment without `PYTHONPATH`.
+
+The same full discovery in a newly created documented `.venv-source` failed
+one fixture-only assertion: its expected PATH exclusion conflicts with the
+documented source setup, which installs `git-filter-repo` in that source venv.
+No change was made outside the requested rename scope. The external signed
+wheel/OCI matrix blocker is unchanged: this host lacks GnuPG and
+`keys.openpgp.org` previously returned `No data` for the required signer key.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -258,6 +274,8 @@ returns `No data` for the required release signer key.
   suite (49 tests) without `PYTHONPATH`
 - [x] Reachable cutoff-commit parity contracts (3 tests) and full isolated source
   suite (50 tests) without `PYTHONPATH`
+- [x] Renamed-contract focused source runtime inventory (28 tests) and full
+  isolated source discovery (50 tests) in `.venv-verify` without `PYTHONPATH`
 - [x] YAML, shell, and Containerfile static checks for the source/test venv pins
 - [ ] Full pinned runtime image and contract matrix (not run locally; this host
   lacks host GnuPG and the OCI retry was blocked by `keys.openpgp.org` returning
@@ -274,8 +292,8 @@ returns `No data` for the required release signer key.
 - `tests/test_filtering_contracts.py` - path and mixed-root contracts
 - `tests/test_cli_contracts.py` - CLI JSON, human output, and expected-failure contracts
 - `tests/support/git_fixture.py` - deterministic commit-tree, tamper-tree, and staging-cleanup helpers
-- `tests/test_output_contracts.py` - report redaction, bare-output, cleanup, atomicity, and re-sanitize contracts
-- `tests/test_verifier_contracts.py` - independent refs, tags, remotes, reflogs, metadata, unreachable-object, graph, and object-database tamper contracts
+- `tests/test_output_cleanup_contracts.py` - report redaction, bare-output, cleanup, atomicity, and re-sanitize contracts
+- `tests/test_verify_contracts.py` - independent refs, tags, remotes, reflogs, metadata, unreachable-object, graph, and object-database tamper contracts
 - `tests/support/toolchain.py` - exact Git and git-filter-repo output checker
 - `scripts/bootstrap-test-git.sh` - pinned Git 2.47.0 bootstrap
 - `Containerfile` - pinned runtime toolchain and isolated test/runtime venvs

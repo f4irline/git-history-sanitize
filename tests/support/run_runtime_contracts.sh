@@ -11,6 +11,6 @@ fi
   tests.test_cutoff_contracts \
   tests.test_end_to_end \
   tests.test_filtering_contracts \
-  tests.test_output_contracts \
+  tests.test_output_cleanup_contracts \
   tests.test_regressions \
-  tests.test_verifier_contracts
+  tests.test_verify_contracts
