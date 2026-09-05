@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** Complete
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:52
+**Last Updated:** 2026-09-05 08:53
 
 ## Overview
 
@@ -30,10 +30,10 @@ coverage to deterministic, isolated test processes.
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Commit progress doc update — use `git-commit` skill
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — user-created after GitHub MCP authorization failure
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -41,7 +41,7 @@ coverage to deterministic, isolated test processes.
 - [x] Create dedicated ticket worktree.
 - [x] Add shared hermetic Git fixture tests.
 - [x] Implement the fixture and migrate end-to-end coverage.
-- [ ] Run validation and implementation review.
+- [x] Run validation and implementation review.
 
 ## Progress Log
 
@@ -116,6 +116,12 @@ blocked pending pull-request permission.
 Retried pull-request creation after confirming no PR exists for the branch. GitHub
 again returned HTTP 403 (`Resource not accessible by personal access token`).
 
+### 2026-09-05 08:53
+
+The user created pull request #1 after the GitHub MCP authorization failure. Moved
+BBQ-22 to In Review and completed every workflow checklist item. The final
+progress-record commit will be pushed to the existing PR branch.
+
 ## Technical Notes
 
 - House Rules: security-first isolation, predictable CLI output, no unnecessary
@@ -143,5 +149,4 @@ again returned HTTP 403 (`Resource not accessible by personal access token`).
 
 ## Blockers
 
-- GitHub token lacks permission to create the pull request. The branch is pushed;
-  once permission is granted, create the PR and move BBQ-22 to In Review.
+None.
