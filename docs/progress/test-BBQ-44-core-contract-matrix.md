@@ -42,6 +42,7 @@ and CLI behavior using the existing `GitFixture` harness.
 - [x] Address the plan/rewrite preflight-validation parity gap
 - [x] Add output-redaction and verifier tamper contract tests using `GitFixture`
 - [x] Run full configured validation and implementation review
+- [x] Repair OCI contract worktree mount regression
 
 ## Progress Log
 
