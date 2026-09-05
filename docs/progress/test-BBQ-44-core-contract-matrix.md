@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 16:35
+**Last Updated:** 2026-09-05 15:11
 
 ## Overview
 
@@ -195,6 +195,22 @@ allowing the translated fixed container paths. `assert_redacted` now emits a
 generic failure diagnostic that does not repeat the sensitive value. Focused
 deterministic fixture coverage and the full feasible source suite passed.
 
+### 2026-09-05 15:11
+
+Resolved the latest review findings without changing production behavior. Wheel
+fixtures now install `git-filter-repo==2.47.0` into their own fresh runtime venv
+and prepend only that venv when resolving the tool; source-runtime access remains
+explicit and wheel execution has no host-tool PATH fallback. OCI verification now
+maps only the fixture source repository to `/input.git`; rewritten bare outputs
+map read-only to `/output/<name>`. New contracts assert those translations,
+physical object-database exclusion by source blob IDs, and author/committer
+names, emails, and timestamps on a retained non-root commit.
+
+Focused fixture and filtering contracts passed (17 tests). The isolated source
+suite passed all 49 tests without `PYTHONPATH`, including the pinned Git and
+git-filter-repo checker outputs. Wheel and OCI end-to-end runtime matrix commands
+were not run in this update; the existing host GnuPG/keyserver blocker remains.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -219,6 +235,8 @@ deterministic fixture coverage and the full feasible source suite passed.
   suite (46 tests) in `.venv-verify`
 - [x] Latest source-only helper phase (16 tests) and source runtime inventory
   (27 tests) in an isolated editable venv without `PYTHONPATH`
+- [x] Latest fixture and filtering contracts (17 tests) and full isolated source
+  suite (49 tests) without `PYTHONPATH`
 - [ ] Full pinned runtime image and contract matrix (not run locally; this host
   lacks host GnuPG and the OCI retry was blocked by `keys.openpgp.org` returning
   `No data`; the signed-tag bootstrap correctly failed closed)
@@ -244,3 +262,6 @@ deterministic fixture coverage and the full feasible source suite passed.
 - `docs/learnings/gotchas.md` - pinned-source fingerprint mismatch gotcha
 - `tests/test_toolchain.py` - deterministic exact-output checker tests
 - `tests/support/run_runtime_contracts.sh` - shared source/wheel/OCI runtime inventory
+- `tests/support/git_fixture.py` - wheel-local filter-repo and OCI verify path translation
+- `tests/test_git_fixture.py` - wheel-local tool and OCI verify mapping contracts
+- `tests/test_filtering_contracts.py` - physical object and retained metadata contracts

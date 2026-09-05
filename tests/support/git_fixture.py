@@ -47,7 +47,7 @@ class GitFixture:
         self.git_executable = self._required_executable("git")
         # Keep the venv launcher path: resolving it escapes the active runtime.
         self.python_executable = sys.executable
-        self.filter_repo_executable = shutil.which("git-filter-repo")
+        self.source_filter_repo_executable = shutil.which("git-filter-repo")
         self.environment = self._environment()
         self.home.mkdir()
         self.xdg_config.mkdir()
@@ -67,8 +67,6 @@ class GitFixture:
 
     def _environment(self) -> dict[str, str]:
         executable_dirs = {str(Path(self.git_executable).parent), str(Path(self.python_executable).parent)}
-        if self.filter_repo_executable:
-            executable_dirs.add(str(Path(self.filter_repo_executable).resolve().parent))
         return {
             "PATH": os.pathsep.join(sorted(executable_dirs)),
             "HOME": str(self.home),
@@ -113,8 +111,13 @@ class GitFixture:
         )
         return result.stdout.strip()
 
-    def _runtime_environment(self) -> dict[str, str]:
-        return {key: value for key, value in self.environment.items() if key != "PYTHONPATH"}
+    def _runtime_environment(self, *, include_source_filter_repo: bool = False) -> dict[str, str]:
+        environment = {key: value for key, value in self.environment.items() if key != "PYTHONPATH"}
+        if include_source_filter_repo and self.source_filter_repo_executable:
+            environment["PATH"] = os.pathsep.join(
+                [str(Path(self.source_filter_repo_executable).resolve().parent), environment["PATH"]]
+            )
+        return environment
 
     def _wheel_cli(self, arguments: tuple[str, ...]) -> list[str]:
         wheel = os.environ.get("GHS_WHEEL")
@@ -131,7 +134,16 @@ class GitFixture:
                 text=True,
             )
             subprocess.run(
-                [str(runtime / "bin" / "python"), "-I", "-m", "pip", "install", "--no-deps", str(wheel_path)],
+                [
+                    str(runtime / "bin" / "python"),
+                    "-I",
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-deps",
+                    str(wheel_path),
+                    "git-filter-repo==2.47.0",
+                ],
                 check=True,
                 capture_output=True,
                 env=self._runtime_environment(),
@@ -156,24 +168,28 @@ class GitFixture:
 
         translated = list(arguments)
         mounts: list[str] = []
-        fixed_paths = {
-            "--source": ("/input.git", "ro"),
-            "--repository": ("/input.git", "ro"),
-            "--policy": ("/policy.yml", "ro"),
-        }
+        fixed_paths = {"--source": ("/input.git", "ro"), "--policy": ("/policy.yml", "ro")}
         input_mounted = False
         for index, argument in enumerate(translated):
-            if argument not in {*fixed_paths, "--output"}:
+            if argument not in {*fixed_paths, "--repository", "--output"}:
                 continue
             if index + 1 == len(translated):
                 raise ValueError(f"{argument} requires a path")
-            if argument == "--output":
+            if argument in {"--output", "--repository"}:
                 host_path = Path(translated[index + 1]).resolve()
+                if argument == "--repository" and host_path == (self.source / ".git").resolve():
+                    if input_mounted:
+                        raise ValueError("container CLI accepts only one input repository")
+                    input_mounted = True
+                    mounts.extend(["--mount", f"type=bind,src={host_path},dst=/input.git,readonly"])
+                    translated[index + 1] = "/input.git"
+                    continue
                 if host_path.name in {"", "."}:
-                    raise ValueError("--output requires a named path")
-                mounts.extend(
-                    ["--mount", f"type=bind,src={host_path.parent},dst=/output"]
-                )
+                    raise ValueError(f"{argument} requires a named path")
+                output_mount = f"type=bind,src={host_path.parent},dst=/output"
+                if argument == "--repository":
+                    output_mount += ",readonly"
+                mounts.extend(["--mount", output_mount])
                 translated[index + 1] = f"/output/{host_path.name}"
                 continue
             fixed_path, mode = fixed_paths[argument]
@@ -260,10 +276,12 @@ class GitFixture:
 
     def run_cli(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
         runtime = os.environ.get("GHS_TEST_RUNTIME", "source")
+        environment = self._runtime_environment(include_source_filter_repo=runtime == "source")
         if runtime == "source":
             command = [self.python_executable, "-I", "-m", "git_history_sanitize", *arguments]
         elif runtime == "wheel":
             command = self._wheel_cli(arguments)
+            environment["PATH"] = os.pathsep.join([str(Path(command[0]).parent), environment["PATH"]])
         elif runtime == "container":
             command = self._container_cli(arguments)
         else:
@@ -272,7 +290,7 @@ class GitFixture:
             command,
             check=check,
             capture_output=True,
-            env=self._runtime_environment(),
+            env=environment,
             text=True,
         )
         if runtime == "container":

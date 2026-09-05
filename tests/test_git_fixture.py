@@ -117,6 +117,49 @@ class GitFixtureTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "fixture-owned wheel venv"):
                 self.fixture._wheel_cli(("doctor",))
 
+    def test_wheel_runner_installs_filter_repo_in_its_fixture_venv(self) -> None:
+        wheel = self.fixture.root / "fixture.whl"
+        wheel.touch()
+        runtime = self.fixture.root / "wheel-runtime"
+        launcher = runtime / "bin" / "git-history-sanitize"
+
+        def install(command: list[str], **_kwargs: object) -> None:
+            if "venv" in command:
+                launcher.parent.mkdir(parents=True)
+            else:
+                launcher.touch()
+
+        with (
+            patch.dict(os.environ, {"GHS_WHEEL": str(wheel)}, clear=False),
+            patch("tests.support.git_fixture.subprocess.run", side_effect=install) as run,
+        ):
+            self.fixture._wheel_cli(("doctor",))
+
+        self.assertEqual(run.call_count, 2)
+        install_command = run.call_args_list[1].args[0]
+        self.assertEqual(install_command[:5], [str(runtime / "bin" / "python"), "-I", "-m", "pip", "install"])
+        self.assertIn("git-filter-repo==2.47.0", install_command)
+        self.assertIsNotNone(self.fixture.source_filter_repo_executable)
+        self.assertNotIn(
+            str(Path(self.fixture.source_filter_repo_executable).resolve().parent),
+            run.call_args_list[1].kwargs["env"]["PATH"],
+        )
+
+    def test_wheel_runner_resolves_filter_repo_from_the_fixture_venv(self) -> None:
+        command = [str(self.fixture.root / "wheel-runtime" / "bin" / "git-history-sanitize"), "doctor"]
+
+        with (
+            patch.dict(os.environ, {"GHS_TEST_RUNTIME": "wheel"}, clear=False),
+            patch.object(self.fixture, "_wheel_cli", return_value=command),
+            patch("tests.support.git_fixture.subprocess.run") as run,
+        ):
+            self.fixture.run_cli("doctor")
+
+        self.assertEqual(
+            run.call_args.kwargs["env"]["PATH"].split(os.pathsep)[0],
+            str(self.fixture.root / "wheel-runtime" / "bin"),
+        )
+
     def test_container_runner_allows_translated_paths_in_success_output(self) -> None:
         arguments = self._container_rewrite_arguments()
         result = subprocess.CompletedProcess([], 0, "/input.git /output/output.git\n", "/policy.yml\n")
@@ -236,6 +279,30 @@ class GitFixtureTests(unittest.TestCase):
         self.assertFalse(
             any(str(self.fixture.root) in value for value in command[image_index + 1:] if value)
         )
+
+    def test_container_verify_maps_source_and_output_repositories_separately(self) -> None:
+        policy = self.fixture.write_policy()
+        output = self.fixture.root / "sanitized.git"
+        output.mkdir()
+
+        with (
+            patch.dict(os.environ, {"GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+        ):
+            source_command = self.fixture._container_cli(
+                ("verify", "--repository", str(self.fixture.source / ".git"), "--policy", str(policy))
+            )
+            output_command = self.fixture._container_cli(
+                ("verify", "--repository", str(output), "--policy", str(policy))
+            )
+
+        source_image = source_command.index("fixture-image")
+        output_image = output_command.index("fixture-image")
+        self.assertEqual(source_command[source_image + 1:], ["verify", "--repository", "/input.git", "--policy", "/policy.yml"])
+        self.assertEqual(output_command[output_image + 1:], ["verify", "--repository", "/output/sanitized.git", "--policy", "/policy.yml"])
+        output_mounts = [output_command[index + 1] for index, value in enumerate(output_command[:-1]) if value == "--mount"]
+        self.assertIn(f"type=bind,src={output.parent.resolve()},dst=/output,readonly", output_mounts)
+        self.assertNotIn(f"type=bind,src={output.resolve()},dst=/input.git,readonly", output_mounts)
 
 
 if __name__ == "__main__":
