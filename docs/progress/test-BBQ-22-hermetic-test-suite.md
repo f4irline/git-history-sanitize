@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:30
+**Last Updated:** 2026-09-05 07:37
 
 ## Overview
 
@@ -17,11 +17,11 @@ coverage to deterministic, isolated test processes.
 > context compaction. After any interruption, read this section first.
 
 ### Phase 1: Implementation
-- [ ] Write/modify tests (TDD)
-- [ ] Implement changes
-- [ ] Validate (lint, build, tests pass)
-- [ ] Commit implementation changes — use `git-commit` skill
-- [ ] Implementation review gate passes
+- [x] Write/modify tests (TDD)
+- [x] Implement changes
+- [x] Validate (lint not configured; tests and build pass)
+- [x] Commit implementation changes — use `git-commit` skill
+- [x] Implementation review gate passes
 
 ### Phase 2: Learnings
 - [ ] Extract learnings (or note: nothing noteworthy)
@@ -85,6 +85,13 @@ The user confirmed option 1: no established error/redaction contract exists for
 this version, so no redaction regression is required. Removed the vacuous
 assertions while retaining the controlled-failure source-immutability regression.
 This is a ticket-scope clarification, not a House Rules exception.
+
+### 2026-09-05 07:37
+
+Final validation passed: host unittest (11 tests), the configured Docker test
+target (11 tests), and wheel build. No linter is configured. The three review
+rounds resolved isolation and snapshot findings; the remaining redaction concern
+was closed by the user's ticket-scope clarification.
 
 ## Technical Notes
 
