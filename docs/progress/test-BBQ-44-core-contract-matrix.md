@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 15:11
+**Last Updated:** 2026-09-05 15:23 EEST
 
 ## Overview
 
@@ -211,6 +211,25 @@ suite passed all 49 tests without `PYTHONPATH`, including the pinned Git and
 git-filter-repo checker outputs. Wheel and OCI end-to-end runtime matrix commands
 were not run in this update; the existing host GnuPG/keyserver blocker remains.
 
+### 2026-09-05 15:23 EEST
+
+Added a focused reachable `history.cutoffCommit` contract for a linear history.
+It proves that plan and rewrite select the same settled boundary and history
+counts, retain the boundary tree as the synthetic root, and retain the later
+commit. No merge, multi-ref, or other owner-dependent cutoff behavior was added.
+
+CI now installs `git-filter-repo==2.47.0 --no-deps` separately in the source
+venv before the editable package. The Containerfile likewise installs it in the
+`/opt/test` venv and puts that venv first on `PATH` when its real exact-output
+checker runs, preventing the test stage from using only the runtime symlink.
+
+The focused cutoff contracts passed (3 tests), and the full feasible isolated
+source suite passed (50 tests) without `PYTHONPATH`. The installed
+`git-filter-repo` reports `a40bce548d2c`; Ruby YAML parsing, shell syntax, and
+`docker buildx build --check` also passed. The signed Git bootstrap remains
+blocked before the full wheel/OCI runtime matrix because `keys.openpgp.org`
+returns `No data` for the required release signer key.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -237,6 +256,9 @@ were not run in this update; the existing host GnuPG/keyserver blocker remains.
   (27 tests) in an isolated editable venv without `PYTHONPATH`
 - [x] Latest fixture and filtering contracts (17 tests) and full isolated source
   suite (49 tests) without `PYTHONPATH`
+- [x] Reachable cutoff-commit parity contracts (3 tests) and full isolated source
+  suite (50 tests) without `PYTHONPATH`
+- [x] YAML, shell, and Containerfile static checks for the source/test venv pins
 - [ ] Full pinned runtime image and contract matrix (not run locally; this host
   lacks host GnuPG and the OCI retry was blocked by `keys.openpgp.org` returning
   `No data`; the signed-tag bootstrap correctly failed closed)

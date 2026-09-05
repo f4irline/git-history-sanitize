@@ -34,7 +34,8 @@ jobs:
       - name: Run source-only helpers and verify the contract toolchain
         run: |
           python3 -m venv .venv-source
-          .venv-source/bin/python -m pip install --no-deps -e . git-filter-repo==2.47.0
+          .venv-source/bin/python -m pip install --no-deps git-filter-repo==2.47.0
+          .venv-source/bin/python -m pip install --no-deps -e .
           PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python -m unittest -v tests.test_git_fixture tests.test_toolchain tests.test_policy
           PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python tests/support/toolchain.py
       - name: Run source contracts
