@@ -19,7 +19,7 @@ and CLI behavior using the existing `GitFixture` harness.
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
 - [x] Validate (lint, build, tests pass)
-- [ ] Commit implementation changes — use `git-commit` skill
+- [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
 - [x] Extract learnings (nothing noteworthy beyond the existing fixture pattern)
@@ -28,7 +28,7 @@ and CLI behavior using the existing `GitFixture` harness.
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
