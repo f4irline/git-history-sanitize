@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** Complete
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 08:53
+**Last Updated:** 2026-09-05 09:05
 
 ## Overview
 
@@ -122,6 +122,14 @@ The user created pull request #1 after the GitHub MCP authorization failure. Mov
 BBQ-22 to In Review and completed every workflow checklist item. The final
 progress-record commit will be pushed to the existing PR branch.
 
+### 2026-09-05 09:05
+
+Investigated the failed Prototype history fixture CI job. The real checkout has a
+merge commit, while the prototype sanitizer intentionally supports only linear
+histories. Replaced the CI source preparation with a deterministic two-commit
+linear fixture: a pre-cutoff `secret.json` commit followed by the checked-out
+source tree. Local reproduction of the exact BuildKit target passes.
+
 ## Technical Notes
 
 - House Rules: security-first isolation, predictable CLI output, no unnecessary
@@ -146,6 +154,7 @@ progress-record commit will be pushed to the existing PR branch.
 - `tests/test_git_fixture.py` - fixture isolation and helper regression tests.
 - `tests/test_end_to_end.py` - migrated CLI workflow and immutability tests.
 - `tests/test_regressions.py` - cleanup, repeatability, and verifier regressions.
+- `.github/workflows/ci.yml` - deterministic linear fixture for the prototype CI job.
 
 ## Blockers
 
