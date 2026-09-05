@@ -2,9 +2,9 @@
 
 **Branch:** `test/BBQ-22-hermetic-test-suite`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:40
+**Last Updated:** 2026-09-05 07:45
 
 ## Overview
 
@@ -26,10 +26,10 @@ coverage to deterministic, isolated test processes.
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
 - [x] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
+- [x] Update this progress doc to "Complete" status
 - [ ] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
@@ -98,6 +98,12 @@ was closed by the user's ticket-scope clarification.
 Documented one reusable testing pattern: future Git/CLI integration tests should
 use `GitFixture` for hermetic processes and source/output comparison helpers.
 
+### 2026-09-05 07:45
+
+Finalized the implementation record. All feature, documentation, and learning
+commits are ready to push from the dedicated worktree. The final checklist will
+be updated after the remote branch, pull request, and Linear status are confirmed.
+
 ## Technical Notes
 
 - House Rules: security-first isolation, predictable CLI output, no unnecessary
@@ -116,6 +122,7 @@ use `GitFixture` for hermetic processes and source/output comparison helpers.
 ## Files Changed
 
 - `docs/progress/test-BBQ-22-hermetic-test-suite.md` - workflow tracking.
+- `docs/learnings/patterns.md` - shared hermetic Git fixture guidance.
 - `tests/support/git_fixture.py` - hermetic, deterministic Git fixture.
 - `tests/support/__init__.py` - support package marker.
 - `tests/test_git_fixture.py` - fixture isolation and helper regression tests.
