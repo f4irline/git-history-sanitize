@@ -18,7 +18,7 @@ and CLI behavior using the existing `GitFixture` harness.
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [ ] Validate (lint, build, tests pass)
+- [x] Validate feasible local checks
 - [ ] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
@@ -136,6 +136,14 @@ them with the real checker before host runtimes. Git bootstrap now imports only
 the pinned Git release key into an isolated keyring and verifies the signed tag
 before checkout; CI and the image install GnuPG for that verification.
 
+### 2026-09-05 15:15
+
+Ran the full isolated source suite with an editable install and no `PYTHONPATH`
+(42 tests), plus a built-wheel end-to-end run through the fixture-owned venv
+(2 tests). Python compilation, shell syntax, YAML parsing, and whitespace
+checks also passed. The complete signed bootstrap and OCI matrix remain for CI:
+this host has no `gpg`, and the bootstrap correctly refuses to continue.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -149,7 +157,7 @@ before checkout; CI and the image install GnuPG for that verification.
 ## Testing
 
 - [x] Focused output, verifier, and human CLI contract tests (18 tests)
-- [x] Full source suite (34 tests via `PYTHONPATH=src`)
+- [x] Full isolated source suite (42 tests without `PYTHONPATH`)
 - [x] Package build (`pip3 wheel --no-deps .`)
 - [x] Isolated wheel runtime (`git-history-sanitize doctor --json`)
 - [x] Container suite (24 tests via `docker buildx build --target test -f Containerfile .`)
