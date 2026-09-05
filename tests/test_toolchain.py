@@ -11,7 +11,7 @@ class ToolchainTests(unittest.TestCase):
         bootstrap = (Path(__file__).parents[1] / "scripts" / "bootstrap-test-git.sh").read_text()
 
         for variable in (
-            'readonly git_release_key_fingerprint="4F9036B1FEE7221FC778ECEFB0B5E88696AFE6CB"',
+            'readonly git_release_key_fingerprint="E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"',
             'export HOME="$workdir/home"',
             'export XDG_CONFIG_HOME="$workdir/xdg-config"',
             "export GIT_CONFIG_NOSYSTEM=1",

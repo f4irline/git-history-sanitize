@@ -54,6 +54,12 @@ bootstrap now uses a complete certificate source and checks every imported
 fingerprint for the pinned signing subkey. The Containerfile test target passes
 all 50 tests with the repaired bootstrap.
 
+### 2026-09-05 17:35
+
+The rerun exposed a stale bootstrap-fixture assertion that still expected the
+old signer fingerprint. Updated the deterministic assertion alongside the
+bootstrap repair before republishing the branch.
+
 ### 2026-09-05 16:50
 
 Implementation Review Gate passed after the source-runner isolation fix. The
