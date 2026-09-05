@@ -196,6 +196,35 @@ class GitFixture:
         )
         return result.stdout.strip()
 
+    def commit_tree(
+        self,
+        repository: Path,
+        tree: str,
+        message: str,
+        *parents: str,
+        timestamp: str | None = None,
+    ) -> str:
+        """Create a deterministic commit from an existing tree for tamper tests."""
+        dates = {}
+        if timestamp:
+            dates = {"GIT_AUTHOR_DATE": timestamp, "GIT_COMMITTER_DATE": timestamp}
+        result = subprocess.run(
+            [
+                self.git_executable,
+                "-C",
+                str(repository),
+                "commit-tree",
+                tree,
+                *(argument for parent in parents for argument in ("-p", parent)),
+            ],
+            check=True,
+            capture_output=True,
+            env=self.environment | dates,
+            input=message,
+            text=True,
+        )
+        return result.stdout.strip()
+
     def snapshot_source(self) -> SourceSnapshot:
         worktree = tuple(
             (str(path.relative_to(self.source)), path.read_bytes())

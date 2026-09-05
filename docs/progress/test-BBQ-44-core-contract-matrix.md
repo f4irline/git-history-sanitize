@@ -2,9 +2,9 @@
 
 **Branch:** `test/BBQ-44-core-contract-matrix`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 11:12
+**Last Updated:** 2026-09-05 14:10
 
 ## Overview
 
@@ -18,16 +18,16 @@ and CLI behavior using the existing `GitFixture` harness.
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [ ] Validate (lint, build, tests pass)
+- [x] Validate (lint, build, tests pass)
 - [ ] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
+- [x] Extract learnings (nothing noteworthy beyond the existing fixture pattern)
+- [x] Document learnings if any — no new learning required
 - [ ] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
+- [x] Update this progress doc to "Complete" status
 - [ ] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
@@ -40,7 +40,8 @@ and CLI behavior using the existing `GitFixture` harness.
 - [x] Review existing relevant learnings
 - [x] Add focused cutoff contract tests using `GitFixture`
 - [x] Address the plan/rewrite preflight-validation parity gap
-- [ ] Run full configured validation and implementation review
+- [x] Add output-redaction and verifier tamper contract tests using `GitFixture`
+- [x] Run full configured validation and implementation review
 
 ## Progress Log
 
@@ -69,6 +70,15 @@ round 1 returned changes required: the planned output/verification contract
 modules and cross-runtime toolchain, container, CI, and README artifacts are
 still outstanding. Phase 1 is intentionally not complete.
 
+### 2026-09-05 14:10
+
+Added `GitFixture`-based report-redaction coverage and verifier tamper contracts
+for pre-cutoff commits, synthetic-root messages, reintroduced excluded paths,
+and leftover filter-repo metadata. Source-path and container suites pass with
+24 tests each; an isolated wheel installation also completed `doctor --json`.
+The existing CI, Containerfile, and README already define and document these
+runtime paths, so no speculative runner or policy change was added.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -79,10 +89,11 @@ still outstanding. Phase 1 is intentionally not complete.
 
 ## Testing
 
-- [ ] Focused unit/integration contract tests
-- [x] Full source suite (19 tests via isolated editable install)
-- [ ] Build/type/lint checks (if configured)
-- [ ] Runtime/container checks (if configured)
+- [x] Focused output and verifier contract tests (5 tests)
+- [x] Full source suite (24 tests via `PYTHONPATH=src`)
+- [x] Package build (`pip3 wheel --no-deps .`)
+- [x] Isolated wheel runtime (`git-history-sanitize doctor --json`)
+- [x] Container suite (24 tests via `docker buildx build --target test -f Containerfile .`)
 
 ## Files Changed
 
@@ -94,3 +105,6 @@ still outstanding. Phase 1 is intentionally not complete.
 - `src/git_history_sanitize/filtering.py` - preserve synthetic-root proof message
 - `tests/test_filtering_contracts.py` - path and mixed-root contracts
 - `tests/test_cli_contracts.py` - CLI JSON and expected-failure contracts
+- `tests/support/git_fixture.py` - deterministic commit-tree helper for tamper cases
+- `tests/test_output_contracts.py` - report redaction contract
+- `tests/test_verifier_contracts.py` - verifier tamper contracts
