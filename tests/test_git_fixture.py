@@ -107,6 +107,13 @@ class GitFixtureTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "GHS_CONTAINER_IMAGE"):
                 self.fixture.run_cli("doctor")
 
+    def test_container_runtime_creates_mountable_fixture_under_the_checkout(self) -> None:
+        case = unittest.TestCase()
+        with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container"}, clear=False):
+            fixture = GitFixture(case)
+        self.addCleanup(fixture._temporary.cleanup)
+        self.assertEqual(fixture.root.parent, Path.cwd())
+
     def test_wheel_runner_requires_a_wheel(self) -> None:
         with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "wheel"}, clear=False):
             with self.assertRaisesRegex(RuntimeError, "GHS_WHEEL"):
@@ -177,6 +184,29 @@ class GitFixtureTests(unittest.TestCase):
         ):
             self.assertIs(self.fixture.run_cli(*arguments), result)
 
+    def test_container_runner_preserves_host_docker_endpoint_without_injecting_it(self) -> None:
+        arguments = self._container_rewrite_arguments()
+        result = subprocess.CompletedProcess([], 0, "", "")
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "GHS_TEST_RUNTIME": "container",
+                    "GHS_CONTAINER_IMAGE": "fixture-image",
+                    "DOCKER_HOST": "unix:///fixture/docker.sock",
+                },
+                clear=False,
+            ),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+            patch("tests.support.git_fixture.subprocess.run", return_value=result) as run,
+        ):
+            self.fixture.run_cli(*arguments)
+
+        self.assertEqual(run.call_args.kwargs["env"]["DOCKER_HOST"], "unix:///fixture/docker.sock")
+        command = run.call_args.args[0]
+        self.assertNotIn("DOCKER_HOST=unix:///fixture/docker.sock", command)
+
     def test_container_runner_rejects_host_paths_in_expected_failure_output(self) -> None:
         arguments = self._container_rewrite_arguments()
         result = subprocess.CompletedProcess([], 2, "", f"cannot read {self.fixture.global_config}\n")
@@ -189,6 +219,21 @@ class GitFixtureTests(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, "sensitive value leaked in command output") as error:
                 self.fixture.run_cli(*arguments, check=False)
         self.assertNotIn(str(self.fixture.global_config), str(error.exception))
+
+    def test_container_runner_translates_a_missing_policy_without_mounting_it(self) -> None:
+        missing_policy = self.fixture.root / "missing.yml"
+        arguments = ("plan", "--source", str(self.fixture.source / ".git"), "--policy", str(missing_policy))
+
+        with (
+            patch.dict(os.environ, {"GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+        ):
+            command = self.fixture._container_cli(arguments)
+
+        image_index = command.index("fixture-image")
+        self.assertEqual(command[image_index + 1:], ["plan", "--source", "/input/.git", "--policy", "/policy.yml"])
+        mounts = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--mount"]
+        self.assertNotIn(f"type=bind,src={missing_policy.absolute()},dst=/policy.yml,readonly", mounts)
 
     def _container_rewrite_arguments(self) -> tuple[str, ...]:
         policy = self.fixture.write_policy()
@@ -237,11 +282,11 @@ class GitFixtureTests(unittest.TestCase):
         self.assertNotIn(str(self.fixture.root), command[image_index + 1:])
         mounts = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--mount"]
         self.assertIn(
-            f"type=bind,src={self.fixture.source.resolve()},dst=/input,readonly",
+            f"type=bind,src={self.fixture.source.absolute()},dst=/input,readonly",
             mounts,
         )
-        self.assertIn(f"type=bind,src={policy.resolve()},dst=/policy.yml,readonly", mounts)
-        self.assertIn(f"type=bind,src={output.parent.resolve()},dst=/output", mounts)
+        self.assertIn(f"type=bind,src={policy.absolute()},dst=/policy.yml,readonly", mounts)
+        self.assertIn(f"type=bind,src={output.parent.absolute()},dst=/output", mounts)
         for host_path, container_path in (
             (self.fixture.home, "/home/fixture"),
             (self.fixture.xdg_config, "/xdg-config"),
@@ -307,8 +352,8 @@ class GitFixtureTests(unittest.TestCase):
         self.assertEqual(source_command[source_image + 1:], ["verify", "--repository", "/input/.git", "--policy", "/policy.yml"])
         self.assertEqual(output_command[output_image + 1:], ["verify", "--repository", "/output/sanitized.git", "--policy", "/policy.yml"])
         output_mounts = [output_command[index + 1] for index, value in enumerate(output_command[:-1]) if value == "--mount"]
-        self.assertIn(f"type=bind,src={output.parent.resolve()},dst=/output,readonly", output_mounts)
-        self.assertNotIn(f"type=bind,src={output.resolve()},dst=/input,readonly", output_mounts)
+        self.assertIn(f"type=bind,src={output.parent.absolute()},dst=/output,readonly", output_mounts)
+        self.assertNotIn(f"type=bind,src={output.absolute()},dst=/input,readonly", output_mounts)
 
 
 if __name__ == "__main__":

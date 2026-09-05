@@ -70,6 +70,16 @@ contract's repository layout. Added deterministic command-construction
 coverage. Local Docker is unavailable because its daemon socket is absent, so
 the OCI runtime validation remains delegated to CI.
 
+### 2026-09-05 20:58
+
+Confirmed Colima is running and its Docker endpoint is available. The fixture
+was dropping `DOCKER_HOST`; it now preserves that value only for the host-side
+Docker CLI. Colima cannot bind-mount macOS's system temporary directory, so
+container fixtures now use checkout-local temporary directories. The rebuilt
+OCI image runs most contract tests locally, but three harness cases remain:
+missing-policy translation and verification after host-side remote/unreachable
+object tampering. Continue root-cause investigation before committing.
+
 ### 2026-09-05 16:50
 
 Implementation Review Gate passed after the source-runner isolation fix. The

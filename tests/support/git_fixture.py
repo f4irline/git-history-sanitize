@@ -35,7 +35,8 @@ class GitFixture:
     TIMESTAMP = "2026-09-03T12:00:00+00:00"
 
     def __init__(self, case: unittest.TestCase) -> None:
-        self._temporary = tempfile.TemporaryDirectory()
+        temporary_dir = Path.cwd() if os.environ.get("GHS_TEST_RUNTIME") == "container" else None
+        self._temporary = tempfile.TemporaryDirectory(dir=temporary_dir)
         case.addCleanup(self._temporary.cleanup)
         self.root = Path(self._temporary.name)
         self.home = self.root / "home"
@@ -171,8 +172,8 @@ class GitFixture:
             if index + 1 == len(translated):
                 raise ValueError(f"{argument} requires a path")
             if argument in {"--output", "--repository"}:
-                host_path = Path(translated[index + 1]).resolve()
-                if argument == "--repository" and host_path == (self.source / ".git").resolve():
+                host_path = Path(translated[index + 1]).absolute()
+                if argument == "--repository" and host_path == (self.source / ".git").absolute():
                     if input_mounted:
                         raise ValueError("container CLI accepts only one input repository")
                     input_mounted = True
@@ -188,7 +189,10 @@ class GitFixture:
                 translated[index + 1] = f"/output/{host_path.name}"
                 continue
             fixed_path, mode = fixed_paths[argument]
-            host_path = Path(translated[index + 1]).resolve(strict=mode == "ro")
+            host_path = Path(translated[index + 1]).absolute()
+            if mode == "ro" and not host_path.exists():
+                translated[index + 1] = fixed_path
+                continue
             if fixed_path == "/input.git":
                 if input_mounted:
                     raise ValueError("container CLI accepts only one input repository")
@@ -283,6 +287,8 @@ class GitFixture:
             environment["PATH"] = os.pathsep.join([str(Path(command[0]).parent), environment["PATH"]])
         elif runtime == "container":
             command = self._container_cli(arguments)
+            if docker_host := os.environ.get("DOCKER_HOST"):
+                environment["DOCKER_HOST"] = docker_host
         else:
             raise RuntimeError(f"unsupported GHS_TEST_RUNTIME: {runtime}")
         result = subprocess.run(
