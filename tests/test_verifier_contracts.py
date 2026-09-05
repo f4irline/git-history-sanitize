@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import unittest
 
 from tests.support.git_fixture import GitFixture
@@ -77,6 +78,95 @@ class VerifierContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("Temporary Git metadata remains", result.stderr)
+
+    def test_rejects_an_unexpected_tag(self) -> None:
+        output = self.rewrite()
+        self.fixture.git(output, "tag", "unexpected")
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Unexpected refs remain", result.stderr)
+
+    def test_rejects_an_unexpected_branch_ref(self) -> None:
+        output = self.rewrite()
+        self.fixture.git(output, "branch", "unexpected")
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Unexpected refs remain", result.stderr)
+
+    def test_rejects_a_configured_remote(self) -> None:
+        output = self.rewrite()
+        self.fixture.git(output, "remote", "add", "origin", "https://example.invalid/source.git")
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("A remote remains", result.stderr)
+
+    def test_rejects_an_unreachable_object(self) -> None:
+        output = self.rewrite()
+        self.fixture.add_unreachable_blob("unreachable tamper", output)
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Unreachable objects remain after cleanup", result.stderr)
+
+    def test_rejects_reflog_and_original_ref_metadata(self) -> None:
+        output = self.rewrite()
+        reflog = output / "logs" / "refs" / "heads"
+        reflog.mkdir(parents=True)
+        (reflog / "main").write_text("tampered reflog\n")
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Temporary Git metadata remains", result.stderr)
+
+        shutil.rmtree(output / "logs")
+        (output / "refs" / "original").mkdir(parents=True)
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Temporary Git metadata remains", result.stderr)
+
+    def test_rejects_a_disconnected_root_in_the_reachable_graph(self) -> None:
+        output = self.rewrite()
+        clean_head = self.fixture.git(output, "rev-parse", "HEAD")
+        disconnected_root = self.fixture.commit_tree(output, "HEAD^{tree}", "other root")
+        merge = self.fixture.commit_tree(
+            output, "HEAD^{tree}", "merge roots", clean_head, disconnected_root
+        )
+        self.fixture.git(output, "update-ref", "refs/heads/main", merge)
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("exactly one root", result.stderr)
+
+    def test_rejects_forbidden_content_in_a_reachable_object(self) -> None:
+        output = self.rewrite()
+        clean_head = self.fixture.git(output, "rev-parse", "HEAD")
+        tree = self.fixture.tree_with_file(output, "allowed.txt", "reachable secret\n")
+        tampered_head = self.fixture.commit_tree(output, tree, "safe append", clean_head)
+        self.fixture.git(output, "update-ref", "refs/heads/main", tampered_head)
+
+        result = self.fixture.run_cli(
+            "verify",
+            "--repository",
+            str(output),
+            "--policy",
+            str(self.policy),
+            "--forbid",
+            "reachable secret",
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Forbidden content remains in the object database", result.stderr)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 14:10
+**Last Updated:** 2026-09-05 14:23
 
 ## Overview
 
@@ -88,6 +88,17 @@ BBQ-12. Those changes and their owner-dependent tests were reverted. The work
 remains blocked pending an approved scope change or completion of the planned
 matrix implementation.
 
+### 2026-09-05 14:23
+
+Expanded only `GitFixture` and contract tests in response to review feedback.
+The settled matrix now covers bare-output cleanup, atomic failed rewrites and
+staging cleanup, re-sanitization without source mutation, concise human CLI
+success output, and independent verifier rejection of tampered refs, tags,
+remotes, reflogs, temporary metadata, unreachable objects, reachable graph
+roots, and forbidden object-database content. The source suite passes all 34
+tests. No production behavior or owner-dependent BBQ-7, BBQ-8, BBQ-11, or
+BBQ-12 contract was changed or added.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -98,8 +109,8 @@ matrix implementation.
 
 ## Testing
 
-- [x] Focused output and verifier contract tests (5 tests)
-- [x] Full source suite (24 tests via `PYTHONPATH=src`)
+- [x] Focused output, verifier, and human CLI contract tests (18 tests)
+- [x] Full source suite (34 tests via `PYTHONPATH=src`)
 - [x] Package build (`pip3 wheel --no-deps .`)
 - [x] Isolated wheel runtime (`git-history-sanitize doctor --json`)
 - [x] Container suite (24 tests via `docker buildx build --target test -f Containerfile .`)
@@ -107,13 +118,13 @@ matrix implementation.
 ## Files Changed
 
 - `docs/progress/test-BBQ-44-core-contract-matrix.md` - workflow tracker
-- `tests/support/git_fixture.py` - deterministic policy writer
+- `tests/support/git_fixture.py` - deterministic policy and tamper-tree helpers
 - `tests/test_cutoff_contracts.py` - timestamp and preflight parity contracts
 - `src/git_history_sanitize/compact.py` - shared history validation
 - `src/git_history_sanitize/engine.py` - plan uses shared validation
 - `src/git_history_sanitize/filtering.py` - preserve synthetic-root proof message
 - `tests/test_filtering_contracts.py` - path and mixed-root contracts
-- `tests/test_cli_contracts.py` - CLI JSON and expected-failure contracts
-- `tests/support/git_fixture.py` - deterministic commit-tree helper for tamper cases
-- `tests/test_output_contracts.py` - report redaction contract
-- `tests/test_verifier_contracts.py` - verifier tamper contracts
+- `tests/test_cli_contracts.py` - CLI JSON, human output, and expected-failure contracts
+- `tests/support/git_fixture.py` - deterministic commit-tree, tamper-tree, and staging-cleanup helpers
+- `tests/test_output_contracts.py` - report redaction, bare-output, cleanup, atomicity, and re-sanitize contracts
+- `tests/test_verifier_contracts.py` - independent refs, tags, remotes, reflogs, metadata, unreachable-object, graph, and object-database tamper contracts

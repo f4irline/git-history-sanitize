@@ -26,6 +26,31 @@ class CliContractTests(unittest.TestCase):
         self.assertIn("verification", json.loads(rewrite.stdout))
         self.assertIn("root", json.loads(verify.stdout))
 
+    def test_successful_human_output_is_concise_and_actionable(self) -> None:
+        plan = self.fixture.run_cli(
+            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(self.policy)
+        )
+        output = self.fixture.root / "sanitized.git"
+        rewrite = self.fixture.run_cli(
+            "rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(output),
+            "--policy", str(self.policy)
+        )
+        verify = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(self.policy)
+        )
+
+        self.assertEqual(
+            plan.stdout,
+            "Source commits: 1\nPre-cutoff commits: 0\nCommits before path filtering: 1\n",
+        )
+        self.assertEqual(
+            rewrite.stdout,
+            f"Sanitized HEAD: {self.fixture.git(output, 'rev-parse', 'HEAD')}\n"
+            "Commits in output: 1\n",
+        )
+        self.assertEqual(verify.stdout, "Verification passed.\n")
+        self.assertEqual(plan.stderr + rewrite.stderr + verify.stderr, "")
+
     def test_expected_operational_failures_use_exit_two_and_actionable_stderr(self) -> None:
         failed = self.fixture.run_cli("rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(self.fixture.root / "exists.git"), "--policy", str(self.fixture.root / "missing.yml"), check=False)
 

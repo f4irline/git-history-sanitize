@@ -196,6 +196,19 @@ class GitFixture:
         )
         return result.stdout.strip()
 
+    def tree_with_file(self, repository: Path, path: str, content: str) -> str:
+        """Create a one-file tree for a reachable object-database tamper case."""
+        blob = self.add_unreachable_blob(content, repository)
+        result = subprocess.run(
+            [self.git_executable, "-C", str(repository), "mktree"],
+            check=True,
+            capture_output=True,
+            env=self.environment,
+            input=f"100644 blob {blob}\t{path}\n",
+            text=True,
+        )
+        return result.stdout.strip()
+
     def commit_tree(
         self,
         repository: Path,
@@ -260,6 +273,10 @@ class GitFixture:
         self, repository: Path, snapshot: tuple[str, str, str]
     ) -> None:
         self.assertEqual(self.snapshot_output(repository), snapshot, "sanitized output was mutated")
+
+    def assert_no_staging_directories(self, parent: Path) -> None:
+        leftovers = sorted(path.name for path in parent.glob(".git-history-sanitize-*"))
+        self.assertEqual(leftovers, [], "sanitizer staging directories remain")
 
     @staticmethod
     def assert_redacted(output: str, *sensitive_values: str) -> None:
