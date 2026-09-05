@@ -316,7 +316,7 @@ class GitFixtureTests(unittest.TestCase):
                 "GIT_COMMITTER_EMAIL=fixture@example.invalid",
                 "GIT_AUTHOR_DATE=2026-09-03T12:00:00+00:00",
                 "GIT_COMMITTER_DATE=2026-09-03T12:00:00+00:00",
-                "GIT_CONFIG_COUNT=4",
+                "GIT_CONFIG_COUNT=6",
                 "GIT_CONFIG_KEY_0=commit.gpgsign",
                 "GIT_CONFIG_VALUE_0=false",
                 "GIT_CONFIG_KEY_1=tag.gpgSign",
@@ -325,6 +325,10 @@ class GitFixtureTests(unittest.TestCase):
                 "GIT_CONFIG_VALUE_2=",
                 "GIT_CONFIG_KEY_3=core.hooksPath",
                 "GIT_CONFIG_VALUE_3=/hooks",
+                "GIT_CONFIG_KEY_4=safe.directory",
+                "GIT_CONFIG_VALUE_4=/input",
+                "GIT_CONFIG_KEY_5=safe.directory",
+                "GIT_CONFIG_VALUE_5=/output/*",
             },
         )
         self.assertFalse(
