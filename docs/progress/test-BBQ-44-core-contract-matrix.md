@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 11:09
+**Last Updated:** 2026-09-05 11:12
 
 ## Overview
 
@@ -62,6 +62,13 @@ Added focused filtering and CLI contracts. The mixed synthetic-root contract
 revealed a verifier-breaking message replacement; path filtering now preserves
 the configured root message while still redacting later mixed commits.
 
+### 2026-09-05 11:12
+
+The editable-install source suite passed (19 tests). Implementation Review Gate
+round 1 returned changes required: the planned output/verification contract
+modules and cross-runtime toolchain, container, CI, and README artifacts are
+still outstanding. Phase 1 is intentionally not complete.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -73,7 +80,7 @@ the configured root message while still redacting later mixed commits.
 ## Testing
 
 - [ ] Focused unit/integration contract tests
-- [ ] Full source suite
+- [x] Full source suite (19 tests via isolated editable install)
 - [ ] Build/type/lint checks (if configured)
 - [ ] Runtime/container checks (if configured)
 
