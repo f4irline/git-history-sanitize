@@ -123,6 +123,41 @@ class GitFixture:
             text=True,
         )
 
+    def write_policy(
+        self,
+        *,
+        cutoff: str | None = "2026-09-03T00:00:00+00:00",
+        cutoff_commit: str | None = None,
+        excluded_paths: tuple[str, ...] = (),
+        prefix_message: str = "[sanitized]",
+        mixed_message: str = "[sanitized]",
+    ) -> Path:
+        """Write a minimal deterministic v1 policy owned by this fixture."""
+        if (cutoff is None) == (cutoff_commit is None):
+            raise ValueError("specify exactly one cutoff value")
+        history = (
+            f'  cutoff: "{cutoff}"'
+            if cutoff is not None
+            else f"  cutoffCommit: {cutoff_commit}"
+        )
+        paths = "" if not excluded_paths else "paths:\n  exclude:\n" + "".join(
+            f"    - {path}\n" for path in excluded_paths
+        )
+        policy = self.root / "policy.yml"
+        policy.write_text(
+            "version: 1\n"
+            "history:\n"
+            f"{history}\n"
+            f"  prefixMessage: \"{prefix_message}\"\n"
+            f"{paths}"
+            "commits:\n"
+            f"  mixedMessage: \"{mixed_message}\"\n"
+            "refs:\n"
+            "  keep:\n"
+            "    - HEAD\n"
+        )
+        return policy
+
     def write(self, relative_path: str, content: str) -> Path:
         path = self.source / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
