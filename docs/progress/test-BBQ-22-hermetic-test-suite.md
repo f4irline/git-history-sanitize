@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** Complete
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 09:05
+**Last Updated:** 2026-09-05 09:12
 
 ## Overview
 
@@ -129,6 +129,19 @@ merge commit, while the prototype sanitizer intentionally supports only linear
 histories. Replaced the CI source preparation with a deterministic two-commit
 linear fixture: a pre-cutoff `secret.json` commit followed by the checked-out
 source tree. Local reproduction of the exact BuildKit target passes.
+
+### 2026-09-05 09:12
+
+The replacement CI job failed before Docker because its default shallow checkout
+could not serve the requested commit to the temporary fixture repository. Restored
+`fetch-depth: 0`, which supplies the complete object graph needed by the local
+fixture fetch while retaining the linear history passed to the sanitizer.
+
+### 2026-09-05 09:15
+
+Subagent review caught that the full-history setting had initially been applied
+to the unrelated root-package job. Moved it to the prototype-history checkout,
+the only job that fetches the temporary trusted fixture.
 
 ## Technical Notes
 
