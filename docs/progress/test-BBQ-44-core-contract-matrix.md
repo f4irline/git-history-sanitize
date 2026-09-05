@@ -28,10 +28,10 @@ and CLI behavior using the existing `GitFixture` harness.
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Commit progress doc update — use `git-commit` skill
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — GitHub PR #2
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -52,6 +52,11 @@ documented isolated source suite passes (50 tests). The signed wheel/OCI matrix
 is CI-gated and intentionally remains fail-closed locally while the pinned
 signer keyserver returns no data; no security control was relaxed. The verified
 tool fingerprint correction was recorded in the Linear technical plan.
+
+### 2026-09-05 17:00
+
+Pushed `test/BBQ-44-core-contract-matrix`, opened GitHub PR #2, and moved
+BBQ-44 to In Review. House Rules remain compliant with no approved exceptions.
 
 ### 2026-09-05 10:56
 
