@@ -2,7 +2,7 @@
 
 **Branch:** `test/BBQ-44-core-contract-matrix`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
-**Status:** Complete
+**Status:** In Progress
 **Started:** 2026-09-05
 **Last Updated:** 2026-09-05 14:10
 
@@ -17,9 +17,9 @@ and CLI behavior using the existing `GitFixture` harness.
 
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
-- [x] Implement changes
-- [x] Validate (lint, build, tests pass)
-- [x] Commit implementation changes — use `git-commit` skill
+- [ ] Implement changes
+- [ ] Validate (lint, build, tests pass)
+- [ ] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
 - [x] Extract learnings (nothing noteworthy beyond the existing fixture pattern)
@@ -27,8 +27,8 @@ and CLI behavior using the existing `GitFixture` harness.
 - [ ] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [x] Update this progress doc to "Complete" status
-- [x] Commit progress doc update — use `git-commit` skill
+- [ ] Update this progress doc to "Complete" status
+- [ ] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -78,6 +78,15 @@ and leftover filter-repo metadata. Source-path and container suites pass with
 24 tests each; an isolated wheel installation also completed `doctor --json`.
 The existing CI, Containerfile, and README already define and document these
 runtime paths, so no speculative runner or policy change was added.
+
+### 2026-09-05 14:18
+
+Implementation Review Gate round 2 found that the technical plan's pinned
+toolchain and source/wheel/OCI matrix remain unimplemented. It also identified
+that the initial production changes consumed contracts owned by BBQ-7 and
+BBQ-12. Those changes and their owner-dependent tests were reverted. The work
+remains blocked pending an approved scope change or completion of the planned
+matrix implementation.
 
 ## Technical Notes
 

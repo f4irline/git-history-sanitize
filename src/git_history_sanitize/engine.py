@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .cleanup import cleanup, retain_head_only
-from .compact import CompactResult, compact, validate_history
+from .compact import CompactResult, compact
 from .errors import SanitizeError
 from .filtering import filter_paths
 from .git import Repository, ensure_dependencies
@@ -39,10 +39,33 @@ class RewriteReport:
         }
 
 
+def _boundary_index(repository: Repository, policy: Policy, commits: list[str]) -> int:
+    if policy.history.cutoff_commit:
+        target = repository.text(
+            "rev-parse", "--verify", f"{policy.history.cutoff_commit}^{{commit}}"
+        )
+        try:
+            return commits.index(target)
+        except ValueError as error:
+            raise SanitizeError("history.cutoffCommit is not reachable from HEAD") from error
+    assert policy.history.cutoff_epoch is not None
+    indices = [
+        index
+        for index, commit in enumerate(commits)
+        if int(repository.text("show", "-s", "--format=%ct", commit))
+        >= policy.history.cutoff_epoch
+    ]
+    if not indices:
+        raise SanitizeError("No retained commit exists at or after history.cutoff")
+    return indices[0]
+
+
 def plan(source: str | Path, policy: Policy) -> Plan:
-    ensure_dependencies()
     repository = Repository(source)
-    commits, boundary = validate_history(repository, policy)
+    commits = repository.text("rev-list", "--reverse", "--topo-order", "HEAD").splitlines()
+    if not commits:
+        raise SanitizeError("Cannot sanitize an empty repository")
+    boundary = _boundary_index(repository, policy, commits)
     return Plan(
         source_commits=len(commits),
         discarded_commits=boundary,

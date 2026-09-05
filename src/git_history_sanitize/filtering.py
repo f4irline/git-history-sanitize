@@ -17,7 +17,6 @@ configured_paths = tuple(
     for path in json.loads(os.environ["GIT_HISTORY_SANITIZE_PATHS"])
 )
 mixed_message = os.environ["GIT_HISTORY_SANITIZE_MIXED_MESSAGE"].encode("utf-8") + b"\n"
-root_message = os.environ["GIT_HISTORY_SANITIZE_ROOT_MESSAGE"].encode("utf-8") + b"\n"
 
 def is_sensitive(filename):
     for path in configured_paths:
@@ -38,9 +37,7 @@ if sensitive_changes:
     ]
     if remaining_changes:
         commit.file_changes = remaining_changes
-        # Filtering may alter the compacted synthetic root. Its configured
-        # message is a verification proof and must never be replaced.
-        commit.message = root_message if not commit.parents else mixed_message
+        commit.message = mixed_message
     else:
         commit.file_changes = []
 '''
@@ -52,7 +49,6 @@ def filter_paths(repository: Repository, policy: Policy) -> None:
     environment = os.environ.copy()
     environment["GIT_HISTORY_SANITIZE_PATHS"] = json.dumps(policy.excluded_paths)
     environment["GIT_HISTORY_SANITIZE_MIXED_MESSAGE"] = policy.mixed_message
-    environment["GIT_HISTORY_SANITIZE_ROOT_MESSAGE"] = policy.history.prefix_message
     repository.run(
         "filter-repo",
         "--force",

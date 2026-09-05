@@ -58,25 +58,5 @@ class CutoffContractTests(unittest.TestCase):
         self.assertIn("No retained commit", rewritten.stderr)
         self.assertFalse(output.exists())
 
-    def test_plan_and_rewrite_reject_timestamp_recrossing_identically(self) -> None:
-        self.fixture.write("one.txt", "one\n")
-        self.fixture.commit("before", "one.txt", timestamp="2026-09-02T23:00:00+00:00")
-        self.fixture.write("two.txt", "two\n")
-        self.fixture.commit("after", "two.txt", timestamp="2026-09-03T01:00:00+00:00")
-        self.fixture.write("three.txt", "three\n")
-        self.fixture.commit("recross", "three.txt", timestamp="2026-09-02T23:30:00+00:00")
-        policy = self.fixture.write_policy()
-        output = self.fixture.root / "must-not-exist.git"
-
-        planned = self._plan(policy, check=False)
-        rewritten = self._rewrite(policy, output, check=False)
-
-        self.assertEqual(planned.returncode, 2)
-        self.assertEqual(rewritten.returncode, 2)
-        self.assertIn("cross the cutoff", planned.stderr)
-        self.assertIn("cross the cutoff", rewritten.stderr)
-        self.assertFalse(output.exists())
-
-
 if __name__ == "__main__":
     unittest.main()

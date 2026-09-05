@@ -48,6 +48,8 @@ class FilteringContractTests(unittest.TestCase):
 
     def test_sensitive_only_commit_is_pruned_and_mixed_message_is_replaced(self) -> None:
         self.fixture.write("keep.txt", "one\n")
+        self.fixture.commit("root allowed", "keep.txt")
+        self.fixture.write("keep.txt", "two\n")
         self.fixture.write("private/secret.txt", "secret\n")
         self.fixture.commit("mixed sensitive title", "keep.txt", "private/secret.txt")
         self.fixture.write("private/secret.txt", "rotated\n")
@@ -57,7 +59,7 @@ class FilteringContractTests(unittest.TestCase):
         output = self.rewrite(policy)
 
         messages = self.fixture.git(output, "log", "--format=%s", "--all").splitlines()
-        self.assertEqual(messages, ["[sanitized]"])
+        self.assertEqual(messages, ["redacted", "[sanitized]"])
         self.assertNotIn("sensitive only title", "\n".join(messages))
 
 

@@ -62,16 +62,6 @@ def _boundary_index(repository: Repository, commits: list[str], policy: Policy) 
     return allowed
 
 
-def validate_history(repository: Repository, policy: Policy) -> tuple[list[str], int]:
-    """Return the v1 linear history and its validated rewrite boundary.
-
-    Planning and rewriting deliberately share this preflight so a feasible plan
-    cannot advertise a history that rewrite later rejects as unsafe.
-    """
-    commits = _commits(repository)
-    return commits, _boundary_index(repository, commits, policy)
-
-
 def _metadata(repository: Repository, commit: str) -> dict[str, str]:
     fields = repository.run(
         "show",
@@ -125,7 +115,8 @@ def _create_commit(
 
 
 def compact(repository: Repository, policy: Policy) -> CompactResult:
-    commits, boundary_index = validate_history(repository, policy)
+    commits = _commits(repository)
+    boundary_index = _boundary_index(repository, commits, policy)
     boundary = commits[boundary_index]
     synthetic_root = _create_commit(
         repository, boundary, None, f"{policy.history.prefix_message}\n".encode()
