@@ -85,16 +85,22 @@ class GitFixtureTests(unittest.TestCase):
             self.fixture.assert_redacted('{"error": "customer-secret"}', "customer-secret")
         self.assertNotIn("customer-secret", str(error.exception))
 
-    def test_source_runner_uses_isolated_installed_module_without_pythonpath(self) -> None:
+    def test_source_runner_uses_its_runtime_venv_without_pythonpath_or_host_tool(self) -> None:
+        runtime_bin = str(Path(self.fixture.python_executable).parent)
+        unintended_tool = self.fixture.root / "host-tools" / "git-filter-repo"
         environment = self.fixture.environment | {"PYTHONPATH": "/host/checkout/src"}
         self.fixture.environment = environment
+        self.fixture.source_filter_repo_executable = str(unintended_tool)
 
         with patch("tests.support.git_fixture.subprocess.run") as run:
             self.fixture.run_cli("doctor")
 
         command = run.call_args.args[0]
+        runtime_path = run.call_args.kwargs["env"]["PATH"].split(os.pathsep)
         self.assertEqual(command, [self.fixture.python_executable, "-I", "-m", "git_history_sanitize", "doctor"])
         self.assertNotIn("PYTHONPATH", run.call_args.kwargs["env"])
+        self.assertIn(runtime_bin, runtime_path)
+        self.assertNotIn(str(unintended_tool.parent.resolve()), runtime_path)
 
     def test_container_runner_requires_an_image(self) -> None:
         with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container"}, clear=False):
@@ -140,9 +146,9 @@ class GitFixtureTests(unittest.TestCase):
         self.assertEqual(install_command[:5], [str(runtime / "bin" / "python"), "-I", "-m", "pip", "install"])
         self.assertIn("git-filter-repo==2.47.0", install_command)
         self.assertIsNotNone(self.fixture.source_filter_repo_executable)
-        self.assertNotIn(
-            str(Path(self.fixture.source_filter_repo_executable).resolve().parent),
-            run.call_args_list[1].kwargs["env"]["PATH"],
+        self.assertIn(
+            str(Path(self.fixture.python_executable).parent),
+            run.call_args_list[1].kwargs["env"]["PATH"].split(os.pathsep),
         )
 
     def test_wheel_runner_resolves_filter_repo_from_the_fixture_venv(self) -> None:

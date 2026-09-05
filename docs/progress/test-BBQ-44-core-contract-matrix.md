@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 15:30 EEST
+**Last Updated:** 2026-09-05 15:40 EEST
 
 ## Overview
 
@@ -246,6 +246,20 @@ No change was made outside the requested rename scope. The external signed
 wheel/OCI matrix blocker is unchanged: this host lacks GnuPG and
 `keys.openpgp.org` previously returned `No data` for the required signer key.
 
+### 2026-09-05 15:40 EEST
+
+Resolved the source-runner `PATH` health finding. Source execution now keeps the
+fixture's deterministic Python and Git directories rather than prepending the
+host-resolved `git-filter-repo` directory. The focused contract proves source
+execution remains `python -I -m`, removes checkout `PYTHONPATH`, retains the
+shared source-vendor runtime directory, and excludes a competing host tool.
+
+The wheel fixture contract now accepts the documented `.venv-source` layout in
+which Python and `git-filter-repo` share `bin`, while retaining its assertion
+that wheel installation is run through the fixture-owned venv Python. The
+focused fixture suite passed all 14 tests and full documented isolated source
+discovery passed all 50 tests without `PYTHONPATH`.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -276,6 +290,8 @@ wheel/OCI matrix blocker is unchanged: this host lacks GnuPG and
   suite (50 tests) without `PYTHONPATH`
 - [x] Renamed-contract focused source runtime inventory (28 tests) and full
   isolated source discovery (50 tests) in `.venv-verify` without `PYTHONPATH`
+- [x] Source-runner PATH regression coverage (14 fixture tests) and full
+  documented `.venv-source` discovery (50 tests) without `PYTHONPATH`
 - [x] YAML, shell, and Containerfile static checks for the source/test venv pins
 - [ ] Full pinned runtime image and contract matrix (not run locally; this host
   lacks host GnuPG and the OCI retry was blocked by `keys.openpgp.org` returning

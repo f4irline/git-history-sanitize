@@ -111,13 +111,8 @@ class GitFixture:
         )
         return result.stdout.strip()
 
-    def _runtime_environment(self, *, include_source_filter_repo: bool = False) -> dict[str, str]:
-        environment = {key: value for key, value in self.environment.items() if key != "PYTHONPATH"}
-        if include_source_filter_repo and self.source_filter_repo_executable:
-            environment["PATH"] = os.pathsep.join(
-                [str(Path(self.source_filter_repo_executable).resolve().parent), environment["PATH"]]
-            )
-        return environment
+    def _runtime_environment(self) -> dict[str, str]:
+        return {key: value for key, value in self.environment.items() if key != "PYTHONPATH"}
 
     def _wheel_cli(self, arguments: tuple[str, ...]) -> list[str]:
         wheel = os.environ.get("GHS_WHEEL")
@@ -276,7 +271,7 @@ class GitFixture:
 
     def run_cli(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
         runtime = os.environ.get("GHS_TEST_RUNTIME", "source")
-        environment = self._runtime_environment(include_source_filter_repo=runtime == "source")
+        environment = self._runtime_environment()
         if runtime == "source":
             command = [self.python_executable, "-I", "-m", "git_history_sanitize", *arguments]
         elif runtime == "wheel":
