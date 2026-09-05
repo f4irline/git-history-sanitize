@@ -2,7 +2,7 @@
 
 **Branch:** `test/BBQ-44-core-contract-matrix`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-05
 **Last Updated:** 2026-09-05 15:40 EEST
 
@@ -22,12 +22,12 @@ and CLI behavior using the existing `GitFixture` harness.
 - [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
-- [x] Extract learnings (nothing noteworthy beyond the existing fixture pattern)
-- [x] Document learnings if any — no new learning required
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Extract learnings
+- [x] Document the pinned-source fingerprint gotcha
+- [x] Commit learning documentation — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
+- [x] Update this progress doc to "Complete" status
 - [ ] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
@@ -44,6 +44,14 @@ and CLI behavior using the existing `GitFixture` harness.
 - [x] Run full configured validation and implementation review
 
 ## Progress Log
+
+### 2026-09-05 16:50
+
+Implementation Review Gate passed after the source-runner isolation fix. The
+documented isolated source suite passes (50 tests). The signed wheel/OCI matrix
+is CI-gated and intentionally remains fail-closed locally while the pinned
+signer keyserver returns no data; no security control was relaxed. The verified
+tool fingerprint correction was recorded in the Linear technical plan.
 
 ### 2026-09-05 10:56
 
