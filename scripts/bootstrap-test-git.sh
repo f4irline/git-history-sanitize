@@ -3,7 +3,7 @@ set -euo pipefail
 
 readonly git_tag="v2.47.0"
 readonly git_commit="777489f9e09c8d0dd6b12f9d90de6376330577a2"
-readonly git_release_key_fingerprint="4F9036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
+readonly git_release_key_fingerprint="E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
 readonly expected_output="git version 2.47.0"
 
 if [[ $# -ne 1 ]]; then
