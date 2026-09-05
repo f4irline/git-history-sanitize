@@ -231,7 +231,7 @@ class GitFixtureTests(unittest.TestCase):
             command = self.fixture._container_cli(arguments)
 
         image_index = command.index("fixture-image")
-        self.assertEqual(command[image_index + 1:], ["plan", "--source", "/input/.git", "--policy", "/policy.yml"])
+        self.assertEqual(command[image_index + 1:], ["plan", "--source", "/input", "--policy", "/policy.yml"])
         mounts = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--mount"]
         self.assertNotIn(f"type=bind,src={missing_policy.absolute()},dst=/policy.yml,readonly", mounts)
 
@@ -272,7 +272,7 @@ class GitFixtureTests(unittest.TestCase):
             [
                 "rewrite",
                 "--source",
-                "/input/.git",
+                "/input",
                 "--output",
                 "/output/output.git",
                 "--policy",
@@ -349,7 +349,7 @@ class GitFixtureTests(unittest.TestCase):
 
         source_image = source_command.index("fixture-image")
         output_image = output_command.index("fixture-image")
-        self.assertEqual(source_command[source_image + 1:], ["verify", "--repository", "/input/.git", "--policy", "/policy.yml"])
+        self.assertEqual(source_command[source_image + 1:], ["verify", "--repository", "/input", "--policy", "/policy.yml"])
         self.assertEqual(output_command[output_image + 1:], ["verify", "--repository", "/output/sanitized.git", "--policy", "/policy.yml"])
         output_mounts = [output_command[index + 1] for index, value in enumerate(output_command[:-1]) if value == "--mount"]
         self.assertIn(f"type=bind,src={output.parent.absolute()},dst=/output,readonly", output_mounts)
