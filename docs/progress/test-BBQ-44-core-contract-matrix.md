@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 14:23
+**Last Updated:** 2026-09-05 14:27
 
 ## Overview
 
@@ -99,6 +99,17 @@ roots, and forbidden object-database content. The source suite passes all 34
 tests. No production behavior or owner-dependent BBQ-7, BBQ-8, BBQ-11, or
 BBQ-12 contract was changed or added.
 
+### 2026-09-05 14:27
+
+Added the pinned Git bootstrap, fail-closed stdlib toolchain checker, isolated
+Containerfile environments, CI source/wheel/OCI matrix, and exact local-command
+documentation. Shell, Python, YAML, and whitespace checks passed. The runtime
+image build compiled Git 2.47.0 after build-local GCC 15 compatibility renames,
+then stopped at the required git-filter-repo fingerprint assertion: upstream
+tag `v2.47.0` at the planned commit emits `a40bce548d2c`, not the planned
+`bc98e38e057b`. The checker retains the planned fingerprint and the matrix is
+blocked pending a corrected, approved toolchain pin.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -114,6 +125,9 @@ BBQ-12 contract was changed or added.
 - [x] Package build (`pip3 wheel --no-deps .`)
 - [x] Isolated wheel runtime (`git-history-sanitize doctor --json`)
 - [x] Container suite (24 tests via `docker buildx build --target test -f Containerfile .`)
+- [x] Shell, Python, YAML, and whitespace static checks for toolchain changes
+- [ ] Pinned runtime image and contract matrix (blocked by the documented
+  git-filter-repo fingerprint mismatch)
 
 ## Files Changed
 
@@ -128,3 +142,8 @@ BBQ-12 contract was changed or added.
 - `tests/support/git_fixture.py` - deterministic commit-tree, tamper-tree, and staging-cleanup helpers
 - `tests/test_output_contracts.py` - report redaction, bare-output, cleanup, atomicity, and re-sanitize contracts
 - `tests/test_verifier_contracts.py` - independent refs, tags, remotes, reflogs, metadata, unreachable-object, graph, and object-database tamper contracts
+- `tests/support/toolchain.py` - exact Git and git-filter-repo output checker
+- `scripts/bootstrap-test-git.sh` - pinned Git 2.47.0 bootstrap
+- `Containerfile` - pinned runtime toolchain and isolated test/runtime venvs
+- `.github/workflows/ci.yml` - source, wheel, and OCI contract matrix
+- `README.md` - pinned toolchain prerequisites and local matrix commands

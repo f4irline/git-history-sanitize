@@ -58,6 +58,58 @@ workstation or runner is inconvenient.
 - Git 2.36 or later
 - `git-filter-repo` on `PATH`
 
+## Contract-Test Toolchain
+
+The supported contract-test toolchain is Git `2.47.0`, built from signed
+upstream tag `v2.47.0` at commit
+`777489f9e09c8d0dd6b12f9d90de6376330577a2`, and upstream
+`git-filter-repo` `2.47.0`, at commit
+`6f79afc8c90c592a3052e6cc53c2ca8907515bca`. The latter reports the
+upstream-defined source-content fingerprint `bc98e38e057b` from
+`git filter-repo --version`; this fingerprint, rather than package metadata,
+is the required check.
+
+Source and wheel contract tests require build prerequisites for Git, Python
+with `venv`, `git-filter-repo==2.47.0`, and `build==1.3.0`. OCI tests also
+require Docker Buildx. Bootstrap the private Git prefix before every host test
+mode; this prevents test runs from falling back to the system Git:
+
+```bash
+scripts/bootstrap-test-git.sh "$PWD/.toolchain/git-2.47.0"
+export PATH="$PWD/.toolchain/git-2.47.0/bin:$PATH"
+```
+
+Run the source mode without `PYTHONPATH`:
+
+```bash
+python3 -m venv .venv-source
+.venv-source/bin/python -m pip install --no-deps -e . git-filter-repo==2.47.0
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python tests/support/toolchain.py
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=source .venv-source/bin/python -m unittest discover -s tests -t . -v
+```
+
+Build and run the wheel mode without `PYTHONPATH`:
+
+```bash
+python3 -m pip install build==1.3.0
+python3 -m build
+python3 -m venv .venv-wheel
+.venv-wheel/bin/python -m pip install --no-deps dist/*.whl git-filter-repo==2.47.0
+PATH="$PWD/.venv-wheel/bin:$PATH" env -u PYTHONPATH .venv-wheel/bin/python tests/support/toolchain.py
+PATH="$PWD/.venv-wheel/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel .venv-wheel/bin/python -m unittest -v tests.test_cutoff_contracts tests.test_filtering_contracts tests.test_output_contracts tests.test_verifier_contracts tests.test_cli_contracts tests.test_end_to_end tests.test_regressions
+```
+
+OCI coverage is opt-in locally and mandatory in CI:
+
+```bash
+docker buildx build --load -t git-history-sanitize:local -f Containerfile .
+docker run --rm --entrypoint python3 -v "$PWD/tests/support/toolchain.py:/toolchain.py:ro" git-history-sanitize:local /toolchain.py
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local .venv-source/bin/python -m unittest -v tests.test_cutoff_contracts tests.test_filtering_contracts tests.test_output_contracts tests.test_verifier_contracts tests.test_cli_contracts tests.test_end_to_end tests.test_regressions
+```
+
+Fixtures use safe markers for sensitive values. Failure diagnostics and test
+assertions must not print source secrets or host-only fixture paths.
+
 For development from a checkout:
 
 ```bash
