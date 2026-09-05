@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** Complete
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:45
+**Last Updated:** 2026-09-05 07:48
 
 ## Overview
 
@@ -104,6 +104,13 @@ Finalized the implementation record. All feature, documentation, and learning
 commits are ready to push from the dedicated worktree. The final checklist will
 be updated after the remote branch, pull request, and Linear status are confirmed.
 
+### 2026-09-05 07:48
+
+Pushed branch `test/BBQ-22-hermetic-test-suite` through commit `78678a9`.
+GitHub rejected pull-request creation with HTTP 403 (`Resource not accessible by
+personal access token`), so the ticket remains In Progress and finalization is
+blocked pending pull-request permission.
+
 ## Technical Notes
 
 - House Rules: security-first isolation, predictable CLI output, no unnecessary
@@ -131,4 +138,5 @@ be updated after the remote branch, pull request, and Linear status are confirme
 
 ## Blockers
 
-None.
+- GitHub token lacks permission to create the pull request. The branch is pushed;
+  once permission is granted, create the PR and move BBQ-22 to In Review.
