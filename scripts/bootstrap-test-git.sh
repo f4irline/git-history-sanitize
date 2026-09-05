@@ -3,7 +3,7 @@ set -euo pipefail
 
 readonly git_tag="v2.47.0"
 readonly git_commit="777489f9e09c8d0dd6b12f9d90de6376330577a2"
-readonly git_release_key_fingerprint="4F9036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
+readonly git_release_key_fingerprint="E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB"
 readonly expected_output="git version 2.47.0"
 
 if [[ $# -ne 1 ]]; then
@@ -29,9 +29,15 @@ if ! command -v gpg >/dev/null; then
   printf 'gpg is required to verify Git release tags\n' >&2
   exit 1
 fi
-gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys "$git_release_key_fingerprint"
-imported_fingerprint="$(gpg --batch --with-colons --fingerprint "$git_release_key_fingerprint" | awk -F: '$1 == "fpr" { print $10; exit }')"
-if [[ "$imported_fingerprint" != "$git_release_key_fingerprint" ]]; then
+# keys.openpgp.org deliberately strips user IDs from some keys, which makes
+# GnuPG reject the release key before the tag signature can be checked. This
+# server returns the complete public certificate; its exact fingerprint below
+# remains the trust anchor.
+gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys "$git_release_key_fingerprint"
+if ! gpg --batch --with-colons --list-keys | awk -F: -v expected="$git_release_key_fingerprint" '
+  $1 == "fpr" && $10 == expected { found = 1 }
+  END { exit !found }
+'; then
   printf 'Git release key fingerprint did not match the pinned fingerprint\n' >&2
   exit 1
 fi
@@ -53,8 +59,9 @@ sed 's/unreachable(/reflog_unreachable(/g' "$workdir/git/reflog.c" > "$workdir/g
 mv "$workdir/git/reflog.c.tmp" "$workdir/git/reflog.c"
 sed 's/thread_local/git_thread_local/g' "$workdir/git/builtin/index-pack.c" > "$workdir/git/builtin/index-pack.c.tmp"
 mv "$workdir/git/builtin/index-pack.c.tmp" "$workdir/git/builtin/index-pack.c"
-make -C "$workdir/git" -s prefix="$prefix" NO_TCLTK=YesPlease install
-if [[ "$("$prefix/bin/git" --version)" != "$expected_output" ]]; then
-  printf 'built Git did not emit %s\n' "$expected_output" >&2
+make -C "$workdir/git" -s prefix="$prefix" GIT_VERSION=2.47.0 NO_TCLTK=YesPlease install
+actual_output="$("$prefix/bin/git" --version)"
+if [[ "$actual_output" != "$expected_output" ]]; then
+  printf 'built Git emitted %s; expected %s\n' "$actual_output" "$expected_output" >&2
   exit 1
 fi

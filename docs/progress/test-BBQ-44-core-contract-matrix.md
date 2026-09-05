@@ -45,6 +45,15 @@ and CLI behavior using the existing `GitFixture` harness.
 
 ## Progress Log
 
+### 2026-09-05 17:20
+
+Investigated the two failed CI jobs. Both stopped in the signed Git bootstrap:
+the OpenPGP service stripped the required signer user IDs, and the subkey
+fingerprint check incorrectly compared only the primary-key fingerprint. The
+bootstrap now uses a complete certificate source and checks every imported
+fingerprint for the pinned signing subkey. The Containerfile test target passes
+all 50 tests with the repaired bootstrap.
+
 ### 2026-09-05 16:50
 
 Implementation Review Gate passed after the source-runner isolation fix. The
@@ -187,7 +196,7 @@ and all 27 fixture-backed source runtime contracts without `PYTHONPATH`.
 
 The OCI build then exposed a pre-existing one-character regression in the Git
 release signer pin. Restored the v2.47.0 signer fingerprint ending in
-`B0B5E88696AFE6CB` to `4F9036B1FEE7221FC778ECEFB0B5E88696AFE6CB`; the
+`B0B5E88696AFE6CB` to `E1F036B1FEE7221FC778ECEFB0B5E88696AFE6CB`; the
 git-filter-repo toolchain fingerprint remains `a40bce548d2c`.
 
 ### 2026-09-05 16:20
