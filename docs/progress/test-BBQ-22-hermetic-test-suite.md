@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:37
+**Last Updated:** 2026-09-05 07:40
 
 ## Overview
 
@@ -24,8 +24,8 @@ coverage to deterministic, isolated test processes.
 - [x] Implementation review gate passes
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
 - [ ] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
@@ -92,6 +92,11 @@ Final validation passed: host unittest (11 tests), the configured Docker test
 target (11 tests), and wheel build. No linter is configured. The three review
 rounds resolved isolation and snapshot findings; the remaining redaction concern
 was closed by the user's ticket-scope clarification.
+
+### 2026-09-05 07:40
+
+Documented one reusable testing pattern: future Git/CLI integration tests should
+use `GitFixture` for hermetic processes and source/output comparison helpers.
 
 ## Technical Notes
 
