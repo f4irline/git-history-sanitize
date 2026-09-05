@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-22-hermetic-test-suite`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 07:18
+**Last Updated:** 2026-09-05 07:24
 
 ## Overview
 
@@ -71,6 +71,14 @@ Second review requested an explicit failed `--json` CLI invocation. The controll
 failure test now checks useful error context and sensitive-value redaction in both
 normal and JSON-mode output; validation and the final review are being rerun.
 
+### 2026-09-05 07:24
+
+The third implementation review found the current redaction assertions vacuous:
+the induced existing-output error cannot contain the fixture-marked secret values.
+Per the three-round review limit, implementation is paused pending direction on a
+non-vacuous established error contract to exercise. No push, PR, or ticket state
+change to In Review has occurred.
+
 ## Technical Notes
 
 - House Rules: security-first isolation, predictable CLI output, no unnecessary
@@ -94,3 +102,9 @@ normal and JSON-mode output; validation and the final review are being rerun.
 - `tests/test_git_fixture.py` - fixture isolation and helper regression tests.
 - `tests/test_end_to_end.py` - migrated CLI workflow and immutability tests.
 - `tests/test_regressions.py` - cleanup, repeatability, and verifier regressions.
+
+## Blockers
+
+- Final implementation review did not pass after three rounds. The remaining
+  finding requires direction on an established error path that can carry sensitive
+  source/configuration data for meaningful human/JSON redaction assertions.
