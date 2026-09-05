@@ -45,7 +45,8 @@ class GitFixture:
         self.hooks_dir = self.root / "hooks"
         self.source = self.root / "source"
         self.git_executable = self._required_executable("git")
-        self.python_executable = str(Path(sys.executable).resolve())
+        # Keep the venv launcher path: resolving it escapes the active runtime.
+        self.python_executable = sys.executable
         self.filter_repo_executable = shutil.which("git-filter-repo")
         self.environment = self._environment()
         self.home.mkdir()
@@ -68,10 +69,8 @@ class GitFixture:
         executable_dirs = {str(Path(self.git_executable).parent), str(Path(self.python_executable).parent)}
         if self.filter_repo_executable:
             executable_dirs.add(str(Path(self.filter_repo_executable).resolve().parent))
-        project_source = Path(__file__).resolve().parents[2] / "src"
         return {
             "PATH": os.pathsep.join(sorted(executable_dirs)),
-            "PYTHONPATH": str(project_source),
             "HOME": str(self.home),
             "XDG_CONFIG_HOME": str(self.xdg_config),
             "LC_ALL": "C",
@@ -114,12 +113,100 @@ class GitFixture:
         )
         return result.stdout.strip()
 
+    def _runtime_environment(self) -> dict[str, str]:
+        return {key: value for key, value in self.environment.items() if key != "PYTHONPATH"}
+
+    def _wheel_cli(self, arguments: tuple[str, ...]) -> list[str]:
+        wheel = os.environ.get("GHS_WHEEL")
+        if not wheel:
+            raise RuntimeError("GHS_WHEEL is required for the wheel test runtime")
+        wheel_path = Path(wheel).resolve(strict=True)
+        runtime = self.root / "wheel-runtime"
+        if not runtime.exists():
+            subprocess.run(
+                [self.python_executable, "-I", "-m", "venv", str(runtime)],
+                check=True,
+                capture_output=True,
+                env=self._runtime_environment(),
+                text=True,
+            )
+            subprocess.run(
+                [str(runtime / "bin" / "python"), "-I", "-m", "pip", "install", "--no-deps", str(wheel_path)],
+                check=True,
+                capture_output=True,
+                env=self._runtime_environment(),
+                text=True,
+            )
+        return [str(runtime / "bin" / "git-history-sanitize"), *arguments]
+
+    def _container_cli(self, arguments: tuple[str, ...]) -> list[str]:
+        image = os.environ.get("GHS_CONTAINER_IMAGE")
+        if not image:
+            raise RuntimeError("GHS_CONTAINER_IMAGE is required for the container test runtime")
+        runtime = shutil.which(os.environ.get("GHS_OCI_RUNTIME", "docker"))
+        if not runtime:
+            raise RuntimeError("an OCI runtime is required for the container test runtime")
+
+        translated = list(arguments)
+        mounts: list[str] = []
+        fixed_paths = {
+            "--source": ("/fixture/source.git", "ro"),
+            "--repository": ("/fixture/repository.git", "ro"),
+            "--policy": ("/fixture/policy.yml", "ro"),
+            "--output": ("/fixture/output.git", "rw"),
+        }
+        for index, argument in enumerate(translated):
+            if argument not in fixed_paths:
+                continue
+            if index + 1 == len(translated):
+                raise ValueError(f"{argument} requires a path")
+            fixed_path, mode = fixed_paths[argument]
+            host_path = Path(translated[index + 1]).resolve(strict=mode == "ro")
+            mount_source = host_path.parent if argument == "--output" else host_path
+            destination = "/fixture" if argument == "--output" else fixed_path
+            read_only = ",readonly" if mode == "ro" else ""
+            mounts.extend(["--mount", f"type=bind,src={mount_source},dst={destination}{read_only}"])
+            translated[index + 1] = fixed_path
+        if any(str(self.root) in argument for argument in translated):
+            raise ValueError("container CLI arguments must not contain fixture host paths")
+
+        environment = {
+            "HOME": "/tmp/home",
+            "LC_ALL": "C",
+            "LANG": "C",
+            "TZ": "UTC",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+        }
+        return [
+            runtime,
+            "run",
+            "--rm",
+            "--network=none",
+            "--read-only",
+            "--tmpfs",
+            "/tmp",
+            *mounts,
+            *(item for key, value in environment.items() for item in ("--env", f"{key}={value}")),
+            image,
+            *translated,
+        ]
+
     def run_cli(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        runtime = os.environ.get("GHS_TEST_RUNTIME", "source")
+        if runtime == "source":
+            command = [self.python_executable, "-I", "-m", "git_history_sanitize", *arguments]
+        elif runtime == "wheel":
+            command = self._wheel_cli(arguments)
+        elif runtime == "container":
+            command = self._container_cli(arguments)
+        else:
+            raise RuntimeError(f"unsupported GHS_TEST_RUNTIME: {runtime}")
         return subprocess.run(
-            [self.python_executable, "-m", "git_history_sanitize", *arguments],
+            command,
             check=check,
             capture_output=True,
-            env=self.environment,
+            env=self._runtime_environment(),
             text=True,
         )
 
