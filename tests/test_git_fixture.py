@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.support.git_fixture import GitFixture
 
@@ -80,8 +81,283 @@ class GitFixtureTests(unittest.TestCase):
 
     def test_redaction_assertion_accepts_context_but_rejects_sensitive_values(self) -> None:
         self.fixture.assert_redacted("error: cannot read policy", "customer-secret", "private/secret.txt")
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as error:
             self.fixture.assert_redacted('{"error": "customer-secret"}', "customer-secret")
+        self.assertNotIn("customer-secret", str(error.exception))
+
+    def test_source_runner_uses_its_runtime_venv_without_pythonpath_or_host_tool(self) -> None:
+        runtime_bin = str(Path(self.fixture.python_executable).parent)
+        unintended_tool = self.fixture.root / "host-tools" / "git-filter-repo"
+        environment = self.fixture.environment | {"PYTHONPATH": "/host/checkout/src"}
+        self.fixture.environment = environment
+        self.fixture.source_filter_repo_executable = str(unintended_tool)
+
+        with patch("tests.support.git_fixture.subprocess.run") as run:
+            self.fixture.run_cli("doctor")
+
+        command = run.call_args.args[0]
+        runtime_path = run.call_args.kwargs["env"]["PATH"].split(os.pathsep)
+        self.assertEqual(command, [self.fixture.python_executable, "-I", "-m", "git_history_sanitize", "doctor"])
+        self.assertNotIn("PYTHONPATH", run.call_args.kwargs["env"])
+        self.assertIn(runtime_bin, runtime_path)
+        self.assertNotIn(str(unintended_tool.parent.resolve()), runtime_path)
+
+    def test_container_runner_requires_an_image(self) -> None:
+        with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container"}, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "GHS_CONTAINER_IMAGE"):
+                self.fixture.run_cli("doctor")
+
+    def test_container_runtime_creates_mountable_fixture_under_the_checkout(self) -> None:
+        case = unittest.TestCase()
+        with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container"}, clear=False):
+            fixture = GitFixture(case)
+        self.addCleanup(fixture._temporary.cleanup)
+        self.assertEqual(fixture.root.parent, Path.cwd())
+
+    def test_wheel_runner_requires_a_wheel(self) -> None:
+        with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "wheel"}, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "GHS_WHEEL"):
+                self.fixture.run_cli("doctor")
+
+    def test_wheel_runner_rejects_console_script_outside_fixture_venv(self) -> None:
+        wheel = self.fixture.root / "fixture.whl"
+        wheel.touch()
+        launcher = self.fixture.root / "wheel-runtime" / "bin" / "git-history-sanitize"
+        launcher.parent.mkdir(parents=True)
+        launcher.symlink_to(self.fixture.python_executable)
+
+        with patch.dict(os.environ, {"GHS_WHEEL": str(wheel)}, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "fixture-owned wheel venv"):
+                self.fixture._wheel_cli(("doctor",))
+
+    def test_wheel_runner_installs_filter_repo_in_its_fixture_venv(self) -> None:
+        wheel = self.fixture.root / "fixture.whl"
+        wheel.touch()
+        runtime = self.fixture.root / "wheel-runtime"
+        launcher = runtime / "bin" / "git-history-sanitize"
+
+        def install(command: list[str], **_kwargs: object) -> None:
+            if "venv" in command:
+                launcher.parent.mkdir(parents=True)
+            else:
+                launcher.touch()
+
+        with (
+            patch.dict(os.environ, {"GHS_WHEEL": str(wheel)}, clear=False),
+            patch("tests.support.git_fixture.subprocess.run", side_effect=install) as run,
+        ):
+            self.fixture._wheel_cli(("doctor",))
+
+        self.assertEqual(run.call_count, 2)
+        install_command = run.call_args_list[1].args[0]
+        self.assertEqual(install_command[:5], [str(runtime / "bin" / "python"), "-I", "-m", "pip", "install"])
+        self.assertIn("git-filter-repo==2.47.0", install_command)
+        self.assertIsNotNone(self.fixture.source_filter_repo_executable)
+        self.assertIn(
+            str(Path(self.fixture.python_executable).parent),
+            run.call_args_list[1].kwargs["env"]["PATH"].split(os.pathsep),
+        )
+
+    def test_wheel_runner_resolves_filter_repo_from_the_fixture_venv(self) -> None:
+        command = [str(self.fixture.root / "wheel-runtime" / "bin" / "git-history-sanitize"), "doctor"]
+
+        with (
+            patch.dict(os.environ, {"GHS_TEST_RUNTIME": "wheel"}, clear=False),
+            patch.object(self.fixture, "_wheel_cli", return_value=command),
+            patch("tests.support.git_fixture.subprocess.run") as run,
+        ):
+            self.fixture.run_cli("doctor")
+
+        self.assertEqual(
+            run.call_args.kwargs["env"]["PATH"].split(os.pathsep)[0],
+            str(self.fixture.root / "wheel-runtime" / "bin"),
+        )
+
+    def test_container_runner_allows_translated_paths_in_success_output(self) -> None:
+        arguments = self._container_rewrite_arguments()
+        result = subprocess.CompletedProcess([], 0, "/input.git /output/output.git\n", "/policy.yml\n")
+
+        with (
+            patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container", "GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+            patch("tests.support.git_fixture.subprocess.run", return_value=result),
+        ):
+            self.assertIs(self.fixture.run_cli(*arguments), result)
+
+    def test_container_runner_preserves_host_docker_endpoint_without_injecting_it(self) -> None:
+        arguments = self._container_rewrite_arguments()
+        result = subprocess.CompletedProcess([], 0, "", "")
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "GHS_TEST_RUNTIME": "container",
+                    "GHS_CONTAINER_IMAGE": "fixture-image",
+                    "DOCKER_HOST": "unix:///fixture/docker.sock",
+                },
+                clear=False,
+            ),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+            patch("tests.support.git_fixture.subprocess.run", return_value=result) as run,
+        ):
+            self.fixture.run_cli(*arguments)
+
+        self.assertEqual(run.call_args.kwargs["env"]["DOCKER_HOST"], "unix:///fixture/docker.sock")
+        command = run.call_args.args[0]
+        self.assertNotIn("DOCKER_HOST=unix:///fixture/docker.sock", command)
+
+    def test_container_runner_rejects_host_paths_in_expected_failure_output(self) -> None:
+        arguments = self._container_rewrite_arguments()
+        result = subprocess.CompletedProcess([], 2, "", f"cannot read {self.fixture.global_config}\n")
+
+        with (
+            patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container", "GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+            patch("tests.support.git_fixture.subprocess.run", return_value=result),
+        ):
+            with self.assertRaisesRegex(AssertionError, "sensitive value leaked in command output") as error:
+                self.fixture.run_cli(*arguments, check=False)
+        self.assertNotIn(str(self.fixture.global_config), str(error.exception))
+
+    def test_container_runner_translates_a_missing_policy_without_mounting_it(self) -> None:
+        missing_policy = self.fixture.root / "missing.yml"
+        arguments = ("plan", "--source", str(self.fixture.source / ".git"), "--policy", str(missing_policy))
+
+        with (
+            patch.dict(os.environ, {"GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+        ):
+            command = self.fixture._container_cli(arguments)
+
+        image_index = command.index("fixture-image")
+        self.assertEqual(command[image_index + 1:], ["plan", "--source", "/input", "--policy", "/policy.yml"])
+        mounts = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--mount"]
+        self.assertNotIn(f"type=bind,src={missing_policy.absolute()},dst=/policy.yml,readonly", mounts)
+
+    def _container_rewrite_arguments(self) -> tuple[str, ...]:
+        policy = self.fixture.write_policy()
+        return (
+            "rewrite",
+            "--source",
+            str(self.fixture.source / ".git"),
+            "--output",
+            str(self.fixture.root / "output.git"),
+            "--policy",
+            str(policy),
+        )
+
+    def test_container_runner_translates_fixture_paths_and_uses_allowlisted_environment(self) -> None:
+        policy = self.fixture.write_policy()
+        output = self.fixture.root / "output.git"
+        arguments = (
+            "rewrite",
+            "--source",
+            str(self.fixture.source / ".git"),
+            "--output",
+            str(output),
+            "--policy",
+            str(policy),
+        )
+
+        with (
+            patch.dict(os.environ, {"GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+        ):
+            command = self.fixture._container_cli(arguments)
+
+        image_index = command.index("fixture-image")
+        self.assertEqual(
+            command[image_index + 1:],
+            [
+                "rewrite",
+                "--source",
+                "/input",
+                "--output",
+                "/output/output.git",
+                "--policy",
+                "/policy.yml",
+            ],
+        )
+        self.assertNotIn(str(self.fixture.root), command[image_index + 1:])
+        mounts = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--mount"]
+        self.assertIn(
+            f"type=bind,src={self.fixture.source.absolute()},dst=/input,readonly",
+            mounts,
+        )
+        self.assertIn(f"type=bind,src={policy.absolute()},dst=/policy.yml,readonly", mounts)
+        self.assertIn(f"type=bind,src={output.parent.absolute()},dst=/output", mounts)
+        for host_path, container_path in (
+            (self.fixture.home, "/home/fixture"),
+            (self.fixture.xdg_config, "/xdg-config"),
+            (self.fixture.global_config, "/gitconfig"),
+            (self.fixture.template_dir, "/templates"),
+            (self.fixture.hooks_dir, "/hooks"),
+        ):
+            self.assertIn(f"type=bind,src={host_path},dst={container_path},readonly", mounts)
+        destinations = [mount.split(",dst=", 1)[1].split(",", 1)[0] for mount in mounts]
+        self.assertEqual(len(destinations), len(set(destinations)))
+        self.assertIn("--read-only", command)
+        self.assertIn("--network=none", command)
+        self.assertEqual(
+            {command[index + 1] for index, value in enumerate(command[:-1]) if value == "--env"},
+            {
+                "HOME=/home/fixture",
+                "XDG_CONFIG_HOME=/xdg-config",
+                "LC_ALL=C",
+                "LANG=C",
+                "TZ=UTC",
+                "GIT_CONFIG_NOSYSTEM=1",
+                "GIT_CONFIG_GLOBAL=/gitconfig",
+                "GIT_TEMPLATE_DIR=/templates",
+                "GIT_AUTHOR_NAME=Fixture",
+                "GIT_AUTHOR_EMAIL=fixture@example.invalid",
+                "GIT_COMMITTER_NAME=Fixture",
+                "GIT_COMMITTER_EMAIL=fixture@example.invalid",
+                "GIT_AUTHOR_DATE=2026-09-03T12:00:00+00:00",
+                "GIT_COMMITTER_DATE=2026-09-03T12:00:00+00:00",
+                "GIT_CONFIG_COUNT=6",
+                "GIT_CONFIG_KEY_0=commit.gpgsign",
+                "GIT_CONFIG_VALUE_0=false",
+                "GIT_CONFIG_KEY_1=tag.gpgSign",
+                "GIT_CONFIG_VALUE_1=false",
+                "GIT_CONFIG_KEY_2=credential.helper",
+                "GIT_CONFIG_VALUE_2=",
+                "GIT_CONFIG_KEY_3=core.hooksPath",
+                "GIT_CONFIG_VALUE_3=/hooks",
+                "GIT_CONFIG_KEY_4=safe.directory",
+                "GIT_CONFIG_VALUE_4=/input",
+                "GIT_CONFIG_KEY_5=safe.directory",
+                "GIT_CONFIG_VALUE_5=/output/*",
+            },
+        )
+        self.assertFalse(
+            any(str(self.fixture.root) in value for value in command[image_index + 1:] if value)
+        )
+
+    def test_container_verify_maps_source_and_output_repositories_separately(self) -> None:
+        policy = self.fixture.write_policy()
+        output = self.fixture.root / "sanitized.git"
+        output.mkdir()
+
+        with (
+            patch.dict(os.environ, {"GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+        ):
+            source_command = self.fixture._container_cli(
+                ("verify", "--repository", str(self.fixture.source / ".git"), "--policy", str(policy))
+            )
+            output_command = self.fixture._container_cli(
+                ("verify", "--repository", str(output), "--policy", str(policy))
+            )
+
+        source_image = source_command.index("fixture-image")
+        output_image = output_command.index("fixture-image")
+        self.assertEqual(source_command[source_image + 1:], ["verify", "--repository", "/input", "--policy", "/policy.yml"])
+        self.assertEqual(output_command[output_image + 1:], ["verify", "--repository", "/output/sanitized.git", "--policy", "/policy.yml"])
+        output_mounts = [output_command[index + 1] for index, value in enumerate(output_command[:-1]) if value == "--mount"]
+        self.assertIn(f"type=bind,src={output.parent.absolute()},dst=/output,readonly", output_mounts)
+        self.assertNotIn(f"type=bind,src={output.absolute()},dst=/input,readonly", output_mounts)
 
 
 if __name__ == "__main__":
