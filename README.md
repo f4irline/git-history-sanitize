@@ -65,9 +65,10 @@ upstream tag `v2.47.0` at commit
 `777489f9e09c8d0dd6b12f9d90de6376330577a2`, and upstream
 `git-filter-repo` `2.47.0`, at commit
 `6f79afc8c90c592a3052e6cc53c2ca8907515bca`. The latter reports the
-upstream-defined source-content fingerprint `bc98e38e057b` from
+upstream-defined source-content fingerprint `a40bce548d2c` from
 `git filter-repo --version`; this fingerprint, rather than package metadata,
-is the required check.
+is the required check. This corrects the approved pin after verification against
+the pinned upstream source; the checker remains fail-closed on any other output.
 
 Source and wheel contract tests require build prerequisites for Git, Python
 with `venv`, `git-filter-repo==2.47.0`, and `build==1.3.0`. OCI tests also
@@ -96,7 +97,7 @@ python3 -m build
 python3 -m venv .venv-wheel
 .venv-wheel/bin/python -m pip install --no-deps dist/*.whl git-filter-repo==2.47.0
 PATH="$PWD/.venv-wheel/bin:$PATH" env -u PYTHONPATH .venv-wheel/bin/python tests/support/toolchain.py
-PATH="$PWD/.venv-wheel/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel .venv-wheel/bin/python -m unittest -v tests.test_cutoff_contracts tests.test_filtering_contracts tests.test_output_contracts tests.test_verifier_contracts tests.test_cli_contracts tests.test_end_to_end tests.test_regressions
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/*.whl)" .venv-source/bin/python -m unittest discover -s tests -t . -v
 ```
 
 OCI coverage is opt-in locally and mandatory in CI:
@@ -104,7 +105,7 @@ OCI coverage is opt-in locally and mandatory in CI:
 ```bash
 docker buildx build --load -t git-history-sanitize:local -f Containerfile .
 docker run --rm --entrypoint python3 -v "$PWD/tests/support/toolchain.py:/toolchain.py:ro" git-history-sanitize:local /toolchain.py
-PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local .venv-source/bin/python -m unittest -v tests.test_cutoff_contracts tests.test_filtering_contracts tests.test_output_contracts tests.test_verifier_contracts tests.test_cli_contracts tests.test_end_to_end tests.test_regressions
+PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local .venv-source/bin/python -m unittest discover -s tests -t . -v
 ```
 
 Fixtures use safe markers for sensitive values. Failure diagnostics and test

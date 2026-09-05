@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 
 GIT_OUTPUT = "git version 2.47.0\n"
-FILTER_REPO_OUTPUT = "bc98e38e057b\n"
+FILTER_REPO_OUTPUT = "a40bce548d2c\n"
 
 
 def command_output(command: Sequence[str], expected: str, label: str) -> None:

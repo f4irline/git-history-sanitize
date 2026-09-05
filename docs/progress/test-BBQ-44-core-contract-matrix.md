@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 14:31
+**Last Updated:** 2026-09-05 15:05
 
 ## Overview
 
@@ -17,7 +17,7 @@ and CLI behavior using the existing `GitFixture` harness.
 
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
-- [ ] Implement changes
+- [x] Implement changes
 - [ ] Validate (lint, build, tests pass)
 - [ ] Commit implementation changes — use `git-commit` skill
 
@@ -119,6 +119,23 @@ the deterministic checker tests plus signed-tag verification are still absent.
 This is the third review round, so the workflow stops for user direction rather
 than relaxing the fail-closed toolchain policy.
 
+### 2026-09-05 15:05
+
+Resolved the latest health-inspector findings without changing sanitizer
+behavior. `GitFixture` now selects source, wheel, or container execution from
+`GHS_TEST_RUNTIME`: source uses isolated module execution without `PYTHONPATH`;
+wheel requires `GHS_WHEEL` and creates a fresh fixture-owned venv before using
+its console script; container requires `GHS_CONTAINER_IMAGE`, invokes its OCI
+entrypoint with translated fixed paths, read-only inputs, writable output, a
+read-only root filesystem, no network, and a fixed environment allowlist.
+
+The checked `git-filter-repo` fingerprint is now the verified pinned-source
+output `a40bce548d2c`, correcting the approved pin while retaining exact-output
+fail-closed checks. Added deterministic mocked checker tests and made CI run
+them with the real checker before host runtimes. Git bootstrap now imports only
+the pinned Git release key into an isolated keyring and verifies the signed tag
+before checkout; CI and the image install GnuPG for that verification.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -137,8 +154,9 @@ than relaxing the fail-closed toolchain policy.
 - [x] Isolated wheel runtime (`git-history-sanitize doctor --json`)
 - [x] Container suite (24 tests via `docker buildx build --target test -f Containerfile .`)
 - [x] Shell, Python, YAML, and whitespace static checks for toolchain changes
-- [ ] Pinned runtime image and contract matrix (blocked by the documented
-  git-filter-repo fingerprint mismatch)
+- [x] Focused deterministic runner and toolchain tests (12 tests)
+- [ ] Full pinned runtime image and contract matrix (not run locally; this host
+  lacks GnuPG, so the signed-tag bootstrap correctly fails closed)
 
 ## Files Changed
 
@@ -159,3 +177,4 @@ than relaxing the fail-closed toolchain policy.
 - `.github/workflows/ci.yml` - source, wheel, and OCI contract matrix
 - `README.md` - pinned toolchain prerequisites and local matrix commands
 - `docs/learnings/gotchas.md` - pinned-source fingerprint mismatch gotcha
+- `tests/test_toolchain.py` - deterministic exact-output checker tests

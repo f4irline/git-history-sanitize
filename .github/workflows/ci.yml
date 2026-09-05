@@ -26,16 +26,19 @@ jobs:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Install build prerequisites
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential ca-certificates gettext libcurl4-gnutls-dev libexpat1-dev libssl-dev python3-venv zlib1g-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential ca-certificates gettext gnupg libcurl4-gnutls-dev libexpat1-dev libssl-dev python3-venv zlib1g-dev
       - name: Build the pinned Git toolchain
         run: |
           scripts/bootstrap-test-git.sh "$RUNNER_TEMP/git-2.47.0"
           echo "$RUNNER_TEMP/git-2.47.0/bin" >> "$GITHUB_PATH"
-      - name: Run source contracts
+      - name: Verify contract toolchain before host runtimes
         run: |
           python3 -m venv .venv-source
           .venv-source/bin/python -m pip install --no-deps -e . git-filter-repo==2.47.0
+          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python -m unittest -v tests.test_toolchain
           PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python tests/support/toolchain.py
+      - name: Run source contracts
+        run: |
           PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=source .venv-source/bin/python -m unittest discover -s tests -t . -v
       - name: Build distributions
         run: |
@@ -43,16 +46,13 @@ jobs:
           python3 -m build
       - name: Run wheel contracts
         run: |
-          python3 -m venv .venv-wheel
-          .venv-wheel/bin/python -m pip install --no-deps dist/*.whl git-filter-repo==2.47.0
-          PATH="$PWD/.venv-wheel/bin:$PATH" env -u PYTHONPATH .venv-wheel/bin/python tests/support/toolchain.py
-          PATH="$PWD/.venv-wheel/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel .venv-wheel/bin/python -m unittest -v tests.test_cutoff_contracts tests.test_filtering_contracts tests.test_output_contracts tests.test_verifier_contracts tests.test_cli_contracts tests.test_end_to_end tests.test_regressions
+          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/*.whl)" .venv-source/bin/python -m unittest discover -s tests -t . -v
       - name: Build and validate OCI runtime
         run: |
           docker buildx build --load -t git-history-sanitize:local -f Containerfile .
           docker run --rm --entrypoint python3 -v "$PWD/tests/support/toolchain.py:/toolchain.py:ro" git-history-sanitize:local /toolchain.py
       - name: Run OCI contracts
-        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local .venv-source/bin/python -m unittest -v tests.test_cutoff_contracts tests.test_filtering_contracts tests.test_output_contracts tests.test_verifier_contracts tests.test_cli_contracts tests.test_end_to_end tests.test_regressions
+        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local .venv-source/bin/python -m unittest discover -s tests -t . -v
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
