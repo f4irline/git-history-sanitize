@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/test-BBQ-44-core-contract-matrix`
 **Status:** In Progress
 **Started:** 2026-09-05
-**Last Updated:** 2026-09-05 11:03
+**Last Updated:** 2026-09-05 11:09
 
 ## Overview
 
@@ -56,6 +56,12 @@ Added focused cutoff contracts. They exposed that `plan` accepted a timestamp
 recrossing history that `rewrite` correctly rejected. Both commands now share
 the same linear-history and boundary preflight validation.
 
+### 2026-09-05 11:09
+
+Added focused filtering and CLI contracts. The mixed synthetic-root contract
+revealed a verifier-breaking message replacement; path filtering now preserves
+the configured root message while still redacting later mixed commits.
+
 ## Technical Notes
 
 - House Rules loaded from the launching checkout and apply without exceptions.
@@ -78,3 +84,6 @@ the same linear-history and boundary preflight validation.
 - `tests/test_cutoff_contracts.py` - timestamp and preflight parity contracts
 - `src/git_history_sanitize/compact.py` - shared history validation
 - `src/git_history_sanitize/engine.py` - plan uses shared validation
+- `src/git_history_sanitize/filtering.py` - preserve synthetic-root proof message
+- `tests/test_filtering_contracts.py` - path and mixed-root contracts
+- `tests/test_cli_contracts.py` - CLI JSON and expected-failure contracts
