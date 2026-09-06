@@ -241,6 +241,7 @@ class Policy:
     @classmethod
     def from_file(cls, path: str) -> "Policy":
         try:
-            return cls.from_text(open(path, encoding="utf-8").read())
+            with open(path, encoding="utf-8") as policy_file:
+                return cls.from_text(policy_file.read())
         except OSError as error:
             raise PolicyError(f"Cannot read policy file {path!r}: {error.strerror}") from error
