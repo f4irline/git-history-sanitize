@@ -1,3 +1,11 @@
+"""Security regressions and deferred owner-ticket consumer contracts.
+
+After BBQ-11 lands, retain coverage here for the chosen all-content-excluded
+contract: deterministic planning, a valid canonical result or preflight error,
+no excluded/unreachable objects, and exact diagnostics across representative
+sensitive-only histories.
+"""
+
 import json
 import unittest
 
@@ -32,7 +40,7 @@ refs:
         self.fixture.commit("Allowed", "allowed.txt")
 
     def rewrite(self, name: str) -> tuple[object, object]:
-        output = self.fixture.root / name
+        output = self.fixture.output_dir / name
         result = self.fixture.run_cli(
             "rewrite",
             "--source",
@@ -66,7 +74,7 @@ refs:
         self.assertEqual(extra_ref.returncode, 2)
         self.assertIn("Unexpected refs remain", extra_ref.stderr)
 
-        self.fixture.git(output, "branch", "-D", "unexpected-ref")
+        self.fixture.git(output, "update-ref", "-d", "refs/heads/unexpected-ref")
         self.fixture.add_unreachable_blob("unreachable staging secret", output)
         unreachable = self.fixture.run_cli(
             "verify", "--repository", str(output), "--policy", str(self.policy), check=False

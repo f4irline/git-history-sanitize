@@ -93,7 +93,9 @@ refs:
         self.assertEqual(proposed["source_commits"], 7)
         self.assertEqual(proposed["discarded_commits"], 2)
 
-        output = self.root / "sanitized.git"
+        first_output_dir = self.fixture.output_dir / "first"
+        first_output_dir.mkdir()
+        output = first_output_dir / "sanitized.git"
         rewritten = self.fixture.run_cli(
             "rewrite",
             "--source",
@@ -148,7 +150,9 @@ refs:
         self.fixture.assert_output_snapshot(output, output_snapshot)
 
         # The tool accepts its own bare output as a future read-only source.
-        second_output = self.root / "sanitized-again.git"
+        second_output_dir = self.fixture.output_dir / "second"
+        second_output_dir.mkdir()
+        second_output = second_output_dir / "sanitized.git"
         second_rewrite = self.fixture.run_cli(
             "rewrite",
             "--source",
@@ -170,7 +174,7 @@ refs:
         self.commit("2026-09-03T12:00:00+00:00", "Allowed", "allowed.txt")
         self.write_policy()
         source_snapshot = self.fixture.snapshot_source()
-        output = self.root / "already-exists.git"
+        output = self.fixture.output_dir / "already-exists.git"
         output.mkdir()
 
         failed = self.fixture.run_cli(
