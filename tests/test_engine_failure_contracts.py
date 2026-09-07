@@ -29,7 +29,7 @@ class EngineFailureContractTests(unittest.TestCase):
         self.output = self.fixture.output_dir / "must-not-exist.git"
         self.source_snapshot = self.fixture.snapshot_source()
 
-    def run_rewrite(self) -> tuple[int, str, str]:
+    def run_rewrite(self, *, policy: object | None = None, receipt: Path | None = None) -> tuple[int, str, str]:
         stdout = io.StringIO()
         stderr = io.StringIO()
         with (
@@ -37,10 +37,13 @@ class EngineFailureContractTests(unittest.TestCase):
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
-            status = main([
+            arguments = [
                 "rewrite", "--source", str(self.fixture.source / ".git"),
-                "--output", str(self.output), "--policy", str(self.policy),
-            ])
+                "--output", str(self.output), "--policy", str(policy or self.policy),
+            ]
+            if receipt is not None:
+                arguments.extend(("--receipt", str(receipt)))
+            status = main(arguments)
         return status, stdout.getvalue(), stderr.getvalue()
 
     def assert_atomic_failure(
@@ -104,6 +107,33 @@ class EngineFailureContractTests(unittest.TestCase):
             "error: Post-rewrite verification failed; output was not published\n",
         )
         self.assert_atomic_failure(status, stdout, stderr, staged_bare.parent)
+
+    def test_output_publication_failure_leaves_only_an_orphan_receipt(self) -> None:
+        receipt = self.fixture.receipt_dir / "receipt.json"
+        commit_policy = self.fixture.write_policy(
+            cutoff=None,
+            cutoff_commit=self.fixture.git(self.fixture.source, "rev-parse", "HEAD"),
+            excluded_paths=("private/",),
+        )
+        calls: list[Path] = []
+
+        def fail_output_publish(staged: Path, _destination: Path) -> None:
+            calls.append(staged)
+            if len(calls) == 2:
+                raise SanitizeError("Atomic publication failed")
+            os.replace(staged, receipt)
+
+        with patch("git_history_sanitize.engine.publish", side_effect=fail_output_publish):
+            status, stdout, stderr = self.run_rewrite(policy=commit_policy, receipt=receipt)
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "error: Atomic publication failed\n")
+        self.assertFalse(self.output.exists())
+        self.assertTrue(receipt.is_file())
+        self.assertEqual(len(calls), 2)
+        self.fixture.assert_no_staging_directories(self.output.parent)
+        self.fixture.assert_source_snapshot(self.source_snapshot)
 
 
 if __name__ == "__main__":

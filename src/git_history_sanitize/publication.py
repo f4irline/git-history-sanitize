@@ -18,13 +18,17 @@ _RENAME_EXCL = 4
 def publish(source: Path, destination: Path) -> None:
     """Atomically publish a new filesystem entry without replacing an existing one."""
     system = platform.system()
-    libc = ctypes.CDLL(None, use_errno=True)
     if system == "Darwin":
+        libc = ctypes.CDLL(None, use_errno=True)
         rename = libc.renameatx_np
         rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
         result = rename(_AT_FDCWD, os.fsencode(source), _AT_FDCWD, os.fsencode(destination), _RENAME_EXCL)
     elif system == "Linux":
-        number = 276 if platform.machine() in {"aarch64", "arm64"} else 316
+        numbers = {"aarch64": 276, "arm64": 276, "x86_64": 316}
+        number = numbers.get(platform.machine())
+        if number is None:
+            raise SanitizeError("Atomic no-replace publication is unsupported on this Linux architecture")
+        libc = ctypes.CDLL(None, use_errno=True)
         result = libc.syscall(number, _AT_FDCWD, os.fsencode(source), _AT_FDCWD, os.fsencode(destination), _RENAME_NOREPLACE)
     else:
         raise SanitizeError("Atomic no-replace publication is unsupported on this platform")

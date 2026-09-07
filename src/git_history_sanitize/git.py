@@ -117,6 +117,8 @@ class Repository:
         width = 40 if object_format == "sha1" else 64
         if len(value) != width or any(character not in "0123456789abcdef" for character in value):
             raise SanitizeError("history.cutoffCommit must be a full lowercase storage-format object ID")
+        if self.run("cat-file", "-t", "--", value, check=False).decode().strip() != "commit":
+            raise SanitizeError("history.cutoffCommit must resolve to a commit")
         result = self.run("rev-parse", "--verify", "--end-of-options", f"{value}^{{commit}}", check=False).decode().strip()
         if len(result) != width:
             raise SanitizeError("history.cutoffCommit must resolve to a commit")

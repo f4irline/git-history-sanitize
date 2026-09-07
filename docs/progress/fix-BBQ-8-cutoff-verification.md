@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-8-cutoff-verification`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-8-cutoff-verification`
-**Status:** Complete
+**Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 10:32
+**Last Updated:** 2026-09-07 10:46
 
 ## Overview
 
@@ -20,8 +20,8 @@ and the accompanying contract tests, documentation, and CI coverage.
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [x] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
-- [x] Commit implementation changes — use `git-commit` skill
+- [ ] Validate (lint, build, tests pass) — pending independent review of health fixes
+- [ ] Commit implementation changes — pending independent review of health fixes
 
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
@@ -29,8 +29,8 @@ and the accompanying contract tests, documentation, and CI coverage.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [x] Update this progress doc to "Complete" status
-- [x] Commit progress doc update — use `git-commit` skill
+- [ ] Update this progress doc to "Complete" status
+- [ ] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -76,6 +76,14 @@ Validated the pinned source suite (63 tests), toolchain fingerprint, and wheel
 runtime contracts (30 tests). SHA-256 repository initialization works, but the
 pinned `git-filter-repo` crashes during path filtering; this remains a recorded
 compatibility gap rather than a weakened or misleading CI claim.
+
+### 2026-09-07 10:46
+
+Started health-review remediation. Added focused TDD coverage for unsupported
+Linux architectures, publication failure after receipt publication, receipt
+read errors, policy boolean versions, annotated tag cutoffs, and policy-
+conditional CLI failures. The focused pinned suite passes, but Phase 1 remains
+in progress until an independent review of these fixes passes.
 
 ## Testing
 

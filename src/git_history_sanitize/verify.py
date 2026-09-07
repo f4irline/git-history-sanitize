@@ -80,7 +80,7 @@ def verify(
             _fail("cutoffCommit verification requires --receipt and --source")
         try:
             evidence = Receipt.from_bytes(Path(receipt).read_bytes())
-        except FileNotFoundError as error:
+        except OSError as error:
             raise VerificationError("sanitization receipt is missing") from error
         except ReceiptError as error:
             raise VerificationError(str(error)) from error

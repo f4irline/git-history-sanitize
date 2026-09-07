@@ -97,6 +97,20 @@ class CutoffContractTests(unittest.TestCase):
         self.assertEqual(rewritten.stderr, "error: cutoffCommit rewrite requires --receipt\n")
         self.assertFalse(output.exists())
 
+    def test_annotated_tag_oid_is_not_a_commit_cutoff(self) -> None:
+        self.fixture.write("boundary.txt", "boundary\n")
+        self.fixture.commit("boundary", "boundary.txt")
+        tag = self.fixture.tag("boundary", "boundary tag")
+        tag_oid = self.fixture.git(self.source, "rev-parse", "boundary")
+        self.assertNotEqual(tag, tag_oid)
+        policy = self.fixture.write_policy(cutoff=None, cutoff_commit=tag_oid)
+
+        result = self._plan(policy, check=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "error: history.cutoffCommit must resolve to a commit\n")
+
     def test_no_timestamp_retained_commit_fails_without_publishing_output(self) -> None:
         self.fixture.write("old.txt", "old\n")
         self.fixture.commit("old", "old.txt", timestamp="2026-09-02T23:59:59+00:00")
