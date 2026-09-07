@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-8-cutoff-verification`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-8-cutoff-verification`
-**Status:** Complete
+**Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 11:15
+**Last Updated:** 2026-09-07 12:20
 
 ## Overview
 
@@ -103,6 +103,20 @@ script is configured. House Rules are compliant with no approved exceptions.
 
 Pushed `fix/BBQ-8-cutoff-verification`, created PR #3, and moved BBQ-8 to In Review.
 
+### 2026-09-07 12:17
+
+Resumed remediation for the OCI receipt publication failure. Receipt staging must
+remain in its destination parent so the native no-replace rename stays on one
+mount; implementation and validation are in progress.
+
+### 2026-09-07 12:20
+
+Stage receipts with a mode of `0600` in the receipt destination parent, then
+remove the temporary entry on every post-creation failure path. The rebuilt OCI
+cutoff contracts passed 5 tests; the source runtime and source-only matrices
+passed 72 tests. Status remains In Progress while the remediation commit is
+awaiting normal review.
+
 ## Testing
 
 - [x] Unit tests written
@@ -113,8 +127,10 @@ Pushed `fix/BBQ-8-cutoff-verification`, created PR #3, and moved BBQ-8 to In Rev
 
 - `docs/progress/fix-BBQ-8-cutoff-verification.md` - workflow tracking.
 - `src/git_history_sanitize/receipt.py` - Receipt v1 parsing, serialization, and source fingerprint.
+- `src/git_history_sanitize/engine.py` - adjacent private receipt staging and cleanup.
 - `src/git_history_sanitize/publication.py` - native atomic no-replace publication.
 - `README.md`, `PLAN.md`, `PUBLISHING_PLAN.md` - Receipt v1 operating contract.
 - `.github/workflows/ci.yml` - Receipt unit coverage in the pinned matrix.
 - `tests/test_publication.py` - native no-replace publication contracts.
 - `tests/test_receipt.py`, `tests/test_cutoff_contracts.py`, `tests/test_verify_contracts.py` - Receipt v1 and source-backed verification contracts.
+- `tests/test_engine_failure_contracts.py` - receipt staging failure contract.

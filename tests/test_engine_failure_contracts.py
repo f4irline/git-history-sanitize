@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import os
+import stat
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -107,6 +108,39 @@ class EngineFailureContractTests(unittest.TestCase):
             "error: Post-rewrite verification failed; output was not published\n",
         )
         self.assert_atomic_failure(status, stdout, stderr, staged_bare.parent)
+
+    def test_receipt_staging_is_private_adjacent_and_cleaned_after_verification_failure(self) -> None:
+        receipt = self.fixture.receipt_dir / "receipt.json"
+        commit_policy = self.fixture.write_policy(
+            cutoff=None,
+            cutoff_commit=self.fixture.git(self.fixture.source, "rev-parse", "HEAD"),
+            excluded_paths=("private/",),
+        )
+
+        def fail_verify(
+            _repository: object, _policy: object, *, source: object, receipt: Path
+        ) -> None:
+            self.assertEqual(receipt.parent, self.fixture.receipt_dir)
+            self.assertNotEqual(receipt, self.fixture.receipt_dir / "receipt.json")
+            self.assertEqual(stat.S_IMODE(receipt.stat().st_mode), 0o600)
+            raise VerificationError("Post-rewrite verification failed; output was not published")
+
+        with patch("git_history_sanitize.engine.verify", side_effect=fail_verify):
+            status, stdout, stderr = self.run_rewrite(
+                policy=commit_policy, receipt=receipt
+            )
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr,
+            "error: Post-rewrite verification failed; output was not published\n",
+        )
+        self.assertFalse(self.output.exists())
+        self.assertFalse(receipt.exists())
+        self.assertEqual(list(self.fixture.receipt_dir.iterdir()), [])
+        self.fixture.assert_no_staging_directories(self.output.parent)
+        self.fixture.assert_source_snapshot(self.source_snapshot)
 
     def test_output_publication_failure_leaves_only_an_orphan_receipt(self) -> None:
         receipt = self.fixture.receipt_dir / "receipt.json"
