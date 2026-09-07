@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import shutil
 import json
+import shutil
 import unittest
 
 from tests.support.git_fixture import GitFixture
@@ -45,7 +45,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("predates history.cutoff", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: root.synthetic\n")
 
     def test_rejects_a_tampered_synthetic_root_message(self) -> None:
         output = self.rewrite()
@@ -55,7 +55,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Synthetic root", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: root.synthetic\n")
 
     def test_rejects_a_configured_path_reintroduced_after_rewrite(self) -> None:
         output = self.rewrite()
@@ -69,7 +69,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("configured path remains", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: paths.excluded\n")
 
     def test_rejects_temporary_metadata_left_in_output(self) -> None:
         output = self.rewrite()
@@ -78,7 +78,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Temporary Git metadata remains", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: metadata.clean\n")
 
     def test_rejects_an_unexpected_tag(self) -> None:
         output = self.rewrite()
@@ -87,7 +87,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Unexpected refs remain", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: refs.retained\n")
 
     def test_rejects_an_unexpected_branch_ref(self) -> None:
         output = self.rewrite()
@@ -96,7 +96,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Unexpected refs remain", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: refs.retained\n")
 
     def test_rejects_a_configured_remote(self) -> None:
         output = self.rewrite()
@@ -112,7 +112,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("A remote remains", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: remotes.absent\n")
 
     def test_rejects_an_unreachable_object(self) -> None:
         output = self.rewrite()
@@ -121,7 +121,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Unreachable objects remain after cleanup", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: objects.reachable-only\n")
 
     def test_rejects_reflog_and_original_ref_metadata(self) -> None:
         output = self.rewrite()
@@ -132,14 +132,14 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Temporary Git metadata remains", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: metadata.clean\n")
 
         shutil.rmtree(output / "logs")
         (output / "refs" / "original").mkdir(parents=True)
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Temporary Git metadata remains", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: metadata.clean\n")
 
     def test_rejects_a_disconnected_root_in_the_reachable_graph(self) -> None:
         output = self.rewrite()
@@ -153,7 +153,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("exactly one root", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: graph.linear\n")
 
     def test_rejects_forbidden_content_in_a_reachable_object(self) -> None:
         output = self.rewrite()
@@ -174,7 +174,54 @@ class VerifierContractTests(unittest.TestCase):
         )
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("Forbidden content remains in the object database", result.stderr)
+        self.assertEqual(result.stderr, "error: verification failed: content.forbidden\n")
+
+    def test_rejects_a_non_linear_graph_with_one_root(self) -> None:
+        output = self.rewrite()
+        root = self.fixture.git(output, "rev-parse", "HEAD~0")
+        first = self.fixture.commit_tree(output, "HEAD^{tree}", "first", root)
+        second = self.fixture.commit_tree(output, "HEAD^{tree}", "second", root)
+        merge = self.fixture.commit_tree(output, "HEAD^{tree}", "merge", first, second)
+        self.fixture.git(output, "update-ref", "refs/heads/main", merge)
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: graph.linear\n")
+
+    def test_rejects_detached_head_and_non_branch_symbolic_head(self) -> None:
+        output = self.rewrite()
+        self.fixture.git(output, "tag", "main")
+        self.fixture.git(output, "symbolic-ref", "HEAD", "refs/tags/main")
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: head.symbolic\n")
+
+    def test_rejects_historical_byte_path_and_preserves_file_semantics(self) -> None:
+        output = self.rewrite()
+        clean_head = self.fixture.git(output, "rev-parse", "HEAD")
+        self.fixture.git(output, "fetch", str(self.fixture.source / ".git"), self.source_tip)
+        historical = self.fixture.commit_tree(
+            output, f"{self.source_tip}^{{tree}}", "safe historical", clean_head
+        )
+        clean_tip = self.fixture.commit_tree(output, "HEAD^{tree}", "safe tip", historical)
+        self.fixture.git(output, "update-ref", "refs/heads/main", clean_tip)
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: paths.excluded\n")
+
+    def test_rejects_incomplete_repository_markers(self) -> None:
+        output = self.rewrite()
+        (output / "shallow").write_text("incomplete\n")
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: repository.complete\n")
 
     def test_commit_cutoff_proof_rejects_tampering_without_source_mutation(self) -> None:
         fixture = GitFixture(self)

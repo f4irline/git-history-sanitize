@@ -76,6 +76,33 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(forbidden.stdout, "")
         self.assertEqual(forbidden.stderr, "error: history.cutoff does not accept --receipt or --source\n")
 
+    def test_verify_contract_failures_have_redacted_human_and_json_diagnostics(self) -> None:
+        output = self.fixture.output_dir / "sanitized.git"
+        self.fixture.run_cli(
+            "rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(output),
+            "--policy", str(self.policy),
+        )
+        self.fixture.git(output, "tag", "private-marker")
+
+        human = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(self.policy), check=False,
+        )
+        structured = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(self.policy), "--json",
+            check=False,
+        )
+
+        self.assertEqual(human.returncode, 2)
+        self.assertEqual(human.stdout, "")
+        self.assertEqual(human.stderr, "error: verification failed: refs.retained\n")
+        self.assertNotIn("private-marker", human.stderr)
+        self.assertEqual(structured.returncode, 2)
+        self.assertEqual(structured.stdout, "")
+        self.assertEqual(
+            structured.stderr,
+            '{"code": "verification_failed", "invariant": "refs.retained"}\n',
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,7 @@ import sys
 from dataclasses import asdict
 
 from .engine import plan, rewrite
-from .errors import SanitizeError
+from .errors import SanitizeError, VerificationError
 from .git import ensure_dependencies
 from .policy import Policy
 from .verify import verify
@@ -90,5 +90,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
     except SanitizeError as error:
+        if (
+            arguments.command == "verify"
+            and arguments.json
+            and isinstance(error, VerificationError)
+            and error.invariant
+        ):
+            print(json.dumps({"code": "verification_failed", "invariant": error.invariant}, sort_keys=True), file=sys.stderr)
+            return 2
         print(f"error: {error}", file=sys.stderr)
         return 2
