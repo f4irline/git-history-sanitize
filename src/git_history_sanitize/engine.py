@@ -120,6 +120,7 @@ def rewrite(
     temporary_root = Path(
         tempfile.mkdtemp(prefix=".git-history-sanitize-", dir=output_path.parent)
     )
+    staged_receipt: Path | None = None
     try:
         rewrite_repository = source_repository.clone_to(temporary_root / "rewrite")
         retain_head_only(rewrite_repository)
@@ -133,7 +134,10 @@ def rewrite(
         cleanup(bare_repository)
         if receipt_path:
             roots = bare_repository.text("rev-list", "--max-parents=0", "--all").splitlines()
-            staged_receipt = temporary_root / "receipt.json"
+            descriptor, staged_receipt_name = tempfile.mkstemp(
+                prefix=f".{receipt_path.name}.", dir=receipt_path.parent
+            )
+            staged_receipt = Path(staged_receipt_name)
             evidence = Receipt.create(
                 generator_version=version("git-history-sanitize"),
                 source_object_format=source_format,
@@ -146,8 +150,8 @@ def rewrite(
                 sanitized_root=roots[0],
                 sanitized_head=bare_repository.text("rev-parse", "HEAD"),
             )
-            descriptor = os.open(staged_receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "wb") as handle:
+                os.fchmod(handle.fileno(), 0o600)
                 handle.write(evidence.to_bytes())
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -155,6 +159,7 @@ def rewrite(
             fsync_path(bare_repository.path)
             fsync_path(temporary_root)
             publish(staged_receipt, receipt_path)
+            fsync_path(receipt_path.parent)
             publish(bare_repository.path, output_path)
         else:
             verification = verify(bare_repository.path, policy)
@@ -162,4 +167,6 @@ def rewrite(
             publish(bare_repository.path, output_path)
         return RewriteReport(compact_result, verification)
     finally:
+        if staged_receipt:
+            staged_receipt.unlink(missing_ok=True)
         shutil.rmtree(temporary_root, ignore_errors=True)
