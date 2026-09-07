@@ -77,7 +77,7 @@ def _root(repository: Repository, policy: Policy, commits: tuple[str, ...]) -> N
 
 
 def _head(repository: Repository) -> str:
-    ref = repository.run("symbolic-ref", "-q", "HEAD", check=False).decode("ascii", "strict").strip()
+    ref = repository.run("symbolic-ref", "-q", "HEAD", check=False).decode("utf-8", "surrogateescape").strip()
     if not ref.startswith("refs/heads/"):
         _contract_fail("head.symbolic")
     if repository.text("rev-parse", "HEAD") != repository.text("rev-parse", "--verify", ref):
