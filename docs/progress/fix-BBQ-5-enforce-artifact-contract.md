@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-5-enforce-artifact-contract`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 18:05
+**Last Updated:** 2026-09-07 18:10
 
 ## Overview
 
@@ -17,10 +17,10 @@ redacted invariant diagnostics and focused regression coverage.
 > Check off each phase as you complete it. After ANY interruption, read this section first.
 
 ### Phase 1: Implementation
-- [ ] Write/modify tests (TDD)
+- [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [ ] Validate (lint, build, tests pass)
-- [ ] Commit implementation changes — use `git-commit` skill
+- [x] Validate (lint, build, tests pass)
+- [x] Commit implementation changes — use `git-commit` skill
 - [x] Pass implementation review gate
 
 ### Phase 2: Learnings
@@ -29,7 +29,7 @@ redacted invariant diagnostics and focused regression coverage.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
+- [x] Update this progress doc to "Complete" status
 - [ ] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
@@ -43,7 +43,8 @@ redacted invariant diagnostics and focused regression coverage.
 - [x] Implement the invariant registry and redacted CLI diagnostics
 - [x] Document the v1 contract and run focused validation
 - [ ] Run complete configured runtime validation
-- [ ] Complete review, learnings, and finalization workflow
+- [x] Run complete configured runtime validation
+- [ ] Push branch, create PR, and move ticket to In Review
 
 ## Progress Log
 
@@ -109,6 +110,13 @@ passes (28 tests), and `bash -n scripts/bootstrap-test-git.sh` passes. The
 non-branch symbolic-HEAD OCI failure found during validation is now rejected as
 `head.symbolic` rather than an operational repository error. Final review and
 finalization remain.
+
+### 2026-09-07 18:10
+
+Final implementation review passed. Completed the v1 verification contract,
+direct artifact inspection, redacted invariant diagnostics, focused regression
+coverage, documentation, and the pinned source/wheel/OCI validation matrix.
+No House Rules exceptions were used. Preparing the final branch push and PR.
 
 ## Technical Notes
 
