@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "git-history-sanitize"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Create independently verifiable sanitized Git histories"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -31,6 +31,9 @@ Issues = "https://github.com/f4irline/git-history-sanitize/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "git_history_sanitize._version.__version__"}
 
 [tool.unittest]
 start-directory = "tests"

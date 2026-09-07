@@ -2,10 +2,16 @@ import hashlib
 import json
 import unittest
 
+from git_history_sanitize._version import __version__
 from git_history_sanitize.receipt import Receipt, ReceiptError
 
 
 class ReceiptTests(unittest.TestCase):
+    def test_receipt_generator_uses_the_canonical_package_version(self) -> None:
+        from git_history_sanitize import engine
+
+        self.assertEqual(engine.__version__, __version__)
+
     def test_canonical_bytes_have_a_newline_and_round_trip(self) -> None:
         receipt = Receipt.create(
             generator_version="0.1.0",

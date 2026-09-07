@@ -5,10 +5,21 @@ from __future__ import annotations
 import json
 import unittest
 
+from git_history_sanitize import __version__
+
 from tests.support.git_fixture import GitFixture
 
 
 class CliContractTests(unittest.TestCase):
+    def test_version_prints_the_canonical_version_only(self) -> None:
+        fixture = GitFixture(self)
+
+        result = fixture.run_cli("--version")
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, f"{__version__}\n")
+        self.assertEqual(result.stderr, "")
+
     def setUp(self) -> None:
         self.fixture = GitFixture(self)
         self.fixture.write("allowed.txt", "safe\n")

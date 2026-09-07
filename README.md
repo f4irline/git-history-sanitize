@@ -52,6 +52,24 @@ Use `doctor` to confirm the installed tools before processing a repository. The
 OCI image is the supported alternative when supplying those prerequisites on a
 workstation or runner is inconvenient.
 
+## Releases
+
+`src/git_history_sanitize/_version.py` is the only package-version source.
+Maintainers prepare stable releases locally with Python 3.11+, Git, and the
+reviewed build closure:
+
+```bash
+python3 -m pip install --requirement requirements/release-test.txt --editable .
+python3 scripts/release.py prepare 0.1.2
+python3 scripts/release.py prepare 0.1.2 --push
+```
+
+The default command creates only a local version commit and annotated
+`v0.1.2` tag after source, artifact, and focused-test checks pass. `--push` is
+an explicit opt-in and runs only after that gate and tag succeed. It never
+publishes registries. Release tags accept stable strict SemVer only; prerelease
+tags are deliberately rejected so they cannot move `latest`.
+
 ## Requirements
 
 - Python 3.11 or later
@@ -71,7 +89,8 @@ is the required check. This corrects the approved pin after verification against
 the pinned upstream source; the checker remains fail-closed on any other output.
 
 Source and wheel contract tests require build prerequisites for Git, Python
-with `venv`, `git-filter-repo==2.47.0`, and `build==1.3.0`. OCI tests also
+with `venv`, `git-filter-repo==2.47.0`, and the exact-pinned
+`requirements/release-test.txt` closure. OCI tests also
 require Docker Buildx. Bootstrap the private Git prefix before every host test
 mode; this prevents test runs from falling back to the system Git:
 

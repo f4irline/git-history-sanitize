@@ -5,11 +5,11 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from importlib.metadata import version
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .cleanup import cleanup, retain_head_only
+from ._version import __version__
 from .compact import CompactResult, compact
 from .errors import SanitizeError
 from .filtering import filter_paths
@@ -139,7 +139,7 @@ def rewrite(
             )
             staged_receipt = Path(staged_receipt_name)
             evidence = Receipt.create(
-                generator_version=version("git-history-sanitize"),
+                generator_version=__version__,
                 source_object_format=source_format,
                 source_fingerprint=source_fingerprint,
                 source_head=source_head,

@@ -23,6 +23,7 @@ ENV PATH=/opt/git-2.47.0/bin:/opt/runtime/bin:/usr/local/bin:/usr/local/sbin:/us
 FROM base AS test
 
 RUN python3 -m venv /opt/test \
+    && /opt/test/bin/pip install --requirement requirements/release-test.txt \
     && /opt/test/bin/pip install --no-deps git-filter-repo==2.47.0 \
     && /opt/test/bin/pip install --no-deps -e . \
     && PATH=/opt/test/bin:$PATH env -u PYTHONPATH /opt/test/bin/python tests/support/toolchain.py \
