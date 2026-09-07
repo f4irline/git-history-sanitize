@@ -26,11 +26,14 @@ class CutoffContractTests(unittest.TestCase):
             "plan", "--source", str(self.source / ".git"), "--policy", str(policy), "--json", check=check
         )
 
-    def _rewrite(self, policy: object, output: object, *, check: bool = True) -> object:
-        return self.fixture.run_cli(
+    def _rewrite(self, policy: object, output: object, *, receipt: object | None = None, check: bool = True) -> object:
+        arguments = [
             "rewrite", "--source", str(self.source / ".git"), "--policy", str(policy),
-            "--output", str(output), "--json", check=check
-        )
+            "--output", str(output), "--json",
+        ]
+        if receipt is not None:
+            arguments.extend(("--receipt", str(receipt)))
+        return self.fixture.run_cli(*arguments, check=check)
 
     def test_timestamp_cutoff_is_inclusive_and_plan_matches_rewrite(self) -> None:
         self.fixture.write("old.txt", "old\n")
@@ -62,7 +65,8 @@ class CutoffContractTests(unittest.TestCase):
 
         plan = json.loads(self._plan(policy).stdout)
         output = self.fixture.output_dir / "sanitized.git"
-        rewrite = json.loads(self._rewrite(policy, output).stdout)
+        receipt = self.fixture.receipt_dir / "receipt.json"
+        rewrite = json.loads(self._rewrite(policy, output, receipt=receipt).stdout)
 
         self.assertEqual(plan, {
             "source_commits": 3,
@@ -75,6 +79,23 @@ class CutoffContractTests(unittest.TestCase):
         })
         self.assertEqual(self.fixture.git(output, "show", "HEAD^:boundary.txt"), "boundary")
         self.assertEqual(self.fixture.git(output, "show", "HEAD:retained.txt"), "retained")
+        verified = self.fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), "--source", str(self.source / ".git"), "--receipt", str(receipt))
+        self.assertEqual(verified.stderr, "")
+
+    def test_commit_cutoff_requires_a_full_receipt_and_full_lowercase_oid(self) -> None:
+        self.fixture.write("boundary.txt", "boundary\n")
+        boundary = self.fixture.commit("boundary", "boundary.txt")
+        policy = self.fixture.write_policy(cutoff=None, cutoff_commit=boundary[:12])
+        output = self.fixture.output_dir / "missing.git"
+
+        planned = self._plan(policy, check=False)
+        rewritten = self._rewrite(policy, output, check=False)
+
+        self.assertEqual(planned.returncode, 2)
+        self.assertEqual(rewritten.returncode, 2)
+        self.assertEqual(rewritten.stdout, "")
+        self.assertEqual(rewritten.stderr, "error: cutoffCommit rewrite requires --receipt\n")
+        self.assertFalse(output.exists())
 
     def test_no_timestamp_retained_commit_fails_without_publishing_output(self) -> None:
         self.fixture.write("old.txt", "old\n")

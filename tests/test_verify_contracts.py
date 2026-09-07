@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import json
 import unittest
 
 from tests.support.git_fixture import GitFixture
@@ -174,6 +175,28 @@ class VerifierContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("Forbidden content remains in the object database", result.stderr)
+
+    def test_commit_cutoff_proof_rejects_tampering_without_source_mutation(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("old.txt", "old\n")
+        fixture.commit("old", "old.txt", timestamp="2026-09-02T00:00:00+00:00")
+        fixture.write("boundary.txt", "safe\n")
+        boundary = fixture.commit("boundary", "boundary.txt")
+        policy = fixture.write_policy(cutoff=None, cutoff_commit=boundary)
+        output = fixture.output_dir / "commit.git"
+        receipt = fixture.receipt_dir / "receipt.json"
+        snapshot = fixture.snapshot_source()
+        fixture.run_cli("rewrite", "--source", str(fixture.source / ".git"), "--output", str(output), "--policy", str(policy), "--receipt", str(receipt))
+        proof = json.loads(receipt.read_text())
+        proof["source"]["head"] = "0" * 40
+        receipt.write_text(json.dumps(proof, sort_keys=True, separators=(",", ":")) + "\n")
+
+        result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), "--source", str(fixture.source / ".git"), "--receipt", str(receipt), "--json", check=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "error: sanitization receipt integrity check failed\n")
+        fixture.assert_source_snapshot(snapshot)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import datetime as dt
+import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -12,7 +13,7 @@ from typing import Any
 from .errors import PolicyError
 
 _KEY = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
-_COMMIT = re.compile(r"^[0-9a-fA-F]{4,64}$")
+_COMMIT = re.compile(r"^[0-9a-f]+$")
 
 
 def _without_comment(value: str) -> str:
@@ -189,6 +190,7 @@ class Policy:
     excluded_paths: tuple[str, ...]
     mixed_message: str
     retained_refs: tuple[str, ...]
+    digest: str
 
     @classmethod
     def from_text(cls, text: str) -> "Policy":
@@ -236,12 +238,21 @@ class Policy:
             excluded_paths=excluded_paths,
             mixed_message=mixed_message,
             retained_refs=("HEAD",),
+            digest=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
 
     @classmethod
     def from_file(cls, path: str) -> "Policy":
         try:
-            with open(path, encoding="utf-8") as policy_file:
-                return cls.from_text(policy_file.read())
+            with open(path, "rb") as policy_file:
+                data = policy_file.read()
+            if data.startswith(b"\xef\xbb\xbf"):
+                raise PolicyError("Policy file must not include a UTF-8 BOM")
+            try:
+                text = data.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise PolicyError("Policy file must be valid UTF-8") from error
+            policy = cls.from_text(text)
+            return cls(policy.history, policy.excluded_paths, policy.mixed_message, policy.retained_refs, hashlib.sha256(data).hexdigest())
         except OSError as error:
             raise PolicyError(f"Cannot read policy file {path!r}: {error.strerror}") from error

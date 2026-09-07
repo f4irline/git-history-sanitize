@@ -34,11 +34,14 @@ def _parser() -> argparse.ArgumentParser:
     rewrite_command.add_argument("--source", required=True)
     rewrite_command.add_argument("--output", required=True)
     rewrite_command.add_argument("--policy", required=True)
+    rewrite_command.add_argument("--receipt")
     rewrite_command.add_argument("--json", action="store_true")
 
     verification = subcommands.add_parser("verify", help="verify sanitized output")
     verification.add_argument("--repository", required=True)
     verification.add_argument("--policy", required=True)
+    verification.add_argument("--source")
+    verification.add_argument("--receipt")
     verification.add_argument("--forbid", action="append", default=[])
     verification.add_argument("--json", action="store_true")
     return parser
@@ -76,10 +79,13 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.command == "plan":
             _print(plan(arguments.source, policy), arguments.json)
         elif arguments.command == "rewrite":
-            _print(rewrite(arguments.source, arguments.output, policy), arguments.json)
+            _print(rewrite(arguments.source, arguments.output, policy, arguments.receipt), arguments.json)
         elif arguments.command == "verify":
             _print(
-                verify(arguments.repository, policy, tuple(arguments.forbid)),
+                verify(
+                    arguments.repository, policy, tuple(arguments.forbid),
+                    source=arguments.source, receipt=arguments.receipt,
+                ),
                 arguments.json,
             )
         return 0
