@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 17:10
+**Last Updated:** 2026-09-07 17:18
 
 ## Overview
 
@@ -18,14 +18,14 @@ redacted invariant diagnostics and focused regression coverage.
 
 ### Phase 1: Implementation
 - [ ] Write/modify tests (TDD)
-- [ ] Implement changes
+- [x] Implement changes
 - [ ] Validate (lint, build, tests pass)
 - [ ] Commit implementation changes — use `git-commit` skill
-- [ ] Pass implementation review gate
+- [x] Pass implementation review gate
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
 - [ ] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
@@ -74,6 +74,13 @@ no network route; the subsequent toolchain check correctly rejects system Git.
 This is an environment blocker, not a House Rules exception. Wheel and OCI
 matrix cells remain pending until the pinned toolchain can be bootstrapped.
 
+### 2026-09-07 17:18
+
+Implementation review passed after a UTF-8 symbolic-HEAD correction and its
+positive regression test. Documented the symbolic-ref byte-round-trip discovery
+in `docs/learnings/discoveries.md`. Phase 1 cannot complete until the pinned
+toolchain enables the remaining source/wheel/OCI matrix.
+
 ## Technical Notes
 
 - `verify` must inspect repositories directly and remain independent of rewrite
@@ -99,3 +106,4 @@ matrix cells remain pending until the pinned toolchain can be bootstrapped.
 - `tests/test_regressions.py` - stable ref and object-database diagnostics
 - `README.md` - documented v1 artifact contract and redaction behavior
 - `PLAN.md` - normative invariant inspection checklist
+- `docs/learnings/discoveries.md` - UTF-8 symbolic reference verification discovery
