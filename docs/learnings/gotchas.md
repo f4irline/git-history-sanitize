@@ -4,6 +4,17 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Pinned filter-repo does not complete SHA-256 path filtering
+**Ticket:** BBQ-8
+**Date:** 2026-09-07
+
+Pinned Git 2.47.0 can initialize SHA-256 fixtures, but the pinned
+`git-filter-repo` 2.47.0 fails during path filtering with a fast-import crash.
+Keep SHA-256 as an explicit compatibility gap; do not add a required CI matrix
+cell until the pinned runtime can sanitize the fixture successfully.
+
+---
+
 ## Strict in-process stderr contracts expose unclosed policy files
 **Ticket:** BBQ-44
 **Date:** 2026-09-06

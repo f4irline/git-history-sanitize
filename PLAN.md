@@ -17,13 +17,13 @@ git-history-sanitize plan \
   --source .git \
   --policy .git-history-sanitize.yml
 
-# Produce a new, standalone Git database.
+# Produce a timestamp-cutoff standalone Git database.
 git-history-sanitize rewrite \
   --source .git \
   --output build/sanitized.git \
   --policy .git-history-sanitize.yml
 
-# Independently verify the result.
+# Independently verify a timestamp-cutoff result.
 git-history-sanitize verify \
   --repository build/sanitized.git \
   --policy .git-history-sanitize.yml
@@ -40,8 +40,6 @@ version: 1
 
 history:
   cutoff: "2026-09-03T00:00:00+03:00"
-  # A commit boundary should also be supported:
-  # cutoffCommit: "abc123..."
   prefixMessage: "[sanitized]"
 
 paths:
@@ -87,8 +85,9 @@ Rules must be explicit and deterministic:
    `refs/original`, replace refs, filter-repo mappings, and temporary
    metadata.
 10. Repack and garbage-collect with immediate pruning.
-11. Run the independent verifier.
-12. Atomically publish the sanitized Git database.
+11. For a commit cutoff, create a private Receipt v1 and source-verify the
+    staged receipt/output pair.
+12. Atomically no-clobber publish the receipt then sanitized Git database.
 
 The original object database and intermediate repository must never be copied
 into the output.
@@ -99,12 +98,13 @@ into the output.
 src/git_history_sanitize/
 ├── cli.py
 ├── policy.py
-├── repository.py
-├── cutoff.py
+├── engine.py
+├── git.py
+├── receipt.py
 ├── filtering.py
 ├── cleanup.py
-├── verification.py
-└── reporting.py
+├── verify.py
+└── publication.py
 
 tests/
 ├── fixtures/
@@ -199,7 +199,6 @@ runtime responsibilities.
 
 - Reconstruct merge commits and shared DAG ancestry.
 - Support explicit retained refs.
-- Add cutoff-by-commit.
 - Preserve supported metadata exactly and explicitly strip unsupported
   signatures.
 - Add property-based and adversarial tests.
@@ -230,8 +229,6 @@ runtime responsibilities.
 
 ## Open decisions
 
-- Whether cutoff-by-commit should take precedence when both cutoff forms are
-  present.
 - Whether path names in reports are considered sensitive.
 - Supported Git and `git-filter-repo` version ranges.
 - Behavior for histories whose timestamps cross the cutoff multiple times.

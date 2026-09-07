@@ -188,7 +188,7 @@ class VerifierContractTests(unittest.TestCase):
         snapshot = fixture.snapshot_source()
         fixture.run_cli("rewrite", "--source", str(fixture.source / ".git"), "--output", str(output), "--policy", str(policy), "--receipt", str(receipt))
         proof = json.loads(receipt.read_text())
-        proof["source"]["head"] = "0" * 40
+        proof["source"]["head"] = "0" * len(proof["source"]["head"])
         receipt.write_text(json.dumps(proof, sort_keys=True, separators=(",", ":")) + "\n")
 
         result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), "--source", str(fixture.source / ".git"), "--receipt", str(receipt), "--json", check=False)
