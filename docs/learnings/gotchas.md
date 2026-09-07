@@ -4,6 +4,18 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## GnuPG key retrieval can select an unroutable IPv6 keyserver address
+**Ticket:** BBQ-5
+**Date:** 2026-09-07
+
+On this macOS runner, `keyserver.ubuntu.com` resolves to IPv6 and IPv4, but
+the GnuPG dirmngr key retrieval fails with `No route to host` when it selects
+IPv6. HTTPS and GitHub remain reachable over IPv4. A temporary
+`dirmngr.conf` containing `disable-ipv6` makes the same fingerprint-pinned
+key import succeed; use it only for the ephemeral bootstrap GnuPG home.
+
+---
+
 ## Pinned filter-repo does not complete SHA-256 path filtering
 **Ticket:** BBQ-8
 **Date:** 2026-09-07
