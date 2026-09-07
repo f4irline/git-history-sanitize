@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -25,6 +26,7 @@ class SourceSnapshot:
     status: str
     index: bytes
     worktree: tuple[tuple[str, bytes], ...]
+    git_metadata: tuple[tuple[str, str, int, bytes], ...]
 
 
 class GitFixture:
@@ -38,7 +40,7 @@ class GitFixture:
         temporary_dir = Path.cwd() if os.environ.get("GHS_TEST_RUNTIME") == "container" else None
         self._temporary = tempfile.TemporaryDirectory(dir=temporary_dir)
         case.addCleanup(self._temporary.cleanup)
-        self.root = Path(self._temporary.name)
+        self.root = Path(self._temporary.name).resolve()
         self.home = self.root / "home"
         self.xdg_config = self.root / "xdg-config"
         self.global_config = self.root / "gitconfig"
@@ -46,6 +48,7 @@ class GitFixture:
         self.hooks_dir = self.root / "hooks"
         self.source = self.root / "source"
         self.output_dir = self.root / "output"
+        self.receipt_dir = self.root / "receipts"
         self.git_executable = self._required_executable("git")
         # Keep the venv launcher path: resolving it escapes the active runtime.
         self.python_executable = sys.executable
@@ -62,6 +65,7 @@ class GitFixture:
         self.template_dir.mkdir()
         self.hooks_dir.mkdir()
         self.output_dir.mkdir()
+        self.receipt_dir.mkdir()
         self.git(self.root, "init", "--initial-branch=main", str(self.source))
         self.git(self.source, "config", "user.name", self.AUTHOR_NAME)
         self.git(self.source, "config", "user.email", self.AUTHOR_EMAIL)
@@ -174,11 +178,11 @@ class GitFixture:
         fixed_paths = {"--source": ("/input.git", "ro"), "--policy": ("/policy.yml", "ro")}
         input_mounted = False
         for index, argument in enumerate(translated):
-            if argument not in {*fixed_paths, "--repository", "--output"}:
+            if argument not in {*fixed_paths, "--repository", "--output", "--receipt"}:
                 continue
             if index + 1 == len(translated):
                 raise ValueError(f"{argument} requires a path")
-            if argument in {"--output", "--repository"}:
+            if argument in {"--output", "--repository", "--receipt"}:
                 host_path = Path(translated[index + 1]).absolute()
                 if argument == "--repository" and host_path == (self.source / ".git").absolute():
                     if input_mounted:
@@ -189,11 +193,18 @@ class GitFixture:
                     continue
                 if host_path.name in {"", "."}:
                     raise ValueError(f"{argument} requires a named path")
-                output_mount = f"type=bind,src={host_path.parent},dst=/output"
-                if argument == "--repository":
-                    output_mount += ",readonly"
+                if argument == "--receipt":
+                    destination = "/receipt-input" if translated[0] == "verify" else "/receipt-output"
+                    output_mount = f"type=bind,src={host_path.parent},dst={destination}"
+                    if translated[0] == "verify":
+                        output_mount += ",readonly"
+                else:
+                    output_mount = f"type=bind,src={host_path.parent},dst=/output"
+                    if argument == "--repository":
+                        output_mount += ",readonly"
                 mounts.extend(["--mount", output_mount])
-                translated[index + 1] = f"/output/{host_path.name}"
+                destination = "/receipt-input" if argument == "--receipt" and translated[0] == "verify" else "/receipt-output" if argument == "--receipt" else "/output"
+                translated[index + 1] = f"{destination}/{host_path.name}"
                 continue
             fixed_path, mode = fixed_paths[argument]
             host_path = Path(translated[index + 1]).absolute()
@@ -275,7 +286,7 @@ class GitFixture:
             self.template_dir,
             self.hooks_dir,
         ]
-        path_options = {"--source", "--repository", "--policy", "--output"}
+        path_options = {"--source", "--repository", "--policy", "--output", "--receipt"}
         host_paths.extend(
             Path(arguments[index + 1]).resolve()
             for index, argument in enumerate(arguments[:-1])
@@ -436,7 +447,18 @@ class GitFixture:
             status=self.git(self.source, "status", "--porcelain=v1", "--untracked-files=all"),
             index=(self.source / ".git" / "index").read_bytes(),
             worktree=worktree,
+            git_metadata=self._git_metadata(),
         )
+
+    def _git_metadata(self) -> tuple[tuple[str, str, int, bytes], ...]:
+        entries: list[tuple[str, str, int, bytes]] = []
+        git_dir = self.source / ".git"
+        for path in sorted(git_dir.rglob("*")):
+            mode = path.lstat().st_mode
+            kind = "symlink" if stat.S_ISLNK(mode) else "directory" if path.is_dir() else "file"
+            value = os.fsencode(os.readlink(path)) if kind == "symlink" else path.read_bytes() if kind == "file" else b""
+            entries.append((str(path.relative_to(git_dir)), kind, stat.S_IMODE(mode), value))
+        return tuple(entries)
 
     def assert_source_snapshot(self, snapshot: SourceSnapshot) -> None:
         self.assertEqual(self.snapshot_source(), snapshot, "source repository was mutated")

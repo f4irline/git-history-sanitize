@@ -9,6 +9,7 @@ from pathlib import Path
 from .errors import VerificationError
 from .git import Repository
 from .policy import Policy
+from .receipt import Receipt, ReceiptError
 
 
 @dataclass(frozen=True)
@@ -66,9 +67,56 @@ def _assert_metadata_removed(repository: Repository, head_ref: str) -> tuple[str
 
 
 def verify(
-    repository_path: str | Path, policy: Policy, forbidden: tuple[str, ...] = ()
+    repository_path: str | Path,
+    policy: Policy,
+    forbidden: tuple[str, ...] = (),
+    *,
+    source: str | Path | None = None,
+    receipt: str | Path | None = None,
 ) -> VerificationReport:
     repository = Repository(repository_path)
+    if policy.history.cutoff_commit:
+        if source is None or receipt is None:
+            _fail("cutoffCommit verification requires --receipt and --source")
+        try:
+            evidence = Receipt.from_bytes(Path(receipt).read_bytes())
+        except FileNotFoundError as error:
+            raise VerificationError("sanitization receipt is missing") from error
+        except ReceiptError as error:
+            raise VerificationError(str(error)) from error
+        payload = evidence.payload
+        if payload["policy"]["sha256"] != policy.digest:
+            _fail("sanitization receipt does not match the policy")
+        roots = repository.text("rev-list", "--max-parents=0", "--all").splitlines()
+        sanitized = payload["sanitized"]
+        if (
+            repository.object_format() != sanitized["object_format"]
+            or len(roots) != 1
+            or roots[0] != sanitized["root"]
+            or repository.text("rev-parse", "HEAD") != sanitized["head"]
+        ):
+            _fail("sanitization receipt does not match sanitized output")
+        source_repository = Repository(source)
+        source_binding = payload["source"]
+        try:
+            cutoff = source_repository.resolve_cutoff_commit(policy.history.cutoff_commit)
+            kind, ref, head = source_repository.head_identity()
+            fingerprint = Receipt.source_fingerprint(
+                source_repository.object_format(), kind, ref, head, source_repository.direct_refs()
+            )
+        except Exception as error:
+            raise VerificationError("sanitization receipt does not match source repository") from error
+        if (
+            source_repository.object_format() != source_binding["object_format"]
+            or source_repository.object_format() != repository.object_format()
+            or cutoff != source_binding["cutoff_commit"]
+            or source_repository.commit_tree(cutoff) != source_binding["boundary_tree"]
+            or head != source_binding["head"]
+            or fingerprint != source_binding["repository_fingerprint"]
+        ):
+            _fail("sanitization receipt does not match source repository")
+    elif source is not None or receipt is not None:
+        _fail("history.cutoff does not accept --receipt or --source")
     head_ref = repository.head_ref()
     _assert_no_pre_cutoff(repository, policy)
     roots = repository.text("rev-list", "--max-parents=0", "--all").splitlines()

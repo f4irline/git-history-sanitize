@@ -92,6 +92,43 @@ class Repository:
             raise SanitizeError("The retained repository must have a symbolic HEAD")
         return ref
 
+    def object_format(self) -> str:
+        value = self.text("rev-parse", "--show-object-format=storage")
+        if value not in {"sha1", "sha256"}:
+            raise SanitizeError("Unsupported Git object format")
+        return value
+
+    def head_identity(self) -> tuple[str, bytes, str]:
+        ref = self.run("symbolic-ref", "-q", "HEAD", check=False).rstrip(b"\n")
+        return ("symref", ref, self.text("rev-parse", "HEAD")) if ref else ("detached", b"", self.text("rev-parse", "HEAD"))
+
+    def direct_refs(self) -> tuple[tuple[bytes, str], ...]:
+        records = self.run("for-each-ref", "--sort=refname", "--format=%(refname)%00%(objectname)%00").splitlines()
+        result: list[tuple[bytes, str]] = []
+        for record in records:
+            fields = record.split(b"\0")
+            if len(fields) != 3 or fields[-1]:
+                raise SanitizeError("Cannot read source references")
+            result.append((fields[0], fields[1].decode("ascii")))
+        return tuple(result)
+
+    def resolve_cutoff_commit(self, value: str) -> str:
+        object_format = self.object_format()
+        width = 40 if object_format == "sha1" else 64
+        if len(value) != width or any(character not in "0123456789abcdef" for character in value):
+            raise SanitizeError("history.cutoffCommit must be a full lowercase storage-format object ID")
+        result = self.run("rev-parse", "--verify", "--end-of-options", f"{value}^{{commit}}", check=False).decode().strip()
+        if len(result) != width:
+            raise SanitizeError("history.cutoffCommit must resolve to a commit")
+        return result
+
+    def commit_tree(self, commit: str) -> str:
+        return self.text("rev-parse", "--verify", "--end-of-options", f"{commit}^{{tree}}")
+
+    def worktree_root(self) -> Path | None:
+        result = self.run("rev-parse", "--show-toplevel", check=False).decode().strip()
+        return Path(result).resolve() if result else None
+
     def clone_to(self, destination: Path, *, bare: bool = False) -> "Repository":
         arguments = ["clone", "--no-checkout", "--no-local"]
         if bare:

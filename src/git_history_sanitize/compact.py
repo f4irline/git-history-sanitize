@@ -36,9 +36,7 @@ def _commits(repository: Repository) -> list[str]:
 
 def _boundary_index(repository: Repository, commits: list[str], policy: Policy) -> int:
     if policy.history.cutoff_commit:
-        resolved = repository.text(
-            "rev-parse", "--verify", f"{policy.history.cutoff_commit}^{{commit}}"
-        )
+        resolved = repository.resolve_cutoff_commit(policy.history.cutoff_commit)
         try:
             return commits.index(resolved)
         except ValueError as error:
