@@ -123,18 +123,31 @@ shell interpolation, capture failures, and redact sensitive output.
 
 ## Verification contract
 
-Verification must fail unless all of the following hold:
+Verification must directly inspect the output repository and fail unless all
+of the following named v1 invariants hold:
 
-- No reachable commit predates the cutoff.
-- The synthetic boundary is a root commit with the configured message.
-- Configured paths are absent from reachable history.
-- Sensitive blobs and trees are absent from `git rev-list --objects --all`.
-- Only configured refs remain.
-- No remotes, remote-tracking refs, notes, stashes, replace refs, backup refs,
-  or reflogs remain.
-- No filter-repo mapping or temporary metadata remains.
-- `git fsck --full --unreachable --no-reflogs` reports no unreachable
-  objects.
+- `graph.linear`: `rev-list --reverse --topo-order HEAD` has a parentless first
+  commit and every later commit has exactly its preceding commit as parent.
+- `root.synthetic`: the first graph commit has the configured prefix message;
+  timestamp-cutoff commits (including the root) meet the cutoff, while
+  `cutoffCommit` retains its private Receipt v1/source binding.
+- `head.symbolic` and `refs.retained`: HEAD is a symbolic `refs/heads/*` ref
+  resolving to HEAD and it is the only ref.
+- `paths.excluded`: every retained tree is checked with NUL-delimited
+  `ls-tree -r -z --name-only`; file rules match exactly and directory rules
+  match descendants only.
+- `remotes.absent` and `repository.complete`: there are no remotes, shallow
+  state, partial-clone/promisor state, alternates, or promisor pack markers.
+- `metadata.clean`: no reflogs, `refs/original`, or `filter-repo` metadata
+  remains.
+- `objects.reachable-only`: `git fsck --full --unreachable --no-reflogs`
+  succeeds with empty output.
+- `content.forbidden`: optional `--forbid` scanning finds no requested value.
+
+Git, filesystem, and parsing errors in an artifact inspection map to that
+invariant without exposing Git output or sanitized content. Human failures name
+the invariant; JSON failures write only `code: verification_failed` and
+`invariant` to stderr with empty stdout and exit 2.
 - Mixed commits preserve allowed changes and use the replacement message.
 - Sensitive-only commits disappear.
 - Normal `log`, `diff`, `show`, `status`, and `blame` operations work

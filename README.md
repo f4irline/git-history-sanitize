@@ -221,9 +221,24 @@ docker buildx build --target test -f Containerfile .
 
 ## Verification
 
-Verification checks the cutoff, synthetic root, configured paths, retained
-refs, remotes, reflogs, backup metadata, and unreachable objects. It can print
-a JSON report:
+Verification independently inspects the completed output repository. The v1
+artifact contract requires a linear retained `HEAD` graph, a parentless
+synthetic root with the configured prefix message and cutoff eligibility, one
+symbolic `refs/heads/*` ref, no excluded path in any retained tree, no remotes,
+no shallow/partial/promisor/alternate object state, no reflogs or backup
+metadata, and no unreachable objects. `--forbid` additionally scans the full
+object database.
+
+Each contract failure uses a stable, redacted invariant identifier:
+`graph.linear`, `root.synthetic`, `head.symbolic`, `refs.retained`,
+`paths.excluded`, `remotes.absent`, `repository.complete`, `metadata.clean`,
+`objects.reachable-only`, or `content.forbidden`. Human output names only that
+identifier. With `--json`, a contract failure writes exactly
+`{"code": "verification_failed", "invariant": "<identifier>"}` to stderr,
+leaves stdout empty, and exits 2. It never includes paths, object IDs, commit
+messages, Git command output, or object contents.
+
+Successful verification can print a JSON report:
 
 ```bash
 git-history-sanitize verify \

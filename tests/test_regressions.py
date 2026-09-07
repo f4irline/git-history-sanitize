@@ -72,7 +72,7 @@ refs:
             "verify", "--repository", str(output), "--policy", str(self.policy), check=False
         )
         self.assertEqual(extra_ref.returncode, 2)
-        self.assertIn("Unexpected refs remain", extra_ref.stderr)
+        self.assertEqual(extra_ref.stderr, "error: verification failed: refs.retained\n")
 
         self.fixture.git(output, "update-ref", "-d", "refs/heads/unexpected-ref")
         self.fixture.add_unreachable_blob("unreachable staging secret", output)
@@ -80,7 +80,7 @@ refs:
             "verify", "--repository", str(output), "--policy", str(self.policy), check=False
         )
         self.assertEqual(unreachable.returncode, 2)
-        self.assertIn("Unreachable objects remain after cleanup", unreachable.stderr)
+        self.assertEqual(unreachable.stderr, "error: verification failed: objects.reachable-only\n")
 
 
 if __name__ == "__main__":
