@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 17:30
+**Last Updated:** 2026-09-07 17:44
 
 ## Overview
 
@@ -94,6 +94,13 @@ selects IPv6; its temporary configuration succeeds with `disable-ipv6`, using
 the reachable IPv4 endpoint and the existing pinned key fingerprint. Recorded
 this validation-environment gotcha; no House Rules exception is needed.
 
+### 2026-09-07 17:44
+
+Configured the bootstrap's isolated dirmngr to disable IPv6. The pinned Git
+2.47.0 build, toolchain checks, fixture/toolchain/policy suite (28 tests), and
+source runtime contract suite (39 tests) now pass. Wheel and OCI runtime cells
+remain for the final matrix.
+
 ## Technical Notes
 
 - `verify` must inspect repositories directly and remain independent of rewrite
@@ -121,3 +128,4 @@ this validation-environment gotcha; no House Rules exception is needed.
 - `PLAN.md` - normative invariant inspection checklist
 - `docs/learnings/discoveries.md` - UTF-8 symbolic reference verification discovery
 - `docs/learnings/gotchas.md` - GnuPG IPv6 keyserver bootstrap gotcha
+- `scripts/bootstrap-test-git.sh` - force IPv4 for the ephemeral key import

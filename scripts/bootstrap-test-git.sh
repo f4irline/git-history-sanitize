@@ -24,6 +24,8 @@ export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_TEMPLATE_DIR="$workdir/templates"
 mkdir -m 700 "$GNUPGHOME"
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$GIT_TEMPLATE_DIR"
+# The ephemeral verifier needs a reachable keyserver, not IPv6 coverage.
+printf 'disable-ipv6\n' > "$GNUPGHOME/dirmngr.conf"
 
 if ! command -v gpg >/dev/null; then
   printf 'gpg is required to verify Git release tags\n' >&2
