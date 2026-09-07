@@ -29,10 +29,10 @@ publication gates.
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Commit progress doc update — use `git-commit` skill
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — GitHub PR #5
+- [x] Move ticket to "In Review" — Linear updated
 
 ## Tasks
 
@@ -60,6 +60,11 @@ Recorded the PyPI publisher artifact-directory constraint as a gotcha in
 `b430872`. No House Rules exceptions were required. Finalization is ready:
 focused tests, build, source/wheel/OCI contracts, and two health-inspector
 review rounds passed.
+
+### 2026-09-07
+
+Pushed `fix/BBQ-15-repair-package-versioning`, opened GitHub PR #5, and moved
+BBQ-15 to In Review. All workflow phases are complete.
 
 ### 2026-09-07
 
