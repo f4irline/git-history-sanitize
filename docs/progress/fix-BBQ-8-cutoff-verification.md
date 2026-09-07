@@ -31,9 +31,9 @@ and the accompanying contract tests, documentation, and CI coverage.
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
 - [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -98,6 +98,10 @@ Independent implementation review passed on round three. The pinned source-unit
 suite passed 60 tests and the source runtime contracts passed 33 tests. The
 wheel runtime contracts previously passed 30 tests. No lint or static typecheck
 script is configured. House Rules are compliant with no approved exceptions.
+
+### 2026-09-07 11:16
+
+Pushed `fix/BBQ-8-cutoff-verification`, created PR #3, and moved BBQ-8 to In Review.
 
 ## Testing
 
