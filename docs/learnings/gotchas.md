@@ -4,6 +4,17 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## PyPI publish directories must contain only distributions
+**Ticket:** BBQ-15
+**Date:** 2026-09-07
+
+`pypa/gh-action-pypi-publish` runs metadata validation over every file in its
+`packages-dir`. Keep `SHA256SUMS` and version manifests outside the directory
+that contains the validated wheel and sdist, or the release fails before
+publication on an unknown distribution format.
+
+---
+
 ## GnuPG key retrieval can select an unroutable IPv6 keyserver address
 **Ticket:** BBQ-5
 **Date:** 2026-09-07
