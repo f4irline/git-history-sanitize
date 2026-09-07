@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 17:18
+**Last Updated:** 2026-09-07 17:22
 
 ## Overview
 
@@ -80,6 +80,11 @@ Implementation review passed after a UTF-8 symbolic-HEAD correction and its
 positive regression test. Documented the symbolic-ref byte-round-trip discovery
 in `docs/learnings/discoveries.md`. Phase 1 cannot complete until the pinned
 toolchain enables the remaining source/wheel/OCI matrix.
+
+### 2026-09-07 17:22
+
+Retried the clean pinned-Git bootstrap. It again failed before installation
+because GPG cannot route to its keyserver. The required matrix remains blocked.
 
 ## Technical Notes
 
