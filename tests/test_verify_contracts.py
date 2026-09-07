@@ -199,6 +199,15 @@ class VerifierContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stderr, "error: verification failed: head.symbolic\n")
 
+    def test_accepts_a_utf8_symbolic_branch_head(self) -> None:
+        self.fixture.git(self.fixture.source, "branch", "-m", "réparation")
+        output = self.rewrite()
+
+        result = self.verify(output)
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, "")
+
     def test_rejects_historical_byte_path_and_preserves_file_semantics(self) -> None:
         output = self.rewrite()
         clean_head = self.fixture.git(output, "rev-parse", "HEAD")

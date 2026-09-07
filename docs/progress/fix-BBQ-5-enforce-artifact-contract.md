@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 16:48
+**Last Updated:** 2026-09-07 17:10
 
 ## Overview
 
@@ -65,6 +65,14 @@ contracts pass (27 tests). Full runtime matrix and documentation remain.
 Documented the invariant catalog, direct inspection model, and invariant JSON
 schema in README and PLAN. Regression, verifier, CLI, and cutoff suites pass
 (29 tests); source/wheel/OCI runtime checks remain for the final gate.
+
+### 2026-09-07 17:10
+
+The full source runtime suite passes (38 tests) with the available system Git.
+The pinned Git 2.47.0 bootstrap cannot complete because its GPG keyserver has
+no network route; the subsequent toolchain check correctly rejects system Git.
+This is an environment blocker, not a House Rules exception. Wheel and OCI
+matrix cells remain pending until the pinned toolchain can be bootstrapped.
 
 ## Technical Notes
 
