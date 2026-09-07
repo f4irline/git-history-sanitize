@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-8-cutoff-verification`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 10:46
+**Last Updated:** 2026-09-07 11:13
 
 ## Overview
 
@@ -84,6 +84,13 @@ Linux architectures, publication failure after receipt publication, receipt
 read errors, policy boolean versions, annotated tag cutoffs, and policy-
 conditional CLI failures. The focused pinned suite passes, but Phase 1 remains
 in progress until an independent review of these fixes passes.
+
+### 2026-09-07 11:13
+
+Addressed the remaining Receipt v1 review findings with strict integer version
+typing and a real macOS native no-replace preservation contract. Added
+`tests.test_publication` to the CI source-unit inventory. Focused pinned tests
+pass; Phase 1 remains in progress pending independent review.
 
 ## Testing
 

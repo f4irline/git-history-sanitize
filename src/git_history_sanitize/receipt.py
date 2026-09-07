@@ -119,7 +119,7 @@ class Receipt:
         if not isinstance(value, dict) or set(value) != {"format", "version", "generator", "source", "policy", "sanitized", "digest"}:
             raise ReceiptError("sanitization receipt is malformed")
         generator, source, policy, sanitized = (value[name] for name in ("generator", "source", "policy", "sanitized"))
-        if value["format"] != _FORMAT or value["version"] != _VERSION:
+        if value["format"] != _FORMAT or type(value["version"]) is not int or value["version"] != _VERSION:
             raise ReceiptError("sanitization receipt is malformed")
         if not isinstance(generator, dict) or set(generator) != {"name", "version"} or generator["name"] != "git-history-sanitize" or not isinstance(generator["version"], str):
             raise ReceiptError("sanitization receipt is malformed")

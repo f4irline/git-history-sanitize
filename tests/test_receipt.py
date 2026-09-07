@@ -44,6 +44,24 @@ class ReceiptTests(unittest.TestCase):
         with self.assertRaisesRegex(ReceiptError, "integrity"):
             Receipt.from_bytes(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode() + b"\n")
 
+    def test_rejects_boolean_and_float_receipt_versions(self) -> None:
+        receipt = Receipt.create(
+            generator_version="0.1.0", source_object_format="sha1", source_fingerprint="a" * 64,
+            source_head="b" * 40, cutoff_commit="c" * 40, boundary_tree="d" * 40,
+            policy_digest="e" * 64, sanitized_object_format="sha1", sanitized_root="f" * 40,
+            sanitized_head="0" * 40,
+        )
+        for version in (True, 1.0):
+            payload = json.loads(receipt.to_bytes())
+            payload["version"] = version
+            unsigned = dict(payload)
+            unsigned.pop("digest")
+            payload["digest"] = hashlib.sha256(
+                json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            with self.assertRaisesRegex(ReceiptError, "malformed"):
+                Receipt.from_bytes(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode() + b"\n")
+
     def test_fingerprint_frames_raw_fields(self) -> None:
         fingerprint = Receipt.source_fingerprint(
             "sha1", "symref", b"refs/heads/main", "a" * 40,
