@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +17,20 @@ class PublicationTests(unittest.TestCase):
         ):
             publish(Path("source"), Path("destination"))
         library.assert_not_called()
+
+    def test_native_publish_preserves_an_existing_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            source = directory / "source"
+            destination = directory / "destination"
+            source.write_bytes(b"new")
+            destination.write_bytes(b"original")
+
+            with self.assertRaisesRegex(SanitizeError, "already exists"):
+                publish(source, destination)
+
+            self.assertEqual(destination.read_bytes(), b"original")
+            self.assertEqual(source.read_bytes(), b"new")
 
 
 if __name__ == "__main__":
