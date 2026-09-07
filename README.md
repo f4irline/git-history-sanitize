@@ -147,6 +147,8 @@ be quoted. Timestamps must be RFC 3339 values with explicit timezones.
 
 Use either `history.cutoff` or `history.cutoffCommit`. A cutoff timestamp is
 compared with committer timestamps; the cutoff commit itself is retained.
+`cutoffCommit` must be a lowercase, full storage-format commit OID reachable
+from source HEAD; abbreviations, refs, expressions, and uppercase values fail.
 
 ## Usage
 
@@ -165,6 +167,19 @@ git-history-sanitize rewrite \
 git-history-sanitize verify \
   --repository build/sanitized.git \
   --policy .git-history-sanitize.yml
+```
+
+The commands above are timestamp-cutoff commands. A commit cutoff requires a
+private receipt outside both the source and output trees, then verification
+against the original source and exact original policy bytes:
+
+```bash
+git-history-sanitize rewrite --source /trusted/source/.git \
+  --output /artifacts/sanitized.git --receipt /private/receipts/sanitized.json \
+  --policy /trusted/policy.yml
+git-history-sanitize verify --repository /artifacts/sanitized.git \
+  --source /trusted/source/.git --receipt /private/receipts/sanitized.json \
+  --policy /trusted/policy.yml
 ```
 
 `rewrite` always creates a parentless synthetic root with the configured
@@ -219,3 +234,12 @@ git-history-sanitize verify \
 
 The report intentionally contains no source-to-output mappings or removed
 commit messages.
+
+For `cutoffCommit`, Receipt v1 is private trusted evidence. It binds the exact
+raw policy bytes, source object format, source HEAD and complete ref map,
+boundary commit/tree, and sanitized root/HEAD. It contains source identifiers,
+so keep it owner-readable only and do not publish it with the sanitized Git
+database. The receipt digest detects corruption but is not a signature; trusted
+distribution or signing/key management is outside this tool's scope. A
+sanitized output without its private receipt and original source is not
+cutoff-proven, and verification fails closed.

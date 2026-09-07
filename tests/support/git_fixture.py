@@ -66,7 +66,8 @@ class GitFixture:
         self.hooks_dir.mkdir()
         self.output_dir.mkdir()
         self.receipt_dir.mkdir()
-        self.git(self.root, "init", "--initial-branch=main", str(self.source))
+        object_format = os.environ.get("GHS_TEST_OBJECT_FORMAT", "sha1")
+        self.git(self.root, "init", f"--object-format={object_format}", "--initial-branch=main", str(self.source))
         self.git(self.source, "config", "user.name", self.AUTHOR_NAME)
         self.git(self.source, "config", "user.email", self.AUTHOR_EMAIL)
 

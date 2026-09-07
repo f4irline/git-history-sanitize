@@ -92,7 +92,12 @@ their own package and registry infrastructure.
 Workflows live in `.github/workflows/`. Pin every third-party action to a full
 commit SHA and give each job the smallest permissions it needs.
 
-### `ci.yml`: existing validation on pushes and pull requests
+This receipt-free example is timestamp-cutoff-only. For `cutoffCommit`, mount a
+separate private receipt directory read-write and pass `--receipt
+/receipt-output/sanitized.json`; source, policy, output verification input, and
+receipt verification input remain read-only.
+
+### `ci.yml`: validation on pushes and pull requests
 
 Triggers:
 
@@ -122,9 +127,9 @@ Jobs:
 4. Build Python distribution artifacts with `python -m build` and upload them
    as a short-lived CI artifact for the release workflow or inspection.
 
-This workflow adds no new tests. It simply automates the two container test
-commands already exercised manually and confirms the distributable package can
-be built.
+The contract matrix runs source, wheel, and OCI contracts, including Receipt v1
+source-unit and CLI contracts. SHA-256 rewrite coverage remains a compatibility
+gate until the pinned filter runtime supports the same fixture successfully.
 
 ### `release.yml`: tagged publication
 
