@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 17:22
+**Last Updated:** 2026-09-07 17:30
 
 ## Overview
 
@@ -86,6 +86,14 @@ toolchain enables the remaining source/wheel/OCI matrix.
 Retried the clean pinned-Git bootstrap. It again failed before installation
 because GPG cannot route to its keyserver. The required matrix remains blocked.
 
+### 2026-09-07 17:30
+
+Diagnosed the bootstrap failure: `keyserver.ubuntu.com` publishes IPv6 and
+IPv4 addresses, but this runner has no IPv6 route. GnuPG dirmngr fails when it
+selects IPv6; its temporary configuration succeeds with `disable-ipv6`, using
+the reachable IPv4 endpoint and the existing pinned key fingerprint. Recorded
+this validation-environment gotcha; no House Rules exception is needed.
+
 ## Technical Notes
 
 - `verify` must inspect repositories directly and remain independent of rewrite
@@ -112,3 +120,4 @@ because GPG cannot route to its keyserver. The required matrix remains blocked.
 - `README.md` - documented v1 artifact contract and redaction behavior
 - `PLAN.md` - normative invariant inspection checklist
 - `docs/learnings/discoveries.md` - UTF-8 symbolic reference verification discovery
+- `docs/learnings/gotchas.md` - GnuPG IPv6 keyserver bootstrap gotcha
