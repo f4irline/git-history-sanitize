@@ -58,6 +58,24 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(failed.stdout, "")
         self.assertIn("Cannot read policy file", failed.stderr)
 
+    def test_receipt_arguments_have_stable_policy_conditional_failures(self) -> None:
+        commit_policy = self.fixture.write_policy(
+            cutoff=None,
+            cutoff_commit=self.fixture.git(self.fixture.source, "rev-parse", "HEAD"),
+        )
+        missing_human = self.fixture.run_cli("verify", "--repository", str(self.fixture.source / ".git"), "--policy", str(commit_policy), check=False)
+        missing_json = self.fixture.run_cli("verify", "--repository", str(self.fixture.source / ".git"), "--policy", str(commit_policy), "--json", check=False)
+        timestamp = self.fixture.write_policy()
+        forbidden = self.fixture.run_cli("verify", "--repository", str(self.fixture.source / ".git"), "--policy", str(timestamp), "--receipt", str(self.fixture.receipt_dir / "unused.json"), check=False)
+
+        for result in (missing_human, missing_json):
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(result.stdout, "")
+            self.assertEqual(result.stderr, "error: cutoffCommit verification requires --receipt and --source\n")
+        self.assertEqual(forbidden.returncode, 2)
+        self.assertEqual(forbidden.stdout, "")
+        self.assertEqual(forbidden.stderr, "error: history.cutoff does not accept --receipt or --source\n")
+
 
 if __name__ == "__main__":
     unittest.main()

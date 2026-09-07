@@ -198,6 +198,21 @@ class VerifierContractTests(unittest.TestCase):
         self.assertEqual(result.stderr, "error: sanitization receipt integrity check failed\n")
         fixture.assert_source_snapshot(snapshot)
 
+    def test_receipt_read_errors_are_redacted_as_missing(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("boundary.txt", "safe\n")
+        boundary = fixture.commit("boundary", "boundary.txt")
+        policy = fixture.write_policy(cutoff=None, cutoff_commit=boundary)
+        output = fixture.output_dir / "commit.git"
+        receipt = fixture.receipt_dir / "receipt.json"
+        fixture.run_cli("rewrite", "--source", str(fixture.source / ".git"), "--output", str(output), "--policy", str(policy), "--receipt", str(receipt))
+
+        result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), "--source", str(fixture.source / ".git"), "--receipt", str(fixture.receipt_dir), check=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "error: sanitization receipt is missing\n")
+
 
 if __name__ == "__main__":
     unittest.main()

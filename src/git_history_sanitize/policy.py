@@ -196,7 +196,7 @@ class Policy:
     def from_text(cls, text: str) -> "Policy":
         root = parse_restricted_yaml(text)
         _only_keys(root, {"version", "history", "paths", "commits", "refs"}, "policy")
-        if root.get("version") != 1:
+        if type(root.get("version")) is not int or root["version"] != 1:
             raise PolicyError("Only policy version 1 is supported")
 
         history_value = _mapping(root.get("history"), "history")

@@ -37,6 +37,10 @@ history:
 """
             )
 
+    def test_rejects_boolean_policy_version(self) -> None:
+        with self.assertRaisesRegex(PolicyError, "version 1"):
+            Policy.from_text("version: true\nhistory:\n  cutoff: 2026-09-03T00:00:00+00:00\n")
+
     def test_rejects_parent_path(self) -> None:
         with self.assertRaisesRegex(PolicyError, "Invalid excluded path"):
             Policy.from_text(
