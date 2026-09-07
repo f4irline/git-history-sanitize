@@ -192,10 +192,10 @@ def verify(
     _verify_receipt(repository, policy, source, receipt)
     state = _VerificationState()
     checks = (
+        _Invariant("head.symbolic", lambda: setattr(state, "head_ref", _head(repository))),
         _Invariant("repository.complete", lambda: _complete(repository)),
         _Invariant("graph.linear", lambda: setattr(state, "commits", _graph(repository))),
         _Invariant("root.synthetic", lambda: _root(repository, policy, state.commits)),
-        _Invariant("head.symbolic", lambda: setattr(state, "head_ref", _head(repository))),
         _Invariant("refs.retained", lambda: setattr(state, "refs", _refs(repository, state.head_ref))),
         _Invariant("paths.excluded", lambda: _paths(repository, policy, state.commits)),
         _Invariant("remotes.absent", lambda: _remotes(repository)),

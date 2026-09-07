@@ -189,10 +189,10 @@ class VerifierContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stderr, "error: verification failed: graph.linear\n")
 
-    def test_rejects_detached_head_and_non_branch_symbolic_head(self) -> None:
+    def test_rejects_a_non_branch_symbolic_head(self) -> None:
         output = self.rewrite()
-        self.fixture.git(output, "tag", "main")
-        self.fixture.git(output, "symbolic-ref", "HEAD", "refs/tags/main")
+        self.fixture.git(output, "update-ref", "refs/notes/main", "HEAD")
+        self.fixture.git(output, "symbolic-ref", "HEAD", "refs/notes/main")
 
         result = self.verify(output)
 

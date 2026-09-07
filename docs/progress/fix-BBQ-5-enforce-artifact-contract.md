@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 17:44
+**Last Updated:** 2026-09-07 18:05
 
 ## Overview
 
@@ -26,7 +26,7 @@ redacted invariant diagnostics and focused regression coverage.
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
 - [x] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [ ] Update this progress doc to "Complete" status
@@ -101,6 +101,15 @@ Configured the bootstrap's isolated dirmngr to disable IPv6. The pinned Git
 source runtime contract suite (39 tests) now pass. Wheel and OCI runtime cells
 remain for the final matrix.
 
+### 2026-09-07 18:05
+
+The full pinned runtime matrix now passes: source, wheel, and OCI each ran 39
+runtime contract tests successfully. The fixture/toolchain/policy suite also
+passes (28 tests), and `bash -n scripts/bootstrap-test-git.sh` passes. The
+non-branch symbolic-HEAD OCI failure found during validation is now rejected as
+`head.symbolic` rather than an operational repository error. Final review and
+finalization remain.
+
 ## Technical Notes
 
 - `verify` must inspect repositories directly and remain independent of rewrite
@@ -129,3 +138,4 @@ remain for the final matrix.
 - `docs/learnings/discoveries.md` - UTF-8 symbolic reference verification discovery
 - `docs/learnings/gotchas.md` - GnuPG IPv6 keyserver bootstrap gotcha
 - `scripts/bootstrap-test-git.sh` - force IPv4 for the ephemeral key import
+- `src/git_history_sanitize/git.py` - retain malformed bare outputs for invariant inspection

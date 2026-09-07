@@ -62,12 +62,17 @@ def ensure_dependencies() -> dict[str, str]:
 class Repository:
     def __init__(self, path: str | Path):
         self.path = Path(path).resolve()
+        self._bare = False
         try:
             self.git_dir = Path(
                 run(["-C", str(self.path), "rev-parse", "--absolute-git-dir"]).decode().strip()
             ).resolve()
         except GitError as error:
-            raise SanitizeError(f"Not a Git repository: {self.path}") from error
+            if (self.path / "config").is_file() and (self.path / "objects").is_dir():
+                self.git_dir = self.path
+                self._bare = True
+            else:
+                raise SanitizeError(f"Not a Git repository: {self.path}") from error
 
     def run(
         self,
@@ -77,7 +82,7 @@ class Repository:
         check: bool = True,
     ) -> bytes:
         return run(
-            ["-C", str(self.path), *arguments],
+            [f"--git-dir={self.git_dir}", *arguments] if self._bare else ["-C", str(self.path), *arguments],
             input_bytes=input_bytes,
             environment=environment,
             check=check,
