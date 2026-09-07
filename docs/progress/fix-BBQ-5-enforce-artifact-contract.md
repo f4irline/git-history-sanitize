@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-5-enforce-artifact-contract`
 **Status:** In Progress
 **Started:** 2026-09-07
-**Last Updated:** 2026-09-07 16:45
+**Last Updated:** 2026-09-07 16:48
 
 ## Overview
 
@@ -41,7 +41,8 @@ redacted invariant diagnostics and focused regression coverage.
 - [x] Prepare dedicated worktree and review applicable House Rules and learnings
 - [x] Add focused contract tests and verify their expected pre-implementation failures
 - [x] Implement the invariant registry and redacted CLI diagnostics
-- [ ] Document the v1 contract and run configured validation
+- [x] Document the v1 contract and run focused validation
+- [ ] Run complete configured runtime validation
 - [ ] Complete review, learnings, and finalization workflow
 
 ## Progress Log
@@ -58,6 +59,12 @@ known SHA-256 filter-repo gap a required matrix cell.
 Added an ordered direct-inspection v1 invariant registry, redacted invariant
 errors, and JSON failure serialization. Focused verifier, CLI, and cutoff
 contracts pass (27 tests). Full runtime matrix and documentation remain.
+
+### 2026-09-07 16:48
+
+Documented the invariant catalog, direct inspection model, and invariant JSON
+schema in README and PLAN. Regression, verifier, CLI, and cutoff suites pass
+(29 tests); source/wheel/OCI runtime checks remain for the final gate.
 
 ## Technical Notes
 
@@ -76,3 +83,11 @@ contracts pass (27 tests). Full runtime matrix and documentation remain.
 ## Files Changed
 
 - `docs/progress/fix-BBQ-5-enforce-artifact-contract.md` - workflow tracking
+- `src/git_history_sanitize/verify.py` - ordered independent v1 contract checks
+- `src/git_history_sanitize/errors.py` - structured invariant failure metadata
+- `src/git_history_sanitize/cli.py` - stable JSON invariant error serialization
+- `tests/test_verify_contracts.py` - focused artifact tamper coverage
+- `tests/test_cli_contracts.py` - human and JSON invariant error contracts
+- `tests/test_regressions.py` - stable ref and object-database diagnostics
+- `README.md` - documented v1 artifact contract and redaction behavior
+- `PLAN.md` - normative invariant inspection checklist
