@@ -7,6 +7,7 @@ import json
 import sys
 from dataclasses import asdict
 
+from ._version import __version__
 from .engine import plan, rewrite
 from .errors import SanitizeError, VerificationError
 from .git import ensure_dependencies
@@ -20,6 +21,7 @@ def _policy(path: str) -> Policy:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="git-history-sanitize")
+    parser.add_argument("--version", action="version", version=__version__)
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     doctor = subcommands.add_parser("doctor", help="check required Git tooling")

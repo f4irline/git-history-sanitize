@@ -34,18 +34,20 @@ jobs:
       - name: Run source-only helpers and verify the contract toolchain
         run: |
           python3 -m venv .venv-source
+          .venv-source/bin/python -m pip install --requirement requirements/release-test.txt
           .venv-source/bin/python -m pip install --no-deps git-filter-repo==2.47.0
           .venv-source/bin/python -m pip install --no-deps -e .
-          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python -m unittest -v tests.test_engine_failure_contracts tests.test_git_fixture tests.test_toolchain tests.test_policy tests.test_publication tests.test_receipt
+          PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python -m unittest -v tests.test_engine_failure_contracts tests.test_git_fixture tests.test_toolchain tests.test_policy tests.test_publication tests.test_receipt tests.test_release_versioning tests.test_release_workflow
           PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH .venv-source/bin/python tests/support/toolchain.py
       - name: Run source contracts
         run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=source tests/support/run_runtime_contracts.sh .venv-source/bin/python
       - name: Build distributions
         run: |
-          python3 -m pip install build==1.3.0
-          python3 -m build
+          python3 -m pip install --requirement requirements/release-test.txt
+          version="$(python3 -c 'from pathlib import Path; import ast; print(next(node.value.value for node in ast.parse(Path("src/git_history_sanitize/_version.py").read_text()).body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)))')"
+          python3 scripts/release.py check --version "$version" --output dist
       - name: Run wheel contracts
-        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/*.whl)" tests/support/run_runtime_contracts.sh .venv-source/bin/python
+        run: PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=wheel GHS_WHEEL="$(realpath dist/distributions/*.whl)" tests/support/run_runtime_contracts.sh .venv-source/bin/python
       - name: Build and validate OCI runtime
         run: |
           docker buildx build --load -t git-history-sanitize:local -f Containerfile .

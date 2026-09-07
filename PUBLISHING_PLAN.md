@@ -133,8 +133,10 @@ gate until the pinned filter runtime supports the same fixture successfully.
 
 ### `release.yml`: tagged publication
 
-Trigger only when a tag matching `v*` is pushed. The workflow must not publish
-from ordinary branch pushes.
+Trigger only when a tag matching `v*` is pushed. The version gate rejects every
+tag except an annotated `vMAJOR.MINOR.PATCH` tag resolving to the checked-out
+`HEAD`; it builds and inspects the exact uploaded wheel and source distribution
+before any mutation. The workflow must not publish from ordinary branch pushes.
 
 Stages:
 
@@ -215,14 +217,20 @@ files. A release must not silently reinterpret an older policy version.
 
 Release procedure:
 
-1. Update the package version and release notes.
-2. Run the same root and prototype container builds locally if desired.
-3. Merge the release preparation change.
-4. Create and push the signed `v<version>` tag.
-5. Watch `release.yml`; verify the PyPI version, the GHCR digest, and the
+1. Install `requirements/release-test.txt` and the package (`python3 -m pip
+   install --editable .`), then run `python3 scripts/release.py prepare
+   <version>`.
+2. Review the local version commit and annotated `v<version>` tag.
+3. Use `python3 scripts/release.py prepare <version> --push` only when the
+   local gate has passed and the explicit push is intended.
+4. Watch `release.yml`; verify the PyPI version, the GHCR digest, and the
    GitHub Release assets.
-6. Install the PyPI package and run the digest-pinned image once against a
+5. Install the PyPI package and run the digest-pinned image once against a
    disposable fixture before announcing the release.
+
+Only stable strict SemVer releases are supported. Prerelease publication is
+rejected until an explicit SemVer-to-PEP-440 mapping is approved. Tags are
+annotated; signing is optional unless separate release governance requires it.
 
 ## Consumer documentation
 
