@@ -26,11 +26,11 @@ and the accompanying contract tests, documentation, and CI coverage.
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
 - [x] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
