@@ -8,3 +8,7 @@ class PolicyError(SanitizeError):
 
 class VerificationError(SanitizeError):
     """Raised when a sanitized repository fails verification."""
+
+    def __init__(self, message: str, *, invariant: str | None = None):
+        super().__init__(message)
+        self.invariant = invariant
