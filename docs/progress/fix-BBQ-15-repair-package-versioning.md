@@ -68,6 +68,12 @@ BBQ-15 to In Review. All workflow phases are complete.
 
 ### 2026-09-07
 
+Added a concise `scripts/prepare-release.sh VERSION [--push]` wrapper after
+maintainer feedback. It creates an isolated temporary environment and delegates
+all version and release safety checks to `scripts/release.py`.
+
+### 2026-09-07
+
 Started in dedicated worktree. Loaded House Rules with no exceptions, reviewed
 the complete Linear research and technical plan, and applied relevant fixture
 and stderr-contract learnings.
@@ -95,4 +101,5 @@ and stderr-contract learnings.
 - `scripts/release.py` - fail-closed release validation and preparation.
 - `.github/workflows/{release,testpypi,ci}.yml` - gated publishing contracts.
 - `tests/test_release_{versioning,workflow}.py` - release gate tests.
+- `scripts/prepare-release.sh` - maintainer-facing release helper.
 - Package metadata, runtime, container, requirements, and release documentation.

@@ -59,12 +59,12 @@ Maintainers prepare stable releases locally with Python 3.11+, Git, and the
 reviewed build closure:
 
 ```bash
-python3 -m pip install --requirement requirements/release-test.txt --editable .
-python3 scripts/release.py prepare 0.1.2
-python3 scripts/release.py prepare 0.1.2 --push
+scripts/prepare-release.sh 0.1.2
+scripts/prepare-release.sh 0.1.2 --push
 ```
 
-The default command creates only a local version commit and annotated
+The helper creates an isolated temporary environment with the reviewed release
+tooling. The default command creates only a local version commit and annotated
 `v0.1.2` tag after source, artifact, and focused-test checks pass. `--push` is
 an explicit opt-in and runs only after that gate and tag succeed. It never
 publishes registries. Release tags accept stable strict SemVer only; prerelease
