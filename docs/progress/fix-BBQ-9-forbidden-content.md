@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-9-forbidden-content`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-9-forbidden-content`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-09
-**Last Updated:** 2026-09-09 18:49
+**Last Updated:** 2026-09-09 19:21
 
 ## Overview
 
@@ -28,11 +28,11 @@ bare-repository hooks, with safe file and stdin pattern inputs.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -78,6 +78,11 @@ container sensitive-input fixture pattern in `docs/learnings/patterns.md`.
 Final implementation review passed after three rounds. The last review noted
 only non-blocking coverage organization and final-newline regression-test
 opportunities. No House Rules exceptions were used.
+
+### 2026-09-09 19:21
+
+Opened PR #6 and moved BBQ-9 to In Review. All source, wheel, and OCI runtime
+matrices pass; House Rules compliance is complete with no exceptions.
 
 ## Technical Notes
 
