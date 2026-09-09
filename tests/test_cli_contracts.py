@@ -114,6 +114,37 @@ class CliContractTests(unittest.TestCase):
             '{"code": "verification_failed", "invariant": "refs.retained"}\n',
         )
 
+    def test_forbidden_file_and_stdin_records_are_scanned_without_leaking_inputs(self) -> None:
+        output = self.fixture.output_dir / "sanitized.git"
+        self.fixture.run_cli(
+            "rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(output),
+            "--policy", str(self.policy),
+        )
+        clean_head = self.fixture.git(output, "rev-parse", "HEAD")
+        tree = self.fixture.tree_with_file(output, "allowed.txt", "private marker\n")
+        self.fixture.git(output, "update-ref", "refs/heads/main", self.fixture.commit_tree(output, tree, "safe", clean_head))
+        patterns = self.fixture.root / "private-patterns"
+        patterns.write_bytes(b"private marker\n")
+
+        file_result = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(self.policy),
+            "--forbid-file", str(patterns), check=False,
+        )
+
+        self.assertEqual(file_result.returncode, 2)
+        self.assertEqual(file_result.stderr, "error: verification failed: content.forbidden\n")
+        self.assertNotIn("private marker", file_result.stderr)
+        self.assertNotIn(str(patterns), file_result.stderr)
+
+        stdin_result = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(self.policy), "--forbid-stdin",
+            check=False, input_text="private marker\n",
+        )
+
+        self.assertEqual(stdin_result.returncode, 2)
+        self.assertEqual(stdin_result.stderr, "error: verification failed: content.forbidden\n")
+        self.assertNotIn("private marker", stdin_result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

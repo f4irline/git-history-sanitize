@@ -185,7 +185,10 @@ git-history-sanitize rewrite \
 
 git-history-sanitize verify \
   --repository build/sanitized.git \
-  --policy .git-history-sanitize.yml
+  --policy .git-history-sanitize.yml \
+  --forbid 'private marker' \
+  --forbid-file /private/forbidden-records \
+  --forbid-stdin < /private/more-forbidden-records
 ```
 
 The commands above are timestamp-cutoff commands. A commit cutoff requires a
@@ -245,8 +248,12 @@ artifact contract requires a linear retained `HEAD` graph, a parentless
 synthetic root with the configured prefix message and cutoff eligibility, one
 symbolic `refs/heads/*` ref, no excluded path in any retained tree, no remotes,
 no shallow/partial/promisor/alternate object state, no reflogs or backup
-metadata, and no unreachable objects. `--forbid` additionally scans the full
-object database.
+metadata, and no unreachable objects. `--forbid`, `--forbid-file`, and
+`--forbid-stdin` additionally scan object bodies and immediate regular hook
+files. `--forbid` accepts strict UTF-8 text; files and stdin are raw
+newline-delimited byte records. Inputs are limited to 64 KiB per record and
+1 MiB in aggregate. Object and hook bodies are streamed in 64 KiB chunks, and
+patterns never match across object or hook-file boundaries.
 
 Each contract failure uses a stable, redacted invariant identifier:
 `graph.linear`, `root.synthetic`, `head.symbolic`, `refs.retained`,

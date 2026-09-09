@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
+import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterator
 
 from .errors import VerificationError
+from .forbidden import CHUNK_SIZE, Matcher
 from .git import GitError, Repository
 from .policy import Policy
 from .receipt import Receipt, ReceiptError
@@ -133,13 +137,100 @@ def _objects(repository: Repository) -> None:
         _contract_fail("objects.reachable-only")
 
 
-def _forbidden(repository: Repository, values: tuple[str, ...]) -> None:
-    for value in values:
-        if not value:
-            continue
-        objects = repository.run("cat-file", "--batch-all-objects", "--batch-check=%(objectname)")
-        if value.encode() in repository.run("cat-file", "--batch", "--buffer", input_bytes=objects):
+def _git_command(repository: Repository, *arguments: str) -> list[str]:
+    location = f"--git-dir={repository.git_dir}" if repository._bare else "-C"
+    return ["git", location, *(() if repository._bare else (str(repository.path),)), *arguments]
+
+
+def _object_body_chunks(repository: Repository) -> Iterator[bytes | None]:
+    """Yield body chunks, marking each new object with ``None``."""
+    width = 40 if repository.object_format() == "sha1" else 64
+    process = subprocess.Popen(
+        _git_command(repository, "cat-file", "--batch-all-objects", "--batch"),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        assert process.stdout is not None
+        while header := process.stdout.readline(1024):
+            if not header.endswith(b"\n"):
+                raise ValueError("invalid object header")
+            fields = header[:-1].split(b" ")
+            if (len(fields) != 3 or len(fields[0]) != width or any(byte not in b"0123456789abcdef" for byte in fields[0])
+                    or fields[1] not in {b"blob", b"tree", b"commit", b"tag"} or not fields[2].isdigit()):
+                raise ValueError("invalid object header")
+            remaining = int(fields[2])
+            yield None
+            while remaining:
+                chunk = process.stdout.read(min(CHUNK_SIZE, remaining))
+                if not chunk:
+                    raise ValueError("truncated object body")
+                remaining -= len(chunk)
+                yield chunk
+            if process.stdout.read(1) != b"\n":
+                raise ValueError("invalid object separator")
+        if process.wait() != 0:
+            raise ValueError("cat-file failed")
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait()
+        if process.stdout is not None:
+            process.stdout.close()
+
+
+def _scan_object_bodies(repository: Repository, matcher: Matcher) -> None:
+    for chunk in _object_body_chunks(repository):
+        if chunk is None:
+            matcher.reset()
+        elif matcher.feed(chunk):
             _contract_fail("content.forbidden")
+
+
+def _scan_hooks(repository: Repository, matcher: Matcher) -> None:
+    hooks = repository.git_dir / "hooks"
+    directory: int | None = None
+    try:
+        hooks_mode = hooks.lstat().st_mode
+        if stat.S_ISLNK(hooks_mode) or not stat.S_ISDIR(hooks_mode):
+            raise ValueError("unsafe hooks directory")
+        directory = os.open(hooks, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                mode = entry.stat(follow_symlinks=False).st_mode
+                if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+                    raise ValueError("unsafe hook")
+                matcher.reset()
+                descriptor = os.open(
+                    entry.name,
+                    os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=directory,
+                )
+                with os.fdopen(descriptor, "rb") as hook:
+                    if not stat.S_ISREG(os.fstat(hook.fileno()).st_mode):
+                        raise ValueError("unsafe hook")
+                    while chunk := hook.read(CHUNK_SIZE):
+                        if matcher.feed(chunk):
+                            _contract_fail("content.forbidden")
+    except FileNotFoundError:
+        return
+    finally:
+        if directory is not None:
+            os.close(directory)
+
+
+def _forbidden(repository: Repository, values: tuple[bytes, ...]) -> None:
+    if not values:
+        return
+    try:
+        matcher = Matcher(values)
+        _scan_object_bodies(repository, matcher)
+        _scan_hooks(repository, matcher)
+    except VerificationError:
+        raise
+    except (OSError, ValueError, subprocess.SubprocessError):
+        _contract_fail("content.forbidden")
 
 
 def _verify_receipt(
@@ -185,7 +276,7 @@ def _verify_receipt(
 
 
 def verify(
-    repository_path: str | Path, policy: Policy, forbidden: tuple[str, ...] = (), *,
+    repository_path: str | Path, policy: Policy, forbidden: tuple[bytes, ...] = (), *,
     source: str | Path | None = None, receipt: str | Path | None = None,
 ) -> VerificationReport:
     repository = Repository(repository_path)

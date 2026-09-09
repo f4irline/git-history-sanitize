@@ -10,6 +10,7 @@ from dataclasses import asdict
 from ._version import __version__
 from .engine import plan, rewrite
 from .errors import SanitizeError, VerificationError
+from .forbidden import collect
 from .git import ensure_dependencies
 from .policy import Policy
 from .verify import verify
@@ -45,6 +46,8 @@ def _parser() -> argparse.ArgumentParser:
     verification.add_argument("--source")
     verification.add_argument("--receipt")
     verification.add_argument("--forbid", action="append", default=[])
+    verification.add_argument("--forbid-file", action="append", default=[])
+    verification.add_argument("--forbid-stdin", action="store_true")
     verification.add_argument("--json", action="store_true")
     return parser
 
@@ -83,9 +86,14 @@ def main(argv: list[str] | None = None) -> int:
         elif arguments.command == "rewrite":
             _print(rewrite(arguments.source, arguments.output, policy, arguments.receipt), arguments.json)
         elif arguments.command == "verify":
+            forbidden = collect(
+                arguments.forbid,
+                arguments.forbid_file,
+                sys.stdin.buffer if arguments.forbid_stdin else None,
+            )
             _print(
                 verify(
-                    arguments.repository, policy, tuple(arguments.forbid),
+                    arguments.repository, policy, forbidden,
                     source=arguments.source, receipt=arguments.receipt,
                 ),
                 arguments.json,
