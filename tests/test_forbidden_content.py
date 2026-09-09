@@ -142,6 +142,52 @@ class ForbiddenContentTests(unittest.TestCase):
                 _forbidden(repository, (b"marker",))
         self.assertEqual(error.exception.invariant, "content.forbidden")
 
+    def test_object_scanner_rejects_truncated_declared_cat_file_body(self) -> None:
+        class Process:
+            stdout = io.BytesIO(b"0" * 40 + b" blob 4\nabc")
+
+            def wait(self) -> int:
+                return 0
+
+            def poll(self) -> int:
+                return 0
+
+            def terminate(self) -> None:
+                raise AssertionError("unexpected terminate")
+
+        fixture = GitFixture(self)
+        repository = Repository(fixture.source)
+        with (
+            patch.object(repository, "object_format", return_value="sha1"),
+            patch("git_history_sanitize.verify.subprocess.Popen", return_value=Process()),
+        ):
+            with self.assertRaises(VerificationError) as error:
+                _forbidden(repository, (b"marker",))
+        self.assertEqual(error.exception.invariant, "content.forbidden")
+
+    def test_object_scanner_rejects_invalid_cat_file_body_delimiter(self) -> None:
+        class Process:
+            stdout = io.BytesIO(b"0" * 40 + b" blob 3\nabc!")
+
+            def wait(self) -> int:
+                return 0
+
+            def poll(self) -> int:
+                return 0
+
+            def terminate(self) -> None:
+                raise AssertionError("unexpected terminate")
+
+        fixture = GitFixture(self)
+        repository = Repository(fixture.source)
+        with (
+            patch.object(repository, "object_format", return_value="sha1"),
+            patch("git_history_sanitize.verify.subprocess.Popen", return_value=Process()),
+        ):
+            with self.assertRaises(VerificationError) as error:
+                _forbidden(repository, (b"marker",))
+        self.assertEqual(error.exception.invariant, "content.forbidden")
+
     def test_hook_scanner_checks_immediate_regular_files(self) -> None:
         fixture = GitFixture(self)
         hook = fixture.source / ".git" / "hooks" / "post-commit"
