@@ -16,7 +16,8 @@ RUN scripts/bootstrap-test-git.sh /opt/git-2.47.0 \
     && ln -s /opt/git-filter-repo/bin/git-filter-repo /usr/local/bin/git-filter-repo \
     && test "$(PATH=/opt/git-2.47.0/bin:$PATH git filter-repo --version)" = "a40bce548d2c" \
     && python3 -m venv /opt/runtime \
-    && /opt/runtime/bin/pip install --no-deps .
+    && /opt/runtime/bin/pip install --no-deps . \
+    && mkdir /forbid-file
 
 ENV PATH=/opt/git-2.47.0/bin:/opt/runtime/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 

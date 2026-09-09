@@ -178,7 +178,18 @@ class GitFixture:
         mounts: list[str] = []
         fixed_paths = {"--source": ("/input.git", "ro"), "--policy": ("/policy.yml", "ro")}
         input_mounted = False
+        forbid_file_index = 0
         for index, argument in enumerate(translated):
+            if argument == "--forbid-file":
+                if index + 1 == len(translated):
+                    raise ValueError(f"{argument} requires a path")
+                host_path = Path(translated[index + 1]).absolute()
+                destination = f"/forbid-file/{forbid_file_index}"
+                forbid_file_index += 1
+                if host_path.exists():
+                    mounts.extend(["--mount", f"type=bind,src={host_path},dst={destination},readonly"])
+                translated[index + 1] = destination
+                continue
             if argument not in {*fixed_paths, "--repository", "--output", "--receipt"}:
                 continue
             if index + 1 == len(translated):
@@ -262,6 +273,7 @@ class GitFixture:
             runtime,
             "run",
             "--rm",
+            *(("-i",) if "--forbid-stdin" in translated else ()),
             "--user",
             f"{os.getuid()}:{os.getgid()}",
             "--network=none",
@@ -287,7 +299,7 @@ class GitFixture:
             self.template_dir,
             self.hooks_dir,
         ]
-        path_options = {"--source", "--repository", "--policy", "--output", "--receipt"}
+        path_options = {"--source", "--repository", "--policy", "--output", "--receipt", "--forbid-file"}
         host_paths.extend(
             Path(arguments[index + 1]).resolve()
             for index, argument in enumerate(arguments[:-1])
@@ -384,7 +396,7 @@ class GitFixture:
         self.git(self.source, "merge", "--no-ff", "-m", message, branch)
         return self.git(self.source, "rev-parse", "HEAD")
 
-    def add_unreachable_blob(self, content: str, repository: Path | None = None) -> str:
+    def add_unreachable_blob(self, content: str | bytes, repository: Path | None = None) -> str:
         repository = repository or self.source
         result = subprocess.run(
             [self.git_executable, "-C", str(repository), "hash-object", "-w", "--stdin"],
@@ -392,9 +404,9 @@ class GitFixture:
             capture_output=True,
             env=self.environment,
             input=content,
-            text=True,
+            text=isinstance(content, str),
         )
-        return result.stdout.strip()
+        return result.stdout.decode().strip() if isinstance(result.stdout, bytes) else result.stdout.strip()
 
     def tree_with_file(self, repository: Path, path: str, content: str) -> str:
         """Create a one-file tree for a reachable object-database tamper case."""

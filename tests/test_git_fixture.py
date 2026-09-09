@@ -346,6 +346,31 @@ class GitFixtureTests(unittest.TestCase):
             any(str(self.fixture.root) in value for value in command[image_index + 1:] if value)
         )
 
+    def test_container_runner_mounts_forbid_files_and_forwards_stdin(self) -> None:
+        policy = self.fixture.write_policy()
+        patterns = self.fixture.root / "private-patterns"
+        patterns.write_bytes(b"private marker\n")
+        arguments = (
+            "verify", "--repository", str(self.fixture.source / ".git"), "--policy", str(policy),
+            "--forbid-file", str(patterns), "--forbid-stdin",
+        )
+
+        with (
+            patch.dict(os.environ, {"GHS_CONTAINER_IMAGE": "fixture-image"}, clear=False),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+        ):
+            command = self.fixture._container_cli(arguments)
+
+        image_index = command.index("fixture-image")
+        self.assertIn("-i", command[:image_index])
+        self.assertEqual(
+            command[image_index + 1:],
+            ["verify", "--repository", "/input.git", "--policy", "/policy.yml", "--forbid-file", "/forbid-file/0", "--forbid-stdin"],
+        )
+        mounts = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--mount"]
+        self.assertIn(f"type=bind,src={patterns.absolute()},dst=/forbid-file/0,readonly", mounts)
+        self.assertNotIn(str(patterns), command[image_index + 1:])
+
     def test_container_runner_keeps_safe_directories_in_global_configuration(self) -> None:
         with patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container"}, clear=False):
             fixture = GitFixture(self)

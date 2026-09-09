@@ -145,6 +145,27 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(stdin_result.stderr, "error: verification failed: content.forbidden\n")
         self.assertNotIn("private marker", stdin_result.stderr)
 
+    def test_forbidden_input_failures_redact_empty_oversize_and_paths(self) -> None:
+        empty = self.fixture.root / "private-patterns"
+        empty.write_bytes(b"\n")
+        oversized = self.fixture.root / "oversized-patterns"
+        oversized.write_bytes(b"x" * (64 * 1024 + 1))
+
+        for arguments, secret in (
+            (("--forbid", ""), None),
+            (("--forbid-file", str(empty)), str(empty)),
+            (("--forbid-file", str(oversized)), str(oversized)),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self.fixture.run_cli(
+                    "verify", "--repository", str(self.fixture.source / ".git"),
+                    "--policy", str(self.policy), *arguments, check=False,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stderr, "error: invalid forbidden-content input\n")
+                if secret:
+                    self.assertNotIn(secret, result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

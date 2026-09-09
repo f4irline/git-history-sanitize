@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import unicodedata
 from collections import deque
 from collections.abc import Iterable
 from pathlib import Path
@@ -84,7 +83,7 @@ def _validated(patterns: Iterable[bytes]) -> tuple[bytes, ...]:
 
 def arguments(values: Iterable[str]) -> tuple[bytes, ...]:
     try:
-        return _validated(unicodedata.normalize("NFC", value).encode("utf-8", "strict") for value in values)
+        return _validated(value.encode("utf-8", "strict") for value in values)
     except UnicodeError as error:
         raise ForbiddenInputError("invalid forbidden-content input") from error
 

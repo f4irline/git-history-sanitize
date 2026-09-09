@@ -137,16 +137,11 @@ def _objects(repository: Repository) -> None:
         _contract_fail("objects.reachable-only")
 
 
-def _git_command(repository: Repository, *arguments: str) -> list[str]:
-    location = f"--git-dir={repository.git_dir}" if repository._bare else "-C"
-    return ["git", location, *(() if repository._bare else (str(repository.path),)), *arguments]
-
-
 def _object_body_chunks(repository: Repository) -> Iterator[bytes | None]:
     """Yield body chunks, marking each new object with ``None``."""
     width = 40 if repository.object_format() == "sha1" else 64
     process = subprocess.Popen(
-        _git_command(repository, "cat-file", "--batch-all-objects", "--batch"),
+        repository.command("cat-file", "--batch-all-objects", "--batch"),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
