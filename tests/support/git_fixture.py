@@ -295,7 +295,9 @@ class GitFixture:
         )
         self.assert_redacted(result.stdout + result.stderr, *(str(path) for path in host_paths))
 
-    def run_cli(self, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    def run_cli(
+        self, *arguments: str, check: bool = True, input_text: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         runtime = os.environ.get("GHS_TEST_RUNTIME", "source")
         environment = self._runtime_environment()
         if runtime == "source":
@@ -314,6 +316,7 @@ class GitFixture:
             check=check,
             capture_output=True,
             env=environment,
+            input=input_text,
             text=True,
         )
         if runtime == "container":
