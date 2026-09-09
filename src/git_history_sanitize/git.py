@@ -88,6 +88,15 @@ class Repository:
             check=check,
         )
 
+    def command(self, *arguments: str) -> list[str]:
+        """Return a Git command scoped to this repository."""
+        return [
+            "git",
+            f"--git-dir={self.git_dir}" if self._bare else "-C",
+            *(() if self._bare else (str(self.path),)),
+            *arguments,
+        ]
+
     def text(self, *arguments: str) -> str:
         return self.run(*arguments).decode("utf-8", "surrogateescape").strip()
 
