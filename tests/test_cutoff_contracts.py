@@ -46,11 +46,11 @@ class CutoffContractTests(unittest.TestCase):
         output = self.fixture.output_dir / "sanitized.git"
         rewrite = json.loads(self._rewrite(policy, output).stdout)
 
-        self.assertEqual(plan, {
-            "source_commits": 2,
-            "discarded_commits": 1,
-            "retained_commits_before_path_filter": 1,
-        })
+        self.assertEqual(plan["source_commits"], 2)
+        self.assertEqual(plan["discarded_commits"], 1)
+        self.assertEqual(plan["retained_commits_before_path_filter"], 1)
+        self.assertEqual(plan["mode"], "complete")
+        self.assertEqual(plan["scope"], "complete reachable history")
         self.assertEqual(rewrite["history"], {"source_commits": 2, "discarded_commits": 1})
         self.assertEqual(self.fixture.git(output, "show", "HEAD:boundary.txt"), "retained")
 
@@ -67,12 +67,12 @@ class CutoffContractTests(unittest.TestCase):
         output = self.fixture.output_dir / "sanitized.git"
         receipt = self.fixture.receipt_dir / "receipt.json"
         rewrite = json.loads(self._rewrite(policy, output, receipt=receipt).stdout)
+        self.assertEqual(json.loads(receipt.read_text())["version"], 2)
 
-        self.assertEqual(plan, {
-            "source_commits": 3,
-            "discarded_commits": 1,
-            "retained_commits_before_path_filter": 2,
-        })
+        self.assertEqual(plan["source_commits"], 3)
+        self.assertEqual(plan["discarded_commits"], 1)
+        self.assertEqual(plan["retained_commits_before_path_filter"], 2)
+        self.assertEqual(plan["mode"], "complete")
         self.assertEqual(rewrite["history"], {
             "source_commits": plan["source_commits"],
             "discarded_commits": plan["discarded_commits"],

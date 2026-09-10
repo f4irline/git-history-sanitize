@@ -12,9 +12,11 @@ from typing import Callable, Iterator
 
 from .errors import VerificationError
 from .forbidden import CHUNK_SIZE, Matcher
-from .git import GitError, Repository
+from .git import GitError, Repository, git_environment
 from .policy import Policy
 from .receipt import Receipt, ReceiptError
+from .scope_metadata import read as read_scope_metadata
+from .source_scope import inspect_source
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,11 @@ class VerificationReport:
     root: str
     retained_refs: tuple[str, ...]
     excluded_paths: tuple[str, ...]
+    mode: str
+    scope: str
+    boundary_count: int
+    included_commit_count: int
+    included_object_count: int
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=True)
@@ -145,6 +152,7 @@ def _object_body_chunks(repository: Repository) -> Iterator[bytes | None]:
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
+        env=git_environment(),
     )
     try:
         assert process.stdout is not None
@@ -244,6 +252,10 @@ def _verify_receipt(
     except ReceiptError as error:
         raise VerificationError(str(error)) from error
     payload = evidence.payload
+    if evidence.version == 1 and policy.source.mode != "complete":
+        _fail("sanitization receipt does not support this source mode")
+    if evidence.version == 2 and policy.source.mode == "snapshot":
+        _fail("sanitization receipt does not support this source mode")
     if payload["policy"]["sha256"] != policy.digest:
         _fail("sanitization receipt does not match the policy")
     sanitized = payload["sanitized"]
@@ -254,6 +266,7 @@ def _verify_receipt(
     source_repository = Repository(source)
     source_binding = payload["source"]
     try:
+        scope = inspect_source(source_repository, policy)
         cutoff = source_repository.resolve_cutoff_commit(policy.history.cutoff_commit)
         kind, ref, head = source_repository.head_identity()
         fingerprint = Receipt.source_fingerprint(
@@ -267,6 +280,12 @@ def _verify_receipt(
             or source_repository.commit_tree(cutoff) != source_binding["boundary_tree"]
             or head != source_binding["head"]
             or fingerprint != source_binding["repository_fingerprint"]):
+        _fail("sanitization receipt does not match source repository")
+    if evidence.version == 2 and (
+        source_binding["mode"] != scope.mode
+        or source_binding["scope_fingerprint"] != scope.fingerprint
+        or source_binding["boundary_count"] != scope.boundary_count
+    ):
         _fail("sanitization receipt does not match source repository")
 
 
@@ -291,7 +310,10 @@ def verify(
     )
     for invariant in checks:
         _inspect(invariant)
+    metadata = read_scope_metadata(repository.path, policy.source.mode)
     return VerificationReport(
         head=repository.text("rev-parse", "HEAD"), commit_count=len(state.commits), root=state.commits[0],
         retained_refs=state.refs, excluded_paths=policy.excluded_paths,
+        mode=policy.source.mode, scope=str(metadata["coverage"]), boundary_count=int(metadata["boundary_count"]),
+        included_commit_count=int(metadata["included_commit_count"]), included_object_count=int(metadata["included_object_count"]),
     )

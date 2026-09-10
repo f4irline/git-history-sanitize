@@ -185,8 +185,14 @@ class History:
 
 
 @dataclass(frozen=True)
+class Source:
+    mode: str
+
+
+@dataclass(frozen=True)
 class Policy:
     history: History
+    source: Source
     excluded_paths: tuple[str, ...]
     mixed_message: str
     retained_refs: tuple[str, ...]
@@ -195,7 +201,7 @@ class Policy:
     @classmethod
     def from_text(cls, text: str) -> "Policy":
         root = parse_restricted_yaml(text)
-        _only_keys(root, {"version", "history", "paths", "commits", "refs"}, "policy")
+        _only_keys(root, {"version", "source", "history", "paths", "commits", "refs"}, "policy")
         if type(root.get("version")) is not int or root["version"] != 1:
             raise PolicyError("Only policy version 1 is supported")
 
@@ -203,8 +209,15 @@ class Policy:
         _only_keys(history_value, {"cutoff", "cutoffCommit", "prefixMessage"}, "history")
         cutoff_text = history_value.get("cutoff")
         cutoff_commit = history_value.get("cutoffCommit")
-        if (cutoff_text is None) == (cutoff_commit is None):
+        source_value = _mapping(root.get("source", {"mode": "complete"}), "source")
+        _only_keys(source_value, {"mode"}, "source")
+        mode = _string(source_value.get("mode", "complete"), "source.mode")
+        if mode not in {"complete", "bounded", "snapshot"}:
+            raise PolicyError("source.mode must be complete, bounded, or snapshot")
+        if mode != "snapshot" and (cutoff_text is None) == (cutoff_commit is None):
             raise PolicyError("Specify exactly one of history.cutoff or history.cutoffCommit")
+        if mode == "snapshot" and (cutoff_text is not None or cutoff_commit is not None):
+            raise PolicyError("snapshot source.mode does not accept history.cutoff or history.cutoffCommit")
         cutoff_epoch: int | None = None
         if cutoff_text is not None:
             cutoff_text = _string(cutoff_text, "history.cutoff")
@@ -216,6 +229,10 @@ class Policy:
         prefix_message = _message(
             history_value.get("prefixMessage", "[sanitized]"), "history.prefixMessage"
         )
+
+        if mode == "snapshot":
+            if "prefixMessage" not in history_value:
+                raise PolicyError("snapshot source.mode requires history.prefixMessage")
 
         paths_value = _mapping(root.get("paths", {"exclude": []}), "paths")
         _only_keys(paths_value, {"exclude"}, "paths")
@@ -235,6 +252,7 @@ class Policy:
 
         return cls(
             history=History(cutoff_text, cutoff_epoch, cutoff_commit, prefix_message),
+            source=Source(mode),
             excluded_paths=excluded_paths,
             mixed_message=mixed_message,
             retained_refs=("HEAD",),
@@ -253,6 +271,6 @@ class Policy:
             except UnicodeDecodeError as error:
                 raise PolicyError("Policy file must be valid UTF-8") from error
             policy = cls.from_text(text)
-            return cls(policy.history, policy.excluded_paths, policy.mixed_message, policy.retained_refs, hashlib.sha256(data).hexdigest())
+            return cls(policy.history, policy.source, policy.excluded_paths, policy.mixed_message, policy.retained_refs, hashlib.sha256(data).hexdigest())
         except OSError as error:
             raise PolicyError(f"Cannot read policy file {path!r}: {error.strerror}") from error
