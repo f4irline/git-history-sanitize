@@ -180,6 +180,10 @@ replacement, and alternate-object state before output staging. Fetch complete
 history, explicitly materialize required objects, remove graft/replace state,
 or repack without alternates before retrying.
 
+`plan` reports the same `HEAD` graph that rewrite compacts. In complete mode,
+the all-ref closure check is preflight evidence only: side refs cannot inflate
+the reported source or included counts.
+
 `bounded` is an explicit shallow-clone mode. It only covers the local `HEAD`
 graph up to its declared shallow roots; it never fetches or claims coverage of
 older history. Every object inside that graph must already be local. The output
@@ -303,7 +307,12 @@ commit messages.
 New outputs include canonical `git-history-sanitize-scope.json` at the bare
 repository root. It contains only the mode, non-sensitive coverage wording,
 boundary count, and included commit/object counts; verification rejects missing
-or tampered scope metadata.
+or tampered scope metadata, except for legacy complete-mode artifacts. A
+timestamp-cutoff complete artifact without this newer metadata remains
+verifiable; its report uses zero scope counts to explicitly mean that legacy
+source-scope evidence is unavailable. Missing metadata remains a hard failure
+for bounded and snapshot outputs and for complete `cutoffCommit` outputs with a
+v2 receipt.
 
 For `cutoffCommit`, Receipt v2 is private trusted evidence. It binds the exact
 raw policy bytes, source object format, source HEAD and complete ref map,

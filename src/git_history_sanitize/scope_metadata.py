@@ -26,10 +26,24 @@ def write(repository: Path, scope: SourceScope) -> None:
     (repository / _NAME).write_bytes(json.dumps(_value(scope), sort_keys=True, separators=(",", ":")).encode() + b"\n")
 
 
-def read(repository: Path, mode: str) -> dict[str, object]:
+def read(repository: Path, mode: str, *, allow_legacy_complete: bool = False) -> dict[str, object]:
     path = repository / _NAME
     try:
         data = path.read_bytes()
+    except FileNotFoundError as error:
+        if allow_legacy_complete and mode == "complete":
+            # Pre-scope artifacts cannot provide source counts. Zero explicitly
+            # denotes unavailable legacy scope evidence, not an empty graph.
+            return {
+                "schema_version": 1,
+                "mode": "complete",
+                "coverage": "complete reachable history",
+                "boundary_count": 0,
+                "included_commit_count": 0,
+                "included_object_count": 0,
+            }
+        raise VerificationError("verification failed: scope.metadata", invariant="scope.metadata") from error
+    try:
         value = json.loads(data.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise VerificationError("verification failed: scope.metadata", invariant="scope.metadata") from error

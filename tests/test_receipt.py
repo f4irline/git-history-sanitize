@@ -85,6 +85,17 @@ class ReceiptTests(unittest.TestCase):
         ).hexdigest()
         self.assertEqual(fingerprint, expected)
 
+    def test_v1_receipt_remains_valid_without_scope_evidence(self) -> None:
+        receipt = Receipt.create(
+            generator_version="0.1.0", source_object_format="sha1", source_fingerprint="a" * 64,
+            source_head="b" * 40, cutoff_commit="c" * 40, boundary_tree="d" * 40,
+            policy_digest="e" * 64, sanitized_object_format="sha1", sanitized_root="f" * 40,
+            sanitized_head="0" * 40,
+        )
+
+        self.assertEqual(receipt.version, 1)
+        self.assertEqual(Receipt.from_bytes(receipt.to_bytes()), receipt)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ Implement fail-closed source scope validation for complete, bounded shallow, and
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [x] Validate (focused source contracts pass; broader receipt/runtime work remains)
+- [x] Validate (source, wheel, and OCI runtime matrices pass)
 - [ ] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
@@ -41,7 +41,7 @@ Implement fail-closed source scope validation for complete, bounded shallow, and
 - [x] Create dedicated ticket worktree
 - [x] Add source scope policy and preflight contracts
 - [x] Implement scope-aware rewrite, verification, receipt, and metadata behavior
-- [ ] Document modes and run complete source/wheel/OCI validation matrix
+- [x] Run complete source/wheel/OCI validation matrix
 
 ## Progress Log
 
@@ -58,6 +58,16 @@ focused policy/source integration contracts and updated documentation. Receipt
 v2 now binds mode and private scope evidence, while legacy v1 remains restricted
 to complete-mode verification. Focused source, cutoff, receipt, and verifier
 suites passed locally; the full source/wheel/OCI matrix remains to be completed.
+
+Health-inspector follow-up corrected scope accounting: complete mode now proves
+all local refs while reporting the exact `HEAD` graph that rewrite compacts, and
+snapshot mode validates/counts only `HEAD` and its current tree closure. Added
+pre-publication shallow/graft/promisor/missing-object contracts, legacy complete
+timestamp metadata compatibility, valid v1 receipt verification, and strict
+metadata rejection for snapshot and v2 receipt outputs. Full source/wheel/OCI
+runtime coverage passed locally: the source, built wheel, and freshly built OCI
+image each passed the 47-test runtime contract matrix. Review revisions are
+pending their focused commit.
 
 ## Technical Notes
 
@@ -76,3 +86,8 @@ suites passed locally; the full source/wheel/OCI matrix remains to be completed.
 - `docs/progress/fix-BBQ-10-validate-source-histories.md` - workflow tracking
 - `src/git_history_sanitize/source_scope.py` - shared source preflight
 - `src/git_history_sanitize/scope_metadata.py` - published scope contract
+- `src/git_history_sanitize/verify.py` - legacy metadata and receipt compatibility
+- `tests/test_source_scope_contracts.py` - source-scope acceptance contracts
+- `tests/test_verify_contracts.py` - metadata and receipt compatibility contracts
+- `tests/test_receipt.py` - v1 receipt compatibility contract
+- `README.md` - source-scope and legacy verification documentation

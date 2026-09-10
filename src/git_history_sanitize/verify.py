@@ -238,11 +238,11 @@ def _forbidden(repository: Repository, values: tuple[bytes, ...]) -> None:
 
 def _verify_receipt(
     repository: Repository, policy: Policy, source: str | Path | None, receipt: str | Path | None,
-) -> None:
+) -> Receipt | None:
     if not policy.history.cutoff_commit:
         if source is not None or receipt is not None:
             _fail("history.cutoff does not accept --receipt or --source")
-        return
+        return None
     if source is None or receipt is None:
         _fail("cutoffCommit verification requires --receipt and --source")
     try:
@@ -287,6 +287,7 @@ def _verify_receipt(
         or source_binding["boundary_count"] != scope.boundary_count
     ):
         _fail("sanitization receipt does not match source repository")
+    return evidence
 
 
 def verify(
@@ -294,7 +295,7 @@ def verify(
     source: str | Path | None = None, receipt: str | Path | None = None,
 ) -> VerificationReport:
     repository = Repository(repository_path)
-    _verify_receipt(repository, policy, source, receipt)
+    evidence = _verify_receipt(repository, policy, source, receipt)
     state = _VerificationState()
     checks = (
         _Invariant("head.symbolic", lambda: setattr(state, "head_ref", _head(repository))),
@@ -310,7 +311,14 @@ def verify(
     )
     for invariant in checks:
         _inspect(invariant)
-    metadata = read_scope_metadata(repository.path, policy.source.mode)
+    metadata = read_scope_metadata(
+        repository.path,
+        policy.source.mode,
+        allow_legacy_complete=(
+            policy.source.mode == "complete"
+            and (not policy.history.cutoff_commit or evidence is not None and evidence.version == 1)
+        ),
+    )
     return VerificationReport(
         head=repository.text("rev-parse", "HEAD"), commit_count=len(state.commits), root=state.commits[0],
         retained_refs=state.refs, excluded_paths=policy.excluded_paths,
