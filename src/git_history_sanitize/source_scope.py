@@ -94,7 +94,10 @@ def inspect_source(repository: Repository, policy: Policy) -> SourceScope:
             _fail("Source is shallow; fetch complete history or explicitly select bounded mode")
         if partial:
             _fail("Source is partial/promisor; explicitly materialize objects before sanitizing")
-        commits, objects = _closure(repository, "--all")
+        # Complete mode must prove every local ref is materialized, but the
+        # rewrite itself retains only HEAD's graph.
+        _closure(repository, "--all")
+        commits, objects = _closure(repository, "HEAD")
     elif mode == "bounded":
         if not shallow_roots:
             _fail("bounded source.mode requires a shallow source repository")
@@ -102,12 +105,20 @@ def inspect_source(repository: Repository, policy: Policy) -> SourceScope:
         if not set(shallow_roots).issubset(commits):
             _fail("Cannot prove shallow history boundary; recreate the bounded clone")
     else:
-        commits, objects = _closure(repository, "HEAD")
-        # Snapshot only covers the current tree, not inherited commit objects.
-        head_tree = repository.commit_tree(repository.text("rev-parse", "HEAD"))
-        objects = tuple(sorted(set(repository.run("rev-list", "--objects", "--no-object-names", head_tree).decode("ascii").splitlines())))
-        for oid in objects:
-            if not repository.run("cat-file", "-t", oid, check=False).strip():
-                _fail("Source has unavailable required objects; explicitly materialize them before sanitizing")
+        # Snapshot validates the materialized HEAD tree only.  Its parent
+        # commits and objects are deliberately outside the declared scope.
+        try:
+            head = repository.text("rev-parse", "HEAD")
+            head_tree = repository.commit_tree(head)
+            objects = tuple(sorted(set(
+                repository.run("rev-list", "--objects", "--no-object-names", head_tree)
+                .decode("ascii").splitlines()
+            )))
+            for oid in objects:
+                if not repository.run("cat-file", "-t", oid, check=False).strip():
+                    _fail("Source has unavailable required objects; explicitly materialize them before sanitizing")
+        except (GitError, UnicodeError) as error:
+            raise SanitizeError("Source has unavailable required objects; explicitly materialize them before sanitizing") from error
+        commits = (head,)
     content = "\0".join((mode, *shallow_roots, *commits, *objects)).encode("ascii")
     return SourceScope(mode, commits, objects, shallow_roots, hashlib.sha256(content).hexdigest())
