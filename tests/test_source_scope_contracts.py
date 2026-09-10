@@ -136,6 +136,57 @@ class SourceScopeContracts(unittest.TestCase):
         self.assertEqual(self.fixture.git(output, "rev-list", "--max-parents=0", "--all").splitlines(), [self.fixture.git(output, "rev-parse", "HEAD")])
         self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%B", "HEAD"), "[snapshot]")
 
+    def test_snapshot_plan_and_rewrite_ignore_inherited_merge_history(self) -> None:
+        self.fixture.git(self.fixture.source, "checkout", "-qb", "side")
+        self.fixture.write("side.txt", "side\n")
+        self.fixture.commit("side", "side.txt")
+        self.fixture.git(self.fixture.source, "checkout", "main")
+        self.fixture.write("main.txt", "main\n")
+        self.fixture.commit("main", "main.txt")
+        self.fixture.merge("side", "merge side")
+        policy = self.fixture.write_policy(cutoff=None, source_mode="snapshot", prefix_message="[snapshot]")
+
+        plan = json.loads(self._plan(policy, check=True).stdout)
+        output = self.fixture.output_dir / "snapshot-merge.git"
+        rewrite = self.fixture.run_cli(
+            "rewrite", "--source", str(self.fixture.source / ".git"), "--policy", str(policy),
+            "--output", str(output), "--json", check=True,
+        )
+
+        self.assertEqual(plan["source_commits"], 1)
+        self.assertEqual(json.loads(rewrite.stdout)["history"], {"source_commits": 1, "discarded_commits": 0})
+        self.assertEqual(self.fixture.git(output, "rev-list", "--count", "HEAD"), "1")
+
+    def test_bounded_missing_in_scope_object_fails_plan_and_rewrite_without_publication(self) -> None:
+        shallow = self.fixture.root / "shallow"
+        self.fixture.git(
+            self.fixture.root, "clone", "--depth=1", f"file://{self.fixture.source}", str(shallow)
+        )
+        (shallow / "missing.txt").write_text("missing\n")
+        self.fixture.git(shallow, "add", "missing.txt")
+        self.fixture.git(shallow, "commit", "-m", "missing")
+        blob = self.fixture.git(shallow, "rev-parse", "HEAD:missing.txt")
+        (shallow / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
+        policy = self.fixture.write_policy(source_mode="bounded")
+        output = self.fixture.output_dir / "bounded-missing.git"
+
+        plan = self.fixture.run_cli(
+            "plan", "--source", str(shallow / ".git"), "--policy", str(policy), check=False,
+        )
+        rewrite = self.fixture.run_cli(
+            "rewrite", "--source", str(shallow / ".git"), "--policy", str(policy),
+            "--output", str(output), check=False,
+        )
+
+        expected = "error: Source has unavailable required objects; explicitly materialize them before sanitizing\n"
+        self.assertEqual(plan.returncode, 2)
+        self.assertEqual(plan.stdout, "")
+        self.assertEqual(plan.stderr, expected)
+        self.assertEqual(rewrite.returncode, 2)
+        self.assertEqual(rewrite.stdout, "")
+        self.assertEqual(rewrite.stderr, expected)
+        self.assertFalse(output.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

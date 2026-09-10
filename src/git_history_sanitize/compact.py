@@ -113,13 +113,14 @@ def _create_commit(
 
 
 def compact(repository: Repository, policy: Policy) -> CompactResult:
-    commits = _commits(repository)
     if policy.source.mode == "snapshot":
+        head = repository.text("rev-parse", "HEAD")
         synthetic_root = _create_commit(
-            repository, commits[-1], None, f"{policy.history.prefix_message}\n".encode()
+            repository, head, None, f"{policy.history.prefix_message}\n".encode()
         )
-        repository.run("update-ref", repository.head_ref(), synthetic_root, commits[-1])
-        return CompactResult(len(commits), len(commits) - 1, commits[-1], synthetic_root)
+        repository.run("update-ref", repository.head_ref(), synthetic_root, head)
+        return CompactResult(1, 0, head, synthetic_root)
+    commits = _commits(repository)
     boundary_index = _boundary_index(repository, commits, policy)
     boundary = commits[boundary_index]
     synthetic_root = _create_commit(
