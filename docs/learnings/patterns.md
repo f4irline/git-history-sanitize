@@ -4,6 +4,17 @@ How we do things around here. Follow these for consistency.
 
 ---
 
+## Validate snapshot scope before inherited history
+**Ticket:** BBQ-10
+**Date:** 2026-09-10
+
+Snapshot sanitization must construct its synthetic root directly from `HEAD` and
+validate only the `HEAD` tree closure. Walking inherited commits first both
+misstates scope counts and incorrectly rejects valid snapshot sources with merge
+history or unavailable historical objects.
+
+---
+
 ## Stream sensitive CLI input through fixture containers
 **Ticket:** BBQ-9
 **Date:** 2026-09-09
