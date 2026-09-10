@@ -69,6 +69,18 @@ runtime coverage passed locally: the source, built wheel, and freshly built OCI
 image each passed the 47-test runtime contract matrix. Review revisions are
 pending their focused commit.
 
+Health-review remediation: snapshot compaction now creates its synthetic root
+directly from `HEAD`, without walking or rejecting inherited merge history, and
+reports the same one-commit/zero-discard scope as `plan`. Added a bounded
+shallow in-scope missing-blob contract proving both `plan` and `rewrite` fail
+closed with no output publication, plus targeted assertions that every wrapped
+Git subprocess forces no lazy fetches and no replace-object resolution. The
+focused 14-test source-scope and Git-environment suite passes; broader
+validation completed with the local 140-test unittest suite, the 47-test source
+runtime matrix, and the pinned-toolchain Linux OCI 140-test target. The local
+wheel runtime matrix was attempted twice but exceeded 120- and 360-second
+limits during isolated wheel execution; no failure result was produced.
+
 ## Technical Notes
 
 - Worktree state: created from `origin/main`; all further repository work uses this path.
@@ -88,6 +100,7 @@ pending their focused commit.
 - `src/git_history_sanitize/scope_metadata.py` - published scope contract
 - `src/git_history_sanitize/verify.py` - legacy metadata and receipt compatibility
 - `tests/test_source_scope_contracts.py` - source-scope acceptance contracts
+- `tests/test_git_environment.py` - Git no-lazy-fetch/no-replace contracts
 - `tests/test_verify_contracts.py` - metadata and receipt compatibility contracts
 - `tests/test_receipt.py` - v1 receipt compatibility contract
 - `README.md` - source-scope and legacy verification documentation
