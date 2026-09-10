@@ -343,23 +343,27 @@ class GitFixture:
         excluded_paths: tuple[str, ...] = (),
         prefix_message: str = "[sanitized]",
         mixed_message: str = "[sanitized]",
+        source_mode: str = "complete",
     ) -> Path:
         """Write a minimal deterministic v1 policy owned by this fixture."""
-        if (cutoff is None) == (cutoff_commit is None):
+        if source_mode != "snapshot" and (cutoff is None) == (cutoff_commit is None):
             raise ValueError("specify exactly one cutoff value")
-        history = (
+        history = "" if source_mode == "snapshot" else (
             f'  cutoff: "{cutoff}"'
             if cutoff is not None
             else f"  cutoffCommit: {cutoff_commit}"
         )
+        history_line = f"{history}\n" if history else ""
         paths = "" if not excluded_paths else "paths:\n  exclude:\n" + "".join(
             f"    - {path}\n" for path in excluded_paths
         )
         policy = self.root / "policy.yml"
         policy.write_text(
             "version: 1\n"
+            "source:\n"
+            f"  mode: {source_mode}\n"
             "history:\n"
-            f"{history}\n"
+            f"{history_line}"
             f"  prefixMessage: \"{prefix_message}\"\n"
             f"{paths}"
             "commits:\n"

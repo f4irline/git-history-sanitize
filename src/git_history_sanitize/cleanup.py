@@ -22,6 +22,15 @@ def retain_head_only(repository: Repository) -> str:
 
 def cleanup(repository: Repository) -> None:
     retain_head_only(repository)
+    shallow = repository.git_dir / "shallow"
+    if shallow.exists():
+        # Compaction creates new roots.  Retaining a source shallow marker would
+        # make a complete published database appear bounded after those roots go.
+        stale_roots = set(shallow.read_text("ascii").splitlines())
+        reachable = set(repository.text("rev-list", "--all").splitlines())
+        if stale_roots & reachable:
+            raise RuntimeError("cannot clean shallow metadata while boundary is reachable")
+        shallow.unlink()
     repository.run(
         "reflog", "expire", "--expire=now", "--expire-unreachable=now", "--all"
     )

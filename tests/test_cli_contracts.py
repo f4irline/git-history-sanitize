@@ -33,7 +33,14 @@ class CliContractTests(unittest.TestCase):
         verify = self.fixture.run_cli("verify", "--repository", str(output), "--policy", str(self.policy), "--json")
 
         self.assertEqual(plan.stderr, "")
-        self.assertEqual(set(json.loads(plan.stdout)), {"source_commits", "discarded_commits", "retained_commits_before_path_filter"})
+        self.assertEqual(
+            set(json.loads(plan.stdout)),
+            {
+                "source_commits", "discarded_commits", "retained_commits_before_path_filter",
+                "mode", "scope", "boundary_count", "included_commit_count",
+                "included_object_count",
+            },
+        )
         self.assertIn("verification", json.loads(rewrite.stdout))
         self.assertIn("root", json.loads(verify.stdout))
 
@@ -52,12 +59,13 @@ class CliContractTests(unittest.TestCase):
 
         self.assertEqual(
             plan.stdout,
-            "Source commits: 1\nPre-cutoff commits: 0\nCommits before path filtering: 1\n",
+            "Source commits: 1\nPre-cutoff commits: 0\nCommits before path filtering: 1\n"
+            "Scope: complete reachable history\n",
         )
         self.assertEqual(
             rewrite.stdout,
             f"Sanitized HEAD: {self.fixture.git(output, 'rev-parse', 'HEAD')}\n"
-            "Commits in output: 1\n",
+            "Commits in output: 1\nScope: complete reachable history\n",
         )
         self.assertEqual(verify.stdout, "Verification passed.\n")
         self.assertEqual(plan.stderr + rewrite.stderr + verify.stderr, "")

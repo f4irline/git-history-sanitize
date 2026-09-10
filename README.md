@@ -143,6 +143,9 @@ pipx install .
 ```yaml
 version: 1
 
+source:
+  mode: complete
+
 history:
   cutoff: "2026-09-03T00:00:00+03:00"
   prefixMessage: "[sanitized]"
@@ -168,6 +171,27 @@ Use either `history.cutoff` or `history.cutoffCommit`. A cutoff timestamp is
 compared with committer timestamps; the cutoff commit itself is retained.
 `cutoffCommit` must be a lowercase, full storage-format commit OID reachable
 from source HEAD; abbreviations, refs, expressions, and uppercase values fail.
+
+### Source scope
+
+`source.mode` defaults to `complete`. Complete mode proves the local object
+closure for every source ref and rejects shallow, partial/promisor, graft,
+replacement, and alternate-object state before output staging. Fetch complete
+history, explicitly materialize required objects, remove graft/replace state,
+or repack without alternates before retrying.
+
+`bounded` is an explicit shallow-clone mode. It only covers the local `HEAD`
+graph up to its declared shallow roots; it never fetches or claims coverage of
+older history. Every object inside that graph must already be local. The output
+is made complete after the bounded graph is compacted, while its published
+scope metadata retains the bounded coverage statement.
+
+`snapshot` creates one parentless synthetic commit from the current `HEAD`
+tree. It requires an explicit `history.prefixMessage`, accepts neither cutoff
+field nor receipt, and does not inspect or include inherited commits. It may be
+used with shallow or partial sources only when the complete `HEAD` tree closure
+is already local. All modes reject grafts, replace refs, and alternates and set
+Git's no-lazy-fetch protection for every Git command.
 
 ## Usage
 
@@ -276,9 +300,16 @@ git-history-sanitize verify \
 The report intentionally contains no source-to-output mappings or removed
 commit messages.
 
-For `cutoffCommit`, Receipt v1 is private trusted evidence. It binds the exact
+New outputs include canonical `git-history-sanitize-scope.json` at the bare
+repository root. It contains only the mode, non-sensitive coverage wording,
+boundary count, and included commit/object counts; verification rejects missing
+or tampered scope metadata.
+
+For `cutoffCommit`, Receipt v2 is private trusted evidence. It binds the exact
 raw policy bytes, source object format, source HEAD and complete ref map,
-boundary commit/tree, and sanitized root/HEAD. It contains source identifiers,
+boundary commit/tree, mode, private scope fingerprint, and sanitized root/HEAD.
+Receipt v1 remains verification-only compatibility for legacy complete-mode
+artifacts; it cannot prove bounded or snapshot output. A receipt contains source identifiers,
 so keep it owner-readable only and do not publish it with the sanitized Git
 database. The receipt digest detects corruption but is not a signature; trusted
 distribution or signing/key management is outside this tool's scope. A

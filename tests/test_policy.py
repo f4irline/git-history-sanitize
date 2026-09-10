@@ -54,6 +54,18 @@ paths:
 """
             )
 
+    def test_source_mode_defaults_to_complete(self) -> None:
+        policy = Policy.from_text("version: 1\nhistory:\n  cutoff: 2026-09-03T00:00:00+00:00\n")
+        self.assertEqual(policy.source.mode, "complete")
+
+    def test_snapshot_rejects_cutoff(self) -> None:
+        with self.assertRaisesRegex(PolicyError, "does not accept"):
+            Policy.from_text("version: 1\nsource:\n  mode: snapshot\nhistory:\n  cutoff: 2026-09-03T00:00:00+00:00\n  prefixMessage: '[snapshot]'\n")
+
+    def test_rejects_unknown_source_mode(self) -> None:
+        with self.assertRaisesRegex(PolicyError, "source.mode"):
+            Policy.from_text("version: 1\nsource:\n  mode: remote\nhistory:\n  cutoff: 2026-09-03T00:00:00+00:00\n")
+
 
 if __name__ == "__main__":
     unittest.main()

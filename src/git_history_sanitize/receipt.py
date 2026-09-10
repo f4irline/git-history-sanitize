@@ -11,6 +11,7 @@ from .errors import SanitizeError
 
 _FORMAT = "git-history-sanitize-receipt"
 _VERSION = 1
+_VERSION_V2 = 2
 _WIDTHS = {"sha1": 40, "sha256": 64}
 
 
@@ -61,18 +62,27 @@ class Receipt:
         sanitized_object_format: str,
         sanitized_root: str,
         sanitized_head: str,
+        scope_mode: str | None = None,
+        scope_fingerprint: str | None = None,
+        boundary_count: int | None = None,
     ) -> "Receipt":
+        version = _VERSION_V2 if scope_mode is not None else _VERSION
+        source: dict[str, Any] = {
+            "object_format": source_object_format,
+            "repository_fingerprint": source_fingerprint,
+            "head": source_head,
+            "cutoff_commit": cutoff_commit,
+            "boundary_tree": boundary_tree,
+        }
+        if version == _VERSION_V2:
+            if scope_mode not in {"complete", "bounded"} or not scope_fingerprint or boundary_count is None:
+                raise ReceiptError("sanitization receipt is malformed")
+            source.update({"mode": scope_mode, "scope_fingerprint": scope_fingerprint, "boundary_count": boundary_count})
         value: dict[str, Any] = {
             "format": _FORMAT,
-            "version": _VERSION,
+            "version": version,
             "generator": {"name": "git-history-sanitize", "version": generator_version},
-            "source": {
-                "object_format": source_object_format,
-                "repository_fingerprint": source_fingerprint,
-                "head": source_head,
-                "cutoff_commit": cutoff_commit,
-                "boundary_tree": boundary_tree,
-            },
+            "source": source,
             "policy": {"sha256": policy_digest},
             "sanitized": {
                 "object_format": sanitized_object_format,
@@ -119,11 +129,14 @@ class Receipt:
         if not isinstance(value, dict) or set(value) != {"format", "version", "generator", "source", "policy", "sanitized", "digest"}:
             raise ReceiptError("sanitization receipt is malformed")
         generator, source, policy, sanitized = (value[name] for name in ("generator", "source", "policy", "sanitized"))
-        if value["format"] != _FORMAT or type(value["version"]) is not int or value["version"] != _VERSION:
+        if value["format"] != _FORMAT or type(value["version"]) is not int or value["version"] not in {_VERSION, _VERSION_V2}:
             raise ReceiptError("sanitization receipt is malformed")
         if not isinstance(generator, dict) or set(generator) != {"name", "version"} or generator["name"] != "git-history-sanitize" or not isinstance(generator["version"], str):
             raise ReceiptError("sanitization receipt is malformed")
-        if not isinstance(source, dict) or set(source) != {"object_format", "repository_fingerprint", "head", "cutoff_commit", "boundary_tree"}:
+        source_keys = {"object_format", "repository_fingerprint", "head", "cutoff_commit", "boundary_tree"}
+        if value["version"] == _VERSION_V2:
+            source_keys |= {"mode", "scope_fingerprint", "boundary_count"}
+        if not isinstance(source, dict) or set(source) != source_keys:
             raise ReceiptError("sanitization receipt is malformed")
         if not isinstance(sanitized, dict) or set(sanitized) != {"object_format", "root", "head"}:
             raise ReceiptError("sanitization receipt is malformed")
@@ -138,6 +151,15 @@ class Receipt:
             raise ReceiptError("sanitization receipt is malformed")
         if not all(isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value) for value in (source["repository_fingerprint"], policy["sha256"], value["digest"])):
             raise ReceiptError("sanitization receipt is malformed")
+        if value["version"] == _VERSION_V2 and (
+            source["mode"] not in {"complete", "bounded"}
+            or not isinstance(source["scope_fingerprint"], str)
+            or len(source["scope_fingerprint"]) != 64
+            or any(c not in "0123456789abcdef" for c in source["scope_fingerprint"])
+            or type(source["boundary_count"]) is not int
+            or source["boundary_count"] < 0
+        ):
+            raise ReceiptError("sanitization receipt is malformed")
         if verify_digest:
             payload = dict(value)
             digest = payload.pop("digest")
@@ -147,3 +169,7 @@ class Receipt:
 
     def to_bytes(self) -> bytes:
         return _canonical(self.payload) + b"\n"
+
+    @property
+    def version(self) -> int:
+        return self.payload["version"]

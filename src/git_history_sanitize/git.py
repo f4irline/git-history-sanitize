@@ -15,6 +15,16 @@ class GitError(SanitizeError):
     """Raised when Git rejects an operation."""
 
 
+def git_environment(environment: dict[str, str] | None = None) -> dict[str, str]:
+    """Prevent Git from resolving replacements or fetching promised objects."""
+    env = os.environ.copy()
+    if environment:
+        env.update(environment)
+    env["GIT_NO_LAZY_FETCH"] = "1"
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    return env
+
+
 def run(
     arguments: Iterable[str],
     *,
@@ -24,9 +34,7 @@ def run(
     check: bool = True,
 ) -> bytes:
     command = ["git", *arguments]
-    env = os.environ.copy()
-    if environment:
-        env.update(environment)
+    env = git_environment(environment)
     result = subprocess.run(
         command,
         cwd=str(cwd) if cwd else None,

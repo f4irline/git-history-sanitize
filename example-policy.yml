@@ -1,5 +1,9 @@
 version: 1
 
+source:
+  # complete is the fail-closed default; bounded and snapshot are explicit opt-ins.
+  mode: complete
+
 history:
   cutoff: "2026-09-03T00:00:00+03:00"
   prefixMessage: "[sanitized]"
