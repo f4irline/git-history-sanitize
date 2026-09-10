@@ -28,10 +28,10 @@ Implement fail-closed source scope validation for complete, bounded shallow, and
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Commit progress doc update — use `git-commit` skill
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -72,6 +72,8 @@ pending their focused commit.
 Final review passed after correcting snapshot merge behavior and adding bounded
 missing-object and Git no-lazy-fetch contracts. Full unit, source, wheel, and
 OCI validation passed. Recorded one reusable snapshot-scope pattern.
+
+Published the branch, opened PR #7, and moved BBQ-10 to In Review.
 
 Health-review remediation: snapshot compaction now creates its synthetic root
 directly from `HEAD`, without walking or rejecting inherited merge history, and
