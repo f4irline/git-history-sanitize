@@ -19,11 +19,11 @@ Implement fail-closed source scope validation for complete, bounded shallow, and
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
 - [x] Validate (source, wheel, and OCI runtime matrices pass)
-- [ ] Commit implementation changes — use `git-commit` skill
+- [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
 - [ ] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
@@ -69,6 +69,10 @@ runtime coverage passed locally: the source, built wheel, and freshly built OCI
 image each passed the 47-test runtime contract matrix. Review revisions are
 pending their focused commit.
 
+Final review passed after correcting snapshot merge behavior and adding bounded
+missing-object and Git no-lazy-fetch contracts. Full unit, source, wheel, and
+OCI validation passed. Recorded one reusable snapshot-scope pattern.
+
 Health-review remediation: snapshot compaction now creates its synthetic root
 directly from `HEAD`, without walking or rejecting inherited merge history, and
 reports the same one-commit/zero-discard scope as `plan`. Added a bounded
@@ -104,3 +108,4 @@ limits during isolated wheel execution; no failure result was produced.
 - `tests/test_verify_contracts.py` - metadata and receipt compatibility contracts
 - `tests/test_receipt.py` - v1 receipt compatibility contract
 - `README.md` - source-scope and legacy verification documentation
+- `docs/learnings/patterns.md` - snapshot scope validation pattern
