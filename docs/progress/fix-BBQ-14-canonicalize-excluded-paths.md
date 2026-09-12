@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-14-canonicalize-excluded-paths`
 **Status:** In Progress
 **Started:** 2026-09-12
-**Last Updated:** 2026-09-12 10:24
+**Last Updated:** 2026-09-12 10:28
 
 ## Overview
 
@@ -21,11 +21,11 @@ through plan, filtering, reporting, and verification.
 - [x] Implement changes
 - [x] Validate (lint, build, tests pass)
 - [x] Commit implementation changes — use `git-commit` skill
-- [ ] Pass implementation review gate
+- [x] Pass implementation review gate
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
+- [x] Extract learnings (documented fixture leading-dash staging gotcha)
+- [x] Document learnings if any — use `learnings` skill
 - [ ] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
@@ -72,6 +72,11 @@ Implementation review required exact-file verification coverage. Added a
 fixture-backed plan/rewrite/verify contract for an exact-file rule alongside a
 directory rule; the reintroduced exact file fails with `paths.excluded`.
 
+### 2026-09-12 10:28
+
+Implementation review passed on the second round after exact-file verification
+coverage was added. Documented the leading-dash fixture staging gotcha.
+
 ## Technical Notes
 
 - Preserve exact-file versus trailing-slash directory semantics.
@@ -95,3 +100,4 @@ directory rule; the reintroduced exact file fails with `paths.excluded`.
 - `tests/test_filtering_contracts.py` - special-character filtering contract
 - `tests/test_verify_contracts.py` - exact-file plan and verifier contract
 - `README.md` - excluded-path grammar and plan reporting documentation
+- `docs/learnings/gotchas.md` - fixture leading-dash staging gotcha
