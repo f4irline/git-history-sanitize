@@ -32,6 +32,7 @@ class Plan:
     boundary_count: int
     included_commit_count: int
     included_object_count: int
+    excluded_paths: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ def plan(source: str | Path, policy: Policy) -> Plan:
         boundary_count=scope.boundary_count,
         included_commit_count=len(scope.commits),
         included_object_count=len(scope.objects),
+        excluded_paths=policy.excluded_paths,
     )
 
 

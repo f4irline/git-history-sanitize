@@ -70,6 +70,7 @@ def _print(value: object, as_json: bool) -> None:
         print(f"Source commits: {value.source_commits}")
         print(f"Pre-cutoff commits: {value.discarded_commits}")
         print(f"Commits before path filtering: {value.retained_commits_before_path_filter}")
+        print(f"Excluded paths: {', '.join(value.excluded_paths) or 'none'}")
         print(f"Scope: {value.scope}")
         return
     print("Verification passed.")
