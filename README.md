@@ -172,6 +172,24 @@ compared with committer timestamps; the cutoff commit itself is retained.
 `cutoffCommit` must be a lowercase, full storage-format commit OID reachable
 from source HEAD; abbreviations, refs, expressions, and uppercase values fail.
 
+### Excluded paths
+
+Each `paths.exclude` entry is a canonical, repository-relative POSIX path. An
+exact-file rule has no trailing slash (`secret.json`); a directory rule ends in
+one slash (`infra/`) and removes every descendant. These two forms remain
+distinct, so `name` and `name/` may both be configured.
+
+Entries must be non-empty and UTF-8 encodable, use only `/` separators, and
+contain non-empty segments other than `.` and `..`. Spaces, Unicode,
+dot-prefixed names, and leading dashes are valid. The parser rejects absolute
+paths, backslashes, NUL bytes, current-directory and parent-traversal forms,
+duplicate separators, repeated trailing slashes, duplicate rules, and a rule
+that is already covered by a configured directory. Errors identify only the
+escaped policy entry and its reason; they never inspect repository contents.
+
+`plan` reports its ordered `excluded_paths` value in JSON and its exclusions in
+human output. The same validated tuple is used for filtering and verification.
+
 ### Source scope
 
 `source.mode` defaults to `complete`. Complete mode proves the local object

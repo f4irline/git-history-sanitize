@@ -70,6 +70,16 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(verify.stdout, "Verification passed.\n")
         self.assertEqual(plan.stderr + rewrite.stderr + verify.stderr, "")
 
+    def test_plan_reports_the_validated_ordered_exclusions(self) -> None:
+        policy = self.fixture.write_policy(excluded_paths=("secret file.txt", "private/"))
+
+        result = self.fixture.run_cli(
+            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(policy), "--json"
+        )
+
+        self.assertEqual(json.loads(result.stdout)["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(result.stderr, "")
+
     def test_expected_operational_failures_use_exit_two_and_actionable_stderr(self) -> None:
         failed = self.fixture.run_cli("rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(self.fixture.output_dir / "exists.git"), "--policy", str(self.fixture.root / "missing.yml"), check=False)
 
