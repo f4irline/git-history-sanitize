@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-14-canonicalize-excluded-paths`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-14-canonicalize-excluded-paths`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-12
-**Last Updated:** 2026-09-12 10:28
+**Last Updated:** 2026-09-12 10:30
 
 ## Overview
 
@@ -26,11 +26,11 @@ through plan, filtering, reporting, and verification.
 ### Phase 2: Learnings
 - [x] Extract learnings (documented fixture leading-dash staging gotcha)
 - [x] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -76,6 +76,12 @@ directory rule; the reintroduced exact file fails with `paths.excluded`.
 
 Implementation review passed on the second round after exact-file verification
 coverage was added. Documented the leading-dash fixture staging gotcha.
+
+### 2026-09-12 10:30
+
+Completed implementation and final documentation. The final quality gate passed:
+147 source-runtime tests with pinned Git 2.47.0 and git-filter-repo 2.47.0, and
+`uv build`. Linting and type checking are not configured.
 
 ## Technical Notes
 
