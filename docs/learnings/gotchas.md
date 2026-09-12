@@ -4,6 +4,17 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Stage leading-dash fixture paths explicitly
+**Ticket:** BBQ-14
+**Date:** 2026-09-12
+
+`GitFixture.commit()` passes paths directly to `git add`; use
+`fixture.git(fixture.source, "add", "--", *paths)` before committing fixtures
+that include a leading-dash filename. This preserves the intended path test
+instead of letting Git parse the filename as an option.
+
+---
+
 ## PyPI publish directories must contain only distributions
 **Ticket:** BBQ-15
 **Date:** 2026-09-07
