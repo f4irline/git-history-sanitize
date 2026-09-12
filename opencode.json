@@ -55,7 +55,7 @@
       "type": "remote",
       "url": "https://mcp.linear.app/mcp",
       "headers": {
-        "Authorization": "Bearer {env:BBQ_LINEAR_API_KEY}"
+        "Authorization": "Bearer {env:GIT_HISTORY_SANITIZE_LINEAR_API_KEY}"
       },
       "enabled": true
     },
