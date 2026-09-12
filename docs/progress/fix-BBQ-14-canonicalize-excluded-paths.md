@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-14-canonicalize-excluded-paths`
 **Status:** In Progress
 **Started:** 2026-09-12
-**Last Updated:** 2026-09-12 10:16
+**Last Updated:** 2026-09-12 10:19
 
 ## Overview
 
@@ -39,8 +39,8 @@ through plan, filtering, reporting, and verification.
 
 - [x] Add strict policy path validation and overlap checks
 - [x] Expose exclusions in plan and CLI output
-- [ ] Cover policy, filtering, verification, and CLI contracts
-- [ ] Document canonical excluded-path grammar
+- [x] Cover policy, filtering, verification, and CLI contracts
+- [x] Document canonical excluded-path grammar
 
 ## Progress Log
 
@@ -54,6 +54,11 @@ exceptions are required.
 
 Added strict policy admission checks, order-symmetric overlap validation, and
 plan reporting. TDD policy and CLI contracts now pass under the source runtime.
+
+### 2026-09-12 10:19
+
+Added fixture-backed filtering coverage for spaces, Unicode, and leading-dash
+rules, plan report coverage, and user-facing canonical-path documentation.
 
 ## Technical Notes
 
@@ -75,3 +80,5 @@ plan reporting. TDD policy and CLI contracts now pass under the source runtime.
 - `src/git_history_sanitize/cli.py` - human plan exclusion reporting
 - `tests/test_policy.py` - canonical-path and overlap tests
 - `tests/test_cli_contracts.py` - plan output contracts
+- `tests/test_filtering_contracts.py` - special-character filtering contract
+- `README.md` - excluded-path grammar and plan reporting documentation

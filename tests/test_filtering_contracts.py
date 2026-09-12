@@ -58,6 +58,22 @@ class FilteringContractTests(unittest.TestCase):
         self.assertNotIn(secret_blob, objects)
         self.assertNotIn(key_blob, objects)
 
+    def test_canonical_special_character_rules_reach_filtering_unchanged(self) -> None:
+        paths = ("secret file.txt", "日本語/秘密.txt", "-secret.txt")
+        self.fixture.write("keep.txt", "safe\n")
+        for path in paths:
+            self.fixture.write(path, "secret\n")
+        self.fixture.git(self.fixture.source, "add", "--", "keep.txt", *paths)
+        self.fixture.git(self.fixture.source, "commit", "-qm", "mixed")
+        policy = self.fixture.write_policy(excluded_paths=paths)
+
+        output = self.rewrite(policy)
+
+        self.assertEqual(
+            self.fixture.git(output, "ls-tree", "-r", "--name-only", "HEAD").splitlines(),
+            ["keep.txt"],
+        )
+
     def test_sensitive_only_commit_is_pruned_and_mixed_message_is_replaced(self) -> None:
         self.fixture.write("keep.txt", "one\n")
         self.fixture.commit("root allowed", "keep.txt")
