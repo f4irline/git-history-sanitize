@@ -38,7 +38,7 @@ class CliContractTests(unittest.TestCase):
             {
                 "source_commits", "discarded_commits", "retained_commits_before_path_filter",
                 "mode", "scope", "boundary_count", "included_commit_count",
-                "included_object_count",
+                "included_object_count", "excluded_paths",
             },
         )
         self.assertIn("verification", json.loads(rewrite.stdout))
@@ -60,7 +60,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(
             plan.stdout,
             "Source commits: 1\nPre-cutoff commits: 0\nCommits before path filtering: 1\n"
-            "Scope: complete reachable history\n",
+            "Excluded paths: none\nScope: complete reachable history\n",
         )
         self.assertEqual(
             rewrite.stdout,

@@ -7,7 +7,6 @@ import datetime as dt
 import hashlib
 import re
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 from typing import Any
 
 from .errors import PolicyError
@@ -150,20 +149,53 @@ def _paths(value: Any) -> tuple[str, ...]:
         raise PolicyError("paths.exclude must be a list")
     paths: list[str] = []
     for path in value:
-        path = _string(path, "paths.exclude entry")
-        stripped = path.rstrip("/")
-        candidate = PurePosixPath(stripped)
-        if (
-            path.startswith("/")
-            or not stripped
-            or "\\" in path
-            or any(part in (".", "..") for part in candidate.parts)
-        ):
-            raise PolicyError(f"Invalid excluded path: {path!r}")
+        if not isinstance(path, str):
+            raise PolicyError("paths.exclude entries must be strings")
+        _canonical_path(path)
         paths.append(path)
-    if len(set(paths)) != len(paths):
-        raise PolicyError("paths.exclude contains duplicate paths")
+    _validate_path_rules(paths)
     return tuple(paths)
+
+
+def _canonical_path(path: str) -> None:
+    def invalid(reason: str) -> None:
+        raise PolicyError(f"Invalid excluded path ({reason}): {path!r}")
+
+    if not path:
+        invalid("empty")
+    if "\x00" in path:
+        invalid("NUL byte")
+    try:
+        path.encode("utf-8", "strict")
+    except UnicodeEncodeError:
+        invalid("not UTF-8 encodable")
+    if path.startswith("/"):
+        invalid("absolute path")
+    if "\\" in path:
+        invalid("backslash separator")
+    body = path[:-1] if path.endswith("/") else path
+    if not body:
+        invalid("current-directory form")
+    for segment in body.split("/"):
+        if not segment:
+            invalid("empty segment or duplicate separator")
+        if segment == ".":
+            invalid("dot segment")
+        if segment == "..":
+            invalid("parent traversal")
+
+
+def _validate_path_rules(paths: list[str]) -> None:
+    for index, path in enumerate(paths):
+        for other in paths[:index]:
+            if path == other:
+                raise PolicyError(f"Excluded path rule is duplicate: {path!r}")
+            if (path.endswith("/") and other.startswith(path)) or (
+                other.endswith("/") and path.startswith(other)
+            ):
+                raise PolicyError(
+                    f"Excluded path rules overlap: {other!r} and {path!r}"
+                )
 
 
 def _timestamp(value: str) -> dt.datetime:
