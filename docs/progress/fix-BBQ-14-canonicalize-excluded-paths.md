@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-14-canonicalize-excluded-paths`
 **Status:** In Progress
 **Started:** 2026-09-12
-**Last Updated:** 2026-09-12 10:19
+**Last Updated:** 2026-09-12 10:21
 
 ## Overview
 
@@ -19,8 +19,8 @@ through plan, filtering, reporting, and verification.
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [ ] Validate (lint, build, tests pass)
-- [ ] Commit implementation changes — use `git-commit` skill
+- [x] Validate (lint, build, tests pass)
+- [x] Commit implementation changes — use `git-commit` skill
 - [ ] Pass implementation review gate
 
 ### Phase 2: Learnings
@@ -60,6 +60,12 @@ plan reporting. TDD policy and CLI contracts now pass under the source runtime.
 Added fixture-backed filtering coverage for spaces, Unicode, and leading-dash
 rules, plan report coverage, and user-facing canonical-path documentation.
 
+### 2026-09-12 10:21
+
+Validation passed: 146 source-runtime tests with pinned Git 2.47.0 and
+git-filter-repo 2.47.0, plus `uv build`. No lint or type-check command is
+configured in this repository.
+
 ## Technical Notes
 
 - Preserve exact-file versus trailing-slash directory semantics.
@@ -68,9 +74,9 @@ rules, plan report coverage, and user-facing canonical-path documentation.
 
 ## Testing
 
-- [ ] Unit tests written
-- [ ] Integration tests written
-- [ ] Manual testing completed
+- [x] Unit tests written
+- [x] Integration tests written
+- [x] Manual testing completed
 
 ## Files Changed
 
