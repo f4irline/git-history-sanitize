@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-14-canonicalize-excluded-paths`
 **Status:** Complete
 **Started:** 2026-09-12
-**Last Updated:** 2026-09-12 10:30
+**Last Updated:** 2026-09-12 10:32
 
 ## Overview
 
@@ -31,9 +31,9 @@ through plan, filtering, reporting, and verification.
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
 - [x] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -82,6 +82,11 @@ coverage was added. Documented the leading-dash fixture staging gotcha.
 Completed implementation and final documentation. The final quality gate passed:
 147 source-runtime tests with pinned Git 2.47.0 and git-filter-repo 2.47.0, and
 `uv build`. Linting and type checking are not configured.
+
+### 2026-09-12 10:32
+
+Pushed the branch, opened PR #8, and moved BBQ-14 to In Review. All workflow
+phases are complete; House Rules were followed without exceptions.
 
 ## Technical Notes
 
