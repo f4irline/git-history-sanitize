@@ -76,6 +76,38 @@ class VerifierContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stderr, "error: verification failed: paths.excluded\n")
 
+    def test_exact_file_and_directory_rules_share_plan_and_verify_contract(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("allowed.txt", "safe\n")
+        fixture.write("secret file.txt", "secret\n")
+        fixture.write("private/key.txt", "key\n")
+        fixture.commit("mixed", "allowed.txt", "secret file.txt", "private/key.txt")
+        policy = fixture.write_policy(excluded_paths=("secret file.txt", "private/"))
+        output = fixture.output_dir / "sanitized.git"
+
+        plan = fixture.run_cli(
+            "plan", "--source", str(fixture.source / ".git"), "--policy", str(policy), "--json"
+        )
+        fixture.run_cli(
+            "rewrite", "--source", str(fixture.source / ".git"), "--output", str(output),
+            "--policy", str(policy),
+        )
+        report = fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(policy), "--json"
+        )
+        clean_head = fixture.git(output, "rev-parse", "HEAD")
+        tree = fixture.tree_with_file(output, "secret file.txt", "reintroduced\n")
+        fixture.git(output, "update-ref", "refs/heads/main", fixture.commit_tree(output, tree, "tampered", clean_head))
+
+        failed = fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(policy), check=False
+        )
+
+        self.assertEqual(json.loads(plan.stdout)["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(json.loads(report.stdout)["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(failed.returncode, 2)
+        self.assertEqual(failed.stderr, "error: verification failed: paths.excluded\n")
+
     def test_rejects_temporary_metadata_left_in_output(self) -> None:
         output = self.rewrite()
         (output / "filter-repo").mkdir()
