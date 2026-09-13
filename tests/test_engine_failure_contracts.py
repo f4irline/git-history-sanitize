@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from git_history_sanitize.cli import main
+from git_history_sanitize.engine import _destination
 from git_history_sanitize.errors import SanitizeError, VerificationError
 from tests.support.git_fixture import GitFixture
 
@@ -84,6 +85,22 @@ class EngineFailureContractTests(unittest.TestCase):
             "error: Path filtering failed; check git-filter-repo and retry\n",
         )
         self.assert_atomic_failure(status, stdout, stderr, staging_root)
+
+    def test_existing_destination_types_are_rejected_without_following_symlinks(self) -> None:
+        protected: tuple[Path, ...] = ()
+        entries = {
+            "file": lambda path: path.write_text("existing"),
+            "empty-directory": lambda path: path.mkdir(),
+            "nonempty-directory": lambda path: (path.mkdir(), (path / "child").write_text("existing")),
+            "symlink": lambda path: path.symlink_to(self.fixture.root / "missing-target"),
+        }
+
+        for name, create in entries.items():
+            with self.subTest(name=name):
+                destination = self.fixture.output_dir / name
+                create(destination)
+                with self.assertRaisesRegex(SanitizeError, "Output path"):
+                    _destination(destination, protected, "Output")
 
     def test_post_rewrite_verification_failure_discards_partial_bare_output(self) -> None:
         staged_bare: Path | None = None
@@ -166,6 +183,32 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
         self.assertTrue(receipt.is_file())
         self.assertEqual(len(calls), 2)
+        self.fixture.assert_no_staging_directories(self.output.parent)
+        self.fixture.assert_source_snapshot(self.source_snapshot)
+
+    def test_post_publication_durability_failure_keeps_complete_output(self) -> None:
+        def fail_output_parent_sync(path: Path) -> bool:
+            if path == self.output.parent:
+                raise SanitizeError(
+                    "Output was published but parent-directory durability could not be confirmed"
+                )
+            return True
+
+        with (
+            patch("git_history_sanitize.engine.verify", return_value=object()),
+            patch("git_history_sanitize.engine.sync_published_parent", side_effect=fail_output_parent_sync),
+        ):
+            status, stdout, stderr = self.run_rewrite()
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr,
+            "error: Output was published but parent-directory durability could not be confirmed\n",
+        )
+        self.assertTrue(self.output.is_dir())
+        self.assertEqual(self.fixture.git(self.output, "rev-parse", "--is-bare-repository"), "true")
+        self.assertEqual(stat.S_IMODE(self.output.stat().st_mode), 0o700)
         self.fixture.assert_no_staging_directories(self.output.parent)
         self.fixture.assert_source_snapshot(self.source_snapshot)
 
