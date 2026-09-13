@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-7-synthetic-root-message`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-7-synthetic-root-message`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-13
-**Last Updated:** 2026-09-13 12:15
+**Last Updated:** 2026-09-13 12:40
 
 ## Overview
 
@@ -19,18 +19,18 @@ retaining ordinary mixed-commit behavior and sensitive-path removal.
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [ ] Validate (lint, build, tests pass)
-- [ ] Commit implementation changes — use `git-commit` skill
-- [ ] Implementation review gate passes
+- [x] Validate (lint, build, tests pass)
+- [x] Commit implementation changes — use `git-commit` skill
+- [x] Implementation review gate passes
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Extract learnings (nothing noteworthy)
+- [x] Document learnings if any — no new learning
+- [x] Commit learnings if any — not applicable
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -39,9 +39,32 @@ retaining ordinary mixed-commit behavior and sensitive-path removal.
 
 - [x] Add mixed synthetic-root regression coverage for complete and snapshot modes
 - [x] Preserve the root message by structural parentlessness in the callback
-- [ ] Validate focused and configured project checks
+- [x] Validate focused and configured project checks
 
 ## Progress Log
+
+### 2026-09-13 12:40
+
+Finalized implementation documentation. House Rules are fully compliant: the
+change retains sanitization and verification, adds no dependencies or API
+surface, remains focused on history filtering, and has deterministic fixture
+coverage. No exceptions were requested or used. This worktree is the resolved
+Herdr worktree listed above.
+
+### 2026-09-13 12:35
+
+Implementation review gate passed with no blocking or important findings. The
+structural parent guard follows the ticket plan and preserves verifier behavior.
+Learnings evaluation found no new meaningful gotcha, pattern, decision, or
+discovery beyond the ticket's already-applied `GitFixture` and SHA-256 runtime
+learnings; no learning entry was added.
+
+### 2026-09-13 12:30
+
+Validation passed: focused filtering tests; source contracts (53 tests) plus
+fixture/toolchain helpers (70 tests); build; and wheel runtime contracts (53
+tests). No lint or standalone type-check script is configured. OCI contracts
+are opt-in locally and were not run.
 
 ### 2026-09-13 12:15
 
@@ -66,9 +89,9 @@ exceptions are required.
 
 ## Testing
 
-- [ ] Unit tests written
-- [ ] Integration tests written
-- [ ] Manual testing completed
+- [x] Unit tests written (not applicable: callback behavior requires CLI integration coverage)
+- [x] Integration tests written
+- [x] Manual testing completed
 
 ## Files Changed
 
