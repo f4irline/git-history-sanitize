@@ -37,7 +37,8 @@ if sensitive_changes:
     ]
     if remaining_changes:
         commit.file_changes = remaining_changes
-        commit.message = mixed_message
+        if commit.parents:
+            commit.message = mixed_message
     else:
         commit.file_changes = []
 '''
