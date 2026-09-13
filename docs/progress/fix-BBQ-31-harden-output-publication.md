@@ -2,7 +2,7 @@
 
 **Branch:** `fix/BBQ-31-harden-output-publication`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-31-harden-output-publication`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-13
 **Last Updated:** 2026-09-13
 
@@ -29,11 +29,11 @@ and documented semantics.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -87,6 +87,11 @@ Documented one decision learning in `docs/learnings/decisions.md`: after a
 successful no-replace rename, report persistence uncertainty accurately and
 never roll back or clean up the published entry.
 
+### 2026-09-13
+
+Completed all workflow phases. Pushed the branch, opened PR #9, and moved
+BBQ-31 to In Review. Final House Rules compliance: complete with no exceptions.
+
 ## Technical Notes
 
 - Native no-replace rename remains the sole publication linearization point.
@@ -114,3 +119,4 @@ never roll back or clean up the published entry.
 - `tests/test_engine_failure_contracts.py` - destination and post-publication contracts
 - `README.md` - atomic visibility and durability semantics
 - `docs/learnings/decisions.md` - publication ownership decision
+- `docs/progress/fix-BBQ-31-harden-output-publication.md` - workflow record
