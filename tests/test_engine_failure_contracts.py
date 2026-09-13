@@ -87,6 +87,49 @@ class EngineFailureContractTests(unittest.TestCase):
         )
         self.assert_atomic_failure(status, stdout, stderr, staging_root)
 
+    def test_staged_sync_failure_is_atomic_and_reports_an_actionable_error(self) -> None:
+        with (
+            patch("git_history_sanitize.engine.verify", return_value=object()),
+            patch(
+                "git_history_sanitize.engine.sync_staged_tree",
+                side_effect=SanitizeError("Staged output synchronization failed before publication"),
+            ),
+        ):
+            status, stdout, stderr = self.run_rewrite()
+
+        self.assertEqual(
+            stderr,
+            "error: Staged output synchronization failed before publication\n",
+        )
+        self.assert_atomic_failure(status, stdout, stderr, self.output.parent / ".unused")
+
+    def test_output_and_receipt_modes_ignore_a_permissive_umask(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("allowed.txt", "safe\n")
+        cutoff = fixture.commit("allowed", "allowed.txt")
+        policy = fixture.write_policy(cutoff=None, cutoff_commit=cutoff)
+        output = fixture.output_dir / "sanitized.git"
+        receipt = fixture.receipt_dir / "receipt.json"
+        previous_umask = os.umask(0)
+        try:
+            result = fixture.run_cli(
+                "rewrite",
+                "--source",
+                str(fixture.source / ".git"),
+                "--output",
+                str(output),
+                "--policy",
+                str(policy),
+                "--receipt",
+                str(receipt),
+            )
+        finally:
+            os.umask(previous_umask)
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(receipt.stat().st_mode), 0o600)
+
     def test_existing_destination_types_are_rejected_without_following_symlinks(self) -> None:
         protected: tuple[Path, ...] = ()
         entries = {
