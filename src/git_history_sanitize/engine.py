@@ -194,7 +194,10 @@ def rewrite(
             sync_staged_directory(temporary_root)
             publish(staged_receipt, receipt_path)
             receipt_published = True
-            sync_published_parent(receipt_path.parent)
+            sync_published_parent(
+                receipt_path.parent,
+                "Receipt was published but output was not; parent-directory durability could not be confirmed",
+            )
             publish(bare_repository.path, output_path)
             sync_published_parent(output_path.parent)
         else:
