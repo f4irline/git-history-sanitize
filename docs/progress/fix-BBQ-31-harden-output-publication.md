@@ -24,9 +24,9 @@ and documented semantics.
 - [x] Implementation Review Gate passes
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [ ] Update this progress doc to "Complete" status
@@ -81,6 +81,12 @@ source, rebuilt wheel, and rebuilt OCI runtime contracts each passed (50 tests).
 The final review found no code or behavioral issue. Its documentation
 cleanliness finding is resolved by this commit.
 
+### 2026-09-13
+
+Documented one decision learning in `docs/learnings/decisions.md`: after a
+successful no-replace rename, report persistence uncertainty accurately and
+never roll back or clean up the published entry.
+
 ## Technical Notes
 
 - Native no-replace rename remains the sole publication linearization point.
@@ -107,3 +113,4 @@ cleanliness finding is resolved by this commit.
 - `tests/test_publication.py` - no-replace race, error, and durability unit contracts
 - `tests/test_engine_failure_contracts.py` - destination and post-publication contracts
 - `README.md` - atomic visibility and durability semantics
+- `docs/learnings/decisions.md` - publication ownership decision
