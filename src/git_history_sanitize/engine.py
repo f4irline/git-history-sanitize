@@ -15,7 +15,14 @@ from .errors import SanitizeError
 from .filtering import filter_paths
 from .git import Repository, ensure_dependencies
 from .policy import Policy
-from .publication import fsync_path, publish
+from .publication import (
+    publish,
+    set_private_mode,
+    sync_published_parent,
+    sync_staged_directory,
+    sync_staged_file,
+    sync_staged_tree,
+)
 from .receipt import Receipt
 from .scope_metadata import write as write_scope_metadata
 from .source_scope import SourceScope, inspect_source
@@ -94,7 +101,7 @@ def _destination(path: str | Path, protected: tuple[Path, ...], label: str) -> P
     if not candidate.is_absolute() or any(part in {".", ".."} for part in candidate.parts):
         raise SanitizeError(f"{label} path must be an absolute path without aliases")
     for parent in (candidate, *candidate.parents):
-        if parent.exists() and parent.is_symlink():
+        if parent.is_symlink():
             raise SanitizeError(f"{label} path must not contain symlinks")
     if candidate.exists():
         raise SanitizeError(f"{label} path already exists")
@@ -139,7 +146,9 @@ def rewrite(
     temporary_root = Path(
         tempfile.mkdtemp(prefix=".git-history-sanitize-", dir=output_path.parent)
     )
+    set_private_mode(temporary_root, 0o700)
     staged_receipt: Path | None = None
+    receipt_published = False
     try:
         rewrite_repository = source_repository.clone_to(temporary_root / "rewrite")
         retain_head_only(rewrite_repository)
@@ -150,6 +159,7 @@ def rewrite(
         bare_repository = rewrite_repository.clone_to(
             temporary_root / "sanitized.git", bare=True
         )
+        set_private_mode(bare_repository.path, 0o700)
         cleanup(bare_repository)
         write_scope_metadata(bare_repository.path, scope)
         if receipt_path:
@@ -179,17 +189,22 @@ def rewrite(
                 handle.flush()
                 os.fsync(handle.fileno())
             verification = verify(bare_repository.path, policy, source=source, receipt=staged_receipt)
-            fsync_path(bare_repository.path)
-            fsync_path(temporary_root)
+            sync_staged_file(staged_receipt)
+            sync_staged_tree(bare_repository.path)
+            sync_staged_directory(temporary_root)
             publish(staged_receipt, receipt_path)
-            fsync_path(receipt_path.parent)
+            receipt_published = True
+            sync_published_parent(receipt_path.parent)
             publish(bare_repository.path, output_path)
+            sync_published_parent(output_path.parent)
         else:
             verification = verify(bare_repository.path, policy)
-            fsync_path(bare_repository.path)
+            sync_staged_tree(bare_repository.path)
+            sync_staged_directory(temporary_root)
             publish(bare_repository.path, output_path)
+            sync_published_parent(output_path.parent)
         return RewriteReport(compact_result, verification)
     finally:
-        if staged_receipt:
+        if staged_receipt and not receipt_published:
             staged_receipt.unlink(missing_ok=True)
         shutil.rmtree(temporary_root, ignore_errors=True)
