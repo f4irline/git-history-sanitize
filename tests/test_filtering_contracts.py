@@ -90,6 +90,83 @@ class FilteringContractTests(unittest.TestCase):
         self.assertEqual(messages, ["redacted", "[sanitized]"])
         self.assertNotIn("sensitive only title", "\n".join(messages))
 
+    def test_mixed_boundary_root_keeps_distinct_prefix_and_filters_paths(self) -> None:
+        self.fixture.write("keep.txt", "safe root\n")
+        self.fixture.write("secret.txt", "exact secret\n")
+        self.fixture.write("private/key.txt", "directory secret\n")
+        self.fixture.commit(
+            "mixed boundary", "keep.txt", "secret.txt", "private/key.txt",
+            timestamp="2026-09-03T01:00:00+00:00",
+        )
+        secret_blob = self.fixture.git(self.fixture.source, "rev-parse", "HEAD:secret.txt")
+        key_blob = self.fixture.git(self.fixture.source, "rev-parse", "HEAD:private/key.txt")
+        self.fixture.write("keep.txt", "safe later\n")
+        self.fixture.write("private/later.txt", "later secret\n")
+        self.fixture.commit(
+            "later mixed", "keep.txt", "private/later.txt",
+            timestamp="2026-09-03T02:00:00+00:00",
+        )
+        policy = self.fixture.write_policy(
+            excluded_paths=("secret.txt", "private/"),
+            prefix_message="synthetic root",
+            mixed_message="ordinary mixed",
+        )
+
+        output = self.rewrite(policy)
+
+        root = self.fixture.git(output, "rev-list", "--max-parents=0", "HEAD")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%P", root), "")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%B", root), "synthetic root")
+        self.assertEqual(
+            self.fixture.git(output, "show", "-s", "--format=%an%x00%ae%x00%cn%x00%ce%x00%aI%x00%cI", root),
+            "Fixture\x00fixture@example.invalid\x00Fixture\x00fixture@example.invalid\x002026-09-03T01:00:00Z\x002026-09-03T01:00:00Z",
+        )
+        self.assertEqual(self.fixture.git(output, "show", "HEAD:keep.txt"), "safe later")
+        self.assertEqual(self.fixture.git(output, "ls-tree", "-r", "--name-only", root), "keep.txt")
+        objects = self.fixture.all_objects(output)
+        self.assertNotIn(secret_blob, objects)
+        self.assertNotIn(key_blob, objects)
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%B", "HEAD"), "ordinary mixed")
+
+    def test_mixed_boundary_root_keeps_equal_prefix_and_mixed_message(self) -> None:
+        self.fixture.write("keep.txt", "safe\n")
+        self.fixture.write("private/secret.txt", "secret\n")
+        self.fixture.commit("mixed boundary", "keep.txt", "private/secret.txt")
+        policy = self.fixture.write_policy(
+            excluded_paths=("private/",),
+            prefix_message="same message",
+            mixed_message="same message",
+        )
+
+        output = self.rewrite(policy)
+
+        root = self.fixture.git(output, "rev-list", "--max-parents=0", "HEAD")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%P", root), "")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%B", root), "same message")
+        self.assertEqual(self.fixture.git(output, "ls-tree", "-r", "--name-only", root), "keep.txt")
+
+    def test_snapshot_mixed_root_keeps_prefix_and_filters_paths(self) -> None:
+        self.fixture.write("keep.txt", "safe snapshot\n")
+        self.fixture.write("secret.txt", "exact secret\n")
+        self.fixture.write("private/key.txt", "directory secret\n")
+        self.fixture.commit("mixed snapshot", "keep.txt", "secret.txt", "private/key.txt")
+        policy = self.fixture.write_policy(
+            cutoff=None,
+            excluded_paths=("secret.txt", "private/"),
+            prefix_message="snapshot root",
+            mixed_message="ordinary mixed",
+            source_mode="snapshot",
+        )
+
+        output = self.rewrite(policy)
+
+        root = self.fixture.git(output, "rev-list", "--max-parents=0", "HEAD")
+        self.assertEqual(self.fixture.git(output, "rev-list", "--count", "HEAD"), "1")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%P", root), "")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%B", root), "snapshot root")
+        self.assertEqual(self.fixture.git(output, "show", "HEAD:keep.txt"), "safe snapshot")
+        self.assertEqual(self.fixture.git(output, "ls-tree", "-r", "--name-only", root), "keep.txt")
+
 
 if __name__ == "__main__":
     unittest.main()
