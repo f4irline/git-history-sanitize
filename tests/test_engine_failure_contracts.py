@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import os
 import stat
+import threading
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -101,6 +102,48 @@ class EngineFailureContractTests(unittest.TestCase):
                 create(destination)
                 with self.assertRaisesRegex(SanitizeError, "Output path"):
                     _destination(destination, protected, "Output")
+
+    def test_competing_cli_rewrites_publish_one_verified_output(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("allowed.txt", "safe\n")
+        fixture.commit("allowed", "allowed.txt")
+        policy = fixture.write_policy()
+        output = fixture.output_dir / "concurrent.git"
+        source_snapshot = fixture.snapshot_source()
+        start = threading.Barrier(2)
+        results: list[object] = []
+
+        def rewrite() -> None:
+            start.wait()
+            results.append(
+                self.fixture.run_cli(
+                    "rewrite",
+                    "--source",
+                    str(fixture.source / ".git"),
+                    "--output",
+                    str(output),
+                    "--policy",
+                    str(policy),
+                    check=False,
+                )
+            )
+
+        threads = [threading.Thread(target=rewrite) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        successful = [result for result in results if result.returncode == 0]  # type: ignore[attr-defined]
+        failed = [result for result in results if result.returncode == 2]  # type: ignore[attr-defined]
+        self.assertEqual(len(successful), 1)
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0].stdout, "")
+        self.assertEqual(failed[0].stderr, "error: Publication destination already exists\n")
+        fixture.assert_redacted(failed[0].stderr, str(fixture.root))
+        self.assertEqual(fixture.git(output, "rev-parse", "--is-bare-repository"), "true")
+        fixture.assert_no_staging_directories(output.parent)
+        fixture.assert_source_snapshot(source_snapshot)
 
     def test_post_rewrite_verification_failure_discards_partial_bare_output(self) -> None:
         staged_bare: Path | None = None
@@ -211,6 +254,43 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(self.output.stat().st_mode), 0o700)
         self.fixture.assert_no_staging_directories(self.output.parent)
         self.fixture.assert_source_snapshot(self.source_snapshot)
+
+    def test_receipt_durability_failure_does_not_claim_output_was_published(self) -> None:
+        receipt = self.fixture.receipt_dir / "receipt.json"
+        commit_policy = self.fixture.write_policy(
+            cutoff=None,
+            cutoff_commit=self.fixture.git(self.fixture.source, "rev-parse", "HEAD"),
+            excluded_paths=("private/",),
+        )
+
+        def fail_receipt_parent_sync(path: Path, failure: str) -> bool:
+            self.assertEqual(path, receipt.parent)
+            self.assertEqual(
+                failure,
+                "Receipt was published but output was not; "
+                "parent-directory durability could not be confirmed",
+            )
+            raise SanitizeError(
+                "Receipt was published but output was not; "
+                "parent-directory durability could not be confirmed"
+            )
+
+        with (
+            patch("git_history_sanitize.engine.verify", return_value=object()),
+            patch("git_history_sanitize.engine.sync_published_parent", side_effect=fail_receipt_parent_sync),
+        ):
+            status, stdout, stderr = self.run_rewrite(policy=commit_policy, receipt=receipt)
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr,
+            "error: Receipt was published but output was not; "
+            "parent-directory durability could not be confirmed\n",
+        )
+        self.assertTrue(receipt.is_file())
+        self.assertFalse(self.output.exists())
+        self.fixture.assert_no_staging_directories(self.output.parent)
 
 
 if __name__ == "__main__":

@@ -96,7 +96,10 @@ def sync_staged_directory(path: Path) -> None:
     _sync_required(path, "Staged output synchronization failed before publication")
 
 
-def sync_published_parent(parent: Path) -> bool:
+def sync_published_parent(
+    parent: Path,
+    failure: str = "Output was published but parent-directory durability could not be confirmed",
+) -> bool:
     """Persist a newly published directory entry when the platform supports it.
 
     Returns false for documented unsupported directory synchronization. Other
@@ -108,17 +111,13 @@ def sync_published_parent(parent: Path) -> bool:
     except OSError as error:
         if error.errno in _UNSUPPORTED_DIRECTORY_SYNC_ERRORS:
             return False
-        raise SanitizeError(
-            "Output was published but parent-directory durability could not be confirmed"
-        ) from error
+        raise SanitizeError(failure) from error
     try:
         os.fsync(descriptor)
     except OSError as error:
         if error.errno in _UNSUPPORTED_DIRECTORY_SYNC_ERRORS:
             return False
-        raise SanitizeError(
-            "Output was published but parent-directory durability could not be confirmed"
-        ) from error
+        raise SanitizeError(failure) from error
     finally:
         os.close(descriptor)
     return True
