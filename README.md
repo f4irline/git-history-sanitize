@@ -31,7 +31,9 @@ power-loss-durable directory entry.
 For `cutoffCommit`, the private receipt is published before the repository so a
 published repository is never exposed without its required evidence. The two
 paths are separate filesystem entries and cannot be one transaction: a receipt
-may remain as a private orphan if repository publication subsequently fails.
+may remain as a private orphan if repository publication subsequently fails. A
+receipt-parent persistence failure is reported as receipt-only publication; it
+never claims that the repository output was published.
 
 The original sandbox-specific prototype is preserved in
 [`proto/`](proto/). It demonstrates one possible consumer of a sanitized Git

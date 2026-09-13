@@ -17,11 +17,11 @@ and documented semantics.
 > **IMPORTANT**: After any interruption, read this checklist first.
 
 ### Phase 1: Implementation
-- [ ] Write/modify tests (TDD)
-- [ ] Implement changes
-- [ ] Validate (lint, build, tests pass)
-- [ ] Commit implementation changes — use `git-commit` skill
-- [ ] Implementation Review Gate passes
+- [x] Write/modify tests (TDD)
+- [x] Implement changes
+- [x] Validate (lint, build, tests pass)
+- [x] Commit implementation changes — use `git-commit` skill
+- [x] Implementation Review Gate passes
 
 ### Phase 2: Learnings
 - [ ] Extract learnings (or note: nothing noteworthy)
@@ -41,7 +41,7 @@ and documented semantics.
 - [x] Implement typed publication, persistence, permissions, and cleanup protocol
 - [x] Document publication and durability guarantees
 - [x] Run focused and configured validation suites
-- [ ] Pass implementation review gate
+- [x] Pass implementation review gate
 
 ## Progress Log
 
@@ -65,6 +65,21 @@ Focused publication and failure-contract tests pass under the pinned toolchain.
 Validation passed: all 153 source tests, 50 source runtime contracts, 50 wheel
 runtime contracts, and 50 OCI runtime contracts. No lint or separate typecheck
 configuration exists in this Python project; `git diff --check` is clean.
+
+### 2026-09-13
+
+Implementation review required two revisions. Added a fixture-backed concurrent
+CLI rewrite contract and corrected receipt-parent durability diagnostics so they
+state that only the receipt was published. The final validation matrix will be
+rerun after these revisions.
+
+### 2026-09-13
+
+Added pre-publication synchronization-failure and permissive-umask mode
+contracts in response to the second review. All 157 source tests now pass;
+source, rebuilt wheel, and rebuilt OCI runtime contracts each passed (50 tests).
+The final review found no code or behavioral issue. Its documentation
+cleanliness finding is resolved by this commit.
 
 ## Technical Notes
 
