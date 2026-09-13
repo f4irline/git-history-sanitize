@@ -8,6 +8,31 @@ It never mutates the source repository. Rewrites happen in a disposable clone,
 the completed bare repository is independently verified, and it is atomically
 moved to the requested output path only after verification succeeds.
 
+### Output publication and durability
+
+`rewrite` never replaces an existing output entry. The successful native
+no-replace rename is the output publication point: before it, no output is
+visible; after it, the output is the fully verified bare repository. Existing
+files, symlinks (including dangling symlinks), and directories are rejected and
+are never replaced implicitly. Concurrent rewrites targeting the same output
+therefore have one winner; every other writer fails without modifying the
+winner.
+
+The staging directory and published repository root use mode `0700`; generated
+receipts use mode `0600`, independently of the caller's umask. The staged
+repository is synchronized before publication. After a successful rename, the
+tool synchronizes its parent directory where the platform/filesystem supports
+directory synchronization. If that post-publication persistence step fails, the
+command returns an error stating that the complete output is already published;
+it does not attempt an unsafe rollback. Where directory synchronization is not
+supported, the tool guarantees atomic visibility but does not claim a
+power-loss-durable directory entry.
+
+For `cutoffCommit`, the private receipt is published before the repository so a
+published repository is never exposed without its required evidence. The two
+paths are separate filesystem entries and cannot be one transaction: a receipt
+may remain as a private orphan if repository publication subsequently fails.
+
 The original sandbox-specific prototype is preserved in
 [`proto/`](proto/). It demonstrates one possible consumer of a sanitized Git
 database, but is not part of this tool. The separate `examples/` namespace is
