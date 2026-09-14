@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-12-plan-rewrite-validation`
 **Status:** Complete
 **Started:** 2026-09-14
-**Last Updated:** 2026-09-14 19:53
+**Last Updated:** 2026-09-14 19:54
 
 ## Overview
 
@@ -31,9 +31,9 @@ share deterministic preflight facts without mutating source or creating output.
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
 - [x] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -81,6 +81,11 @@ Final quality gate passed: 176 host unit tests, pinned toolchain validation, 62
 source runtime contracts, wheel build, and the `Containerfile` test target. No
 lint or typecheck script is configured. Implementation was completed in the
 recorded Herdr worktree; House Rules compliance is complete with no exceptions.
+
+### 2026-09-14 19:54
+
+Pushed `fix/BBQ-12-plan-rewrite-validation` and created PR #12. Moved BBQ-12
+to In Review. All workflow phases are complete.
 
 ## Technical Notes
 
