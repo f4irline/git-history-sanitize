@@ -230,9 +230,14 @@ replacement, and alternate-object state before output staging. Fetch complete
 history, explicitly materialize required objects, remove graft/replace state,
 or repack without alternates before retrying.
 
-`plan` reports the same `HEAD` graph that rewrite compacts. In complete mode,
-the all-ref closure check is preflight evidence only: side refs cannot inflate
-the reported source or included counts.
+`plan` runs the same deterministic source, reference, graph, and cutoff
+preflight that rewrite runs before staging output, then reports the same `HEAD`
+graph that rewrite compacts. It neither mutates the source nor creates output.
+Its source, boundary, and `retained_head_path_count` values are known
+pre-filter facts; path filtering can still prune commits, so plan does not
+predict the final sanitized history shape. In complete mode, the all-ref
+closure check is preflight evidence only: side refs cannot inflate the reported
+source or included counts.
 
 `bounded` is an explicit shallow-clone mode. It only covers the local `HEAD`
 graph up to its declared shallow roots; it never fetches or claims coverage of

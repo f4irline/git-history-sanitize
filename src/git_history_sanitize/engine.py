@@ -25,7 +25,7 @@ from .publication import (
 )
 from .receipt import Receipt
 from .scope_metadata import write as write_scope_metadata
-from .source_scope import SourceScope, inspect_source
+from .rewrite_analysis import RewriteAnalysis
 from .verify import VerificationReport, verify
 
 
@@ -58,41 +58,18 @@ class RewriteReport:
         }
 
 
-def _boundary_index(repository: Repository, policy: Policy, commits: list[str]) -> int:
-    if policy.history.cutoff_commit:
-        target = repository.resolve_cutoff_commit(policy.history.cutoff_commit)
-        try:
-            return commits.index(target)
-        except ValueError as error:
-            raise SanitizeError("history.cutoffCommit is not reachable from HEAD") from error
-    assert policy.history.cutoff_epoch is not None
-    indices = [
-        index
-        for index, commit in enumerate(commits)
-        if int(repository.text("show", "-s", "--format=%ct", commit))
-        >= policy.history.cutoff_epoch
-    ]
-    if not indices:
-        raise SanitizeError("No retained commit exists at or after history.cutoff")
-    return indices[0]
-
-
 def plan(source: str | Path, policy: Policy) -> Plan:
     repository = Repository(source)
-    scope = inspect_source(repository, policy)
-    commits = list(scope.commits)
-    if not commits:
-        raise SanitizeError("Cannot sanitize an empty repository")
-    boundary = len(commits) - 1 if policy.source.mode == "snapshot" else _boundary_index(repository, policy, commits)
+    analysis = RewriteAnalysis.create(repository, policy)
     return Plan(
-        source_commits=len(commits),
-        discarded_commits=boundary,
-        retained_commits_before_path_filter=len(commits) - boundary,
-        mode=scope.mode,
-        scope=scope.description,
-        boundary_count=scope.boundary_count,
-        included_commit_count=len(scope.commits),
-        included_object_count=len(scope.objects),
+        source_commits=analysis.source_commits,
+        discarded_commits=analysis.discarded_commits,
+        retained_commits_before_path_filter=analysis.retained_commits,
+        mode=analysis.scope.mode,
+        scope=analysis.scope.description,
+        boundary_count=analysis.scope.boundary_count,
+        included_commit_count=len(analysis.scope.commits),
+        included_object_count=len(analysis.scope.objects),
         retained_head_path_count=retained_head_path_count(repository, policy),
         excluded_paths=policy.excluded_paths,
     )
@@ -124,7 +101,6 @@ def rewrite(
     source: str | Path, output: str | Path, policy: Policy, receipt: str | Path | None = None
 ) -> RewriteReport:
     source_repository = Repository(source)
-    scope = inspect_source(source_repository, policy)
     protected = tuple(root for root in (source_repository.git_dir, source_repository.worktree_root()) if root)
     output_path = _destination(output, protected, "Output")
     if policy.source.mode == "snapshot" and receipt is not None:
@@ -139,11 +115,12 @@ def rewrite(
     if not output_path.parent.exists():
         raise SanitizeError("Output parent directory does not exist")
 
+    analysis = RewriteAnalysis.create(source_repository, policy)
     ensure_dependencies()
 
-    boundary = source_repository.resolve_cutoff_commit(policy.history.cutoff_commit) if policy.history.cutoff_commit else None
+    boundary = analysis.boundary_commit
     source_format, source_head, source_fingerprint, tree_lookup = _source_fingerprint(source_repository)
-    boundary_tree = tree_lookup(boundary) if boundary else None
+    boundary_tree = tree_lookup(boundary)
 
     temporary_root = Path(
         tempfile.mkdtemp(prefix=".git-history-sanitize-", dir=output_path.parent)
@@ -154,7 +131,7 @@ def rewrite(
     try:
         rewrite_repository = source_repository.clone_to(temporary_root / "rewrite")
         retain_head_only(rewrite_repository)
-        compact_result = compact(rewrite_repository, policy)
+        compact_result = compact(rewrite_repository, policy, analysis)
         filter_paths(rewrite_repository, policy)
         restore_empty_synthetic_root(rewrite_repository, compact_result.synthetic_root_context)
         cleanup(rewrite_repository)
@@ -164,7 +141,7 @@ def rewrite(
         )
         set_private_mode(bare_repository.path, 0o700)
         cleanup(bare_repository)
-        write_scope_metadata(bare_repository.path, scope)
+        write_scope_metadata(bare_repository.path, analysis.scope)
         if receipt_path:
             roots = bare_repository.text("rev-list", "--max-parents=0", "--all").splitlines()
             descriptor, staged_receipt_name = tempfile.mkstemp(
@@ -176,15 +153,15 @@ def rewrite(
                 source_object_format=source_format,
                 source_fingerprint=source_fingerprint,
                 source_head=source_head,
-                cutoff_commit=boundary or "",
-                boundary_tree=boundary_tree or "",
+                cutoff_commit=boundary,
+                boundary_tree=boundary_tree,
                 policy_digest=policy.digest,
                 sanitized_object_format=bare_repository.object_format(),
                 sanitized_root=roots[0],
                 sanitized_head=bare_repository.text("rev-parse", "HEAD"),
-                scope_mode=scope.mode,
-                scope_fingerprint=scope.fingerprint,
-                boundary_count=scope.boundary_count,
+                scope_mode=analysis.scope.mode,
+                scope_fingerprint=analysis.scope.fingerprint,
+                boundary_count=analysis.scope.boundary_count,
             )
             with os.fdopen(descriptor, "wb") as handle:
                 os.fchmod(handle.fileno(), 0o600)
