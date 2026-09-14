@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-6-preserve-trusted-hooks`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-6-preserve-trusted-hooks`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-14
-**Last Updated:** 2026-09-14 22:06
+**Last Updated:** 2026-09-14 22:24
 
 ## Overview
 
@@ -24,13 +24,13 @@ reporting, portable-hook warnings, and forbidden-content verification.
 - [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -42,9 +42,29 @@ reporting, portable-hook warnings, and forbidden-content verification.
 - [x] Add fixture-backed hook behavior tests
 - [x] Implement safe hook inventory, template isolation, and installation
 - [x] Extend CLI/reporting, verification, and documentation
-- [ ] Validate and complete implementation review gate
+- [x] Validate and complete implementation review gate
 
 ## Progress Log
+
+### 2026-09-14 22:24
+
+Final review passed. Final validation passed with the pinned toolchain: full source
+suite (183 tests), source runtime contracts (62 tests), wheel runtime contracts
+(62 tests), package sdist/wheel build, and OCI runtime contracts (62 tests).
+The first OCI attempt exposed an unsafe mounted-Git-directory worktree inference;
+the correction was committed as `48b5abc`, rebuilt, and all final checks were
+rerun successfully. No lint or standalone typecheck command is configured.
+
+House Rules compliance is complete with no approved exceptions: private empty
+templates block runner injection; hooks are regular-file-only and never executed;
+contained local paths, redaction, and forbidden-content checks fail closed.
+
+### 2026-09-14 22:09
+
+The second independent implementation review passed with no blocking or important
+findings. Documented one meaningful gotcha in `docs/learnings/gotchas.md`:
+bare repositories require explicit detection before deriving hook containment
+roots. Committed the learning as `7fa36d6`.
 
 ### 2026-09-14 22:06
 
@@ -110,3 +130,4 @@ None. BBQ-22's `GitFixture` dependency is complete and available.
 - `tests/test_hooks.py` - fixture-backed hook behavior contracts
 - `tests/test_cli_contracts.py` - hook report CLI contracts
 - `README.md` - trusted-hook security and portability documentation
+- `docs/learnings/gotchas.md` - bare-repository containment learning
