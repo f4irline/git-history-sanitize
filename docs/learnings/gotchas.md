@@ -4,6 +4,18 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Initialize an index before snapshotting an empty Git fixture
+**Ticket:** BBQ-12
+**Date:** 2026-09-14
+
+`GitFixture.snapshot_source()` records `.git/index`, but a freshly initialized
+empty repository has no index yet. For empty-source immutability contracts, run
+`fixture.git(fixture.source, "read-tree", "--empty")` before taking the
+snapshot; this creates the index without creating a commit or changing the
+empty-source precondition.
+
+---
+
 ## Stage leading-dash fixture paths explicitly
 **Ticket:** BBQ-14
 **Date:** 2026-09-12
