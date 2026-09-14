@@ -14,6 +14,7 @@ from .compact import CompactResult, compact, restore_empty_synthetic_root
 from .errors import SanitizeError
 from .filtering import filter_paths, retained_head_path_count
 from .git import Repository, ensure_dependencies
+from .hooks import HookInventory, discover as discover_hooks, install as install_hooks
 from .policy import Policy
 from .publication import (
     publish,
@@ -41,12 +42,23 @@ class Plan:
     included_object_count: int
     retained_head_path_count: int
     excluded_paths: tuple[str, ...]
+    hooks: HookInventory
+    hooks_stripped: bool
+
+    def to_dict(self) -> dict[str, object]:
+        result = asdict(self)
+        result.pop("hooks")
+        result.pop("hooks_stripped")
+        result["hooks"] = _hook_report(self.hooks, "stripped" if self.hooks_stripped else "preserved")
+        return result
 
 
 @dataclass(frozen=True)
 class RewriteReport:
     compact: CompactResult
     verification: VerificationReport
+    hooks: HookInventory
+    hooks_stripped: bool
 
     def to_dict(self) -> dict:
         return {
@@ -55,10 +67,20 @@ class RewriteReport:
                 "discarded_commits": self.compact.discarded_commits,
             },
             "verification": asdict(self.verification),
+            "hooks": _hook_report(self.hooks, "stripped" if self.hooks_stripped else "preserved"),
         }
 
 
-def plan(source: str | Path, policy: Policy) -> Plan:
+def _hook_report(inventory: HookInventory, action: str) -> dict[str, object]:
+    return {
+        "action": action,
+        "count": len(inventory.hooks),
+        "names": list(inventory.names),
+        "warnings": {name: list(names) for name, names in inventory.warning_categories.items()},
+    }
+
+
+def plan(source: str | Path, policy: Policy, *, preserve_hooks: bool = True) -> Plan:
     repository = Repository(source)
     analysis = RewriteAnalysis.create(repository, policy)
     return Plan(
@@ -72,6 +94,8 @@ def plan(source: str | Path, policy: Policy) -> Plan:
         included_object_count=len(analysis.scope.objects),
         retained_head_path_count=retained_head_path_count(repository, policy),
         excluded_paths=policy.excluded_paths,
+        hooks=discover_hooks(repository),
+        hooks_stripped=not preserve_hooks,
     )
 
 
@@ -98,7 +122,8 @@ def _source_fingerprint(repository: Repository) -> tuple[str, str, str, str]:
 
 
 def rewrite(
-    source: str | Path, output: str | Path, policy: Policy, receipt: str | Path | None = None
+    source: str | Path, output: str | Path, policy: Policy, receipt: str | Path | None = None,
+    *, preserve_hooks: bool = True,
 ) -> RewriteReport:
     source_repository = Repository(source)
     protected = tuple(root for root in (source_repository.git_dir, source_repository.worktree_root()) if root)
@@ -116,6 +141,7 @@ def rewrite(
         raise SanitizeError("Output parent directory does not exist")
 
     analysis = RewriteAnalysis.create(source_repository, policy)
+    hooks = discover_hooks(source_repository)
     ensure_dependencies()
 
     boundary = analysis.boundary_commit
@@ -129,7 +155,11 @@ def rewrite(
     staged_receipt: Path | None = None
     receipt_published = False
     try:
-        rewrite_repository = source_repository.clone_to(temporary_root / "rewrite")
+        template_directory = temporary_root / "template"
+        template_directory.mkdir(mode=0o700)
+        rewrite_repository = source_repository.clone_to(
+            temporary_root / "rewrite", template_directory=template_directory
+        )
         retain_head_only(rewrite_repository)
         compact_result = compact(rewrite_repository, policy, analysis)
         filter_paths(rewrite_repository, policy)
@@ -137,10 +167,12 @@ def rewrite(
         cleanup(rewrite_repository)
 
         bare_repository = rewrite_repository.clone_to(
-            temporary_root / "sanitized.git", bare=True
+            temporary_root / "sanitized.git", bare=True, template_directory=template_directory
         )
         set_private_mode(bare_repository.path, 0o700)
         cleanup(bare_repository)
+        if preserve_hooks:
+            install_hooks(bare_repository, hooks)
         write_scope_metadata(bare_repository.path, analysis.scope)
         if receipt_path:
             roots = bare_repository.text("rev-list", "--max-parents=0", "--all").splitlines()
@@ -186,7 +218,7 @@ def rewrite(
             sync_staged_directory(temporary_root)
             publish(bare_repository.path, output_path)
             sync_published_parent(output_path.parent)
-        return RewriteReport(compact_result, verification)
+        return RewriteReport(compact_result, verification, hooks, not preserve_hooks)
     finally:
         if staged_receipt and not receipt_published:
             staged_receipt.unlink(missing_ok=True)

@@ -222,6 +222,29 @@ valid non-empty-source result; it does not describe historical content outside
 the source `HEAD` tree. The same validated tuple is used for planning,
 filtering, and verification.
 
+### Trusted hooks
+
+`plan` and `rewrite` preserve active, non-`*.sample` hooks from the source
+repository by default. Hooks are trusted executable metadata outside history
+path filtering: consumers of the sanitized repository may read or execute
+them. Sanitization never executes hooks and does not install a hook runtime or
+pre-commit environment. Pass `--strip-hooks` to either command to inspect or
+create output without carrying source hooks forward; reports identify the
+preserved or stripped names and portability-warning categories, never contents
+or source paths.
+
+Only regular, non-symlinked hooks from the standard hooks directory or a
+repository-local `core.hooksPath` contained by the source worktree or Git
+directory are eligible. A supported custom location is copied to the output
+Git directory's `hooks` directory and activated there with output-local
+`core.hooksPath=hooks`. This activation applies to the produced bare repository;
+ordinary downstream clones do not inherit it. Hooks containing an absolute
+shebang or path receive a deterministic portability warning because the
+sanitizer cannot recreate source-machine dependencies.
+
+Every internal clone uses a private empty Git template directory, so hooks from
+the sanitizer runner's templates cannot enter the output.
+
 ### Source scope
 
 `source.mode` defaults to `complete`. Complete mode proves the local object
@@ -259,7 +282,8 @@ git-history-sanitize doctor
 
 git-history-sanitize plan \
   --source .git \
-  --policy .git-history-sanitize.yml
+  --policy .git-history-sanitize.yml \
+  --strip-hooks # optional: omit to preserve trusted hooks
 
 git-history-sanitize rewrite \
   --source .git \
@@ -337,8 +361,9 @@ synthetic root with the configured prefix message and cutoff eligibility, one
 symbolic `refs/heads/*` ref, no excluded path in any retained tree, no remotes,
 no shallow/partial/promisor/alternate object state, no reflogs or backup
 metadata, and no unreachable objects. `--forbid`, `--forbid-file`, and
-`--forbid-stdin` additionally scan object bodies and immediate regular hook
-files. `--forbid` accepts strict UTF-8 text; files and stdin are raw
+`--forbid-stdin` additionally scan object bodies and active eligible hooks,
+including an output-local custom `core.hooksPath`; inactive `*.sample` hooks are
+ignored. `--forbid` accepts strict UTF-8 text; files and stdin are raw
 newline-delimited byte records. Inputs are limited to 64 KiB per record and
 1 MiB in aggregate. Object and hook bodies are streamed in 64 KiB chunks, and
 patterns never match across object or hook-file boundaries.
