@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-11-preserve-empty-synthetic-root`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-11-preserve-empty-synthetic-root`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-14
-**Last Updated:** 2026-09-14 18:07
+**Last Updated:** 2026-09-14 18:08
 
 ## Overview
 
@@ -30,8 +30,8 @@ verification, and symbolic-`HEAD` guarantees.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -43,7 +43,7 @@ verification, and symbolic-`HEAD` guarantees.
 - [x] Add regression-first contracts for all-excluded histories and plan output.
 - [x] Implement deterministic empty-root recovery and retained-path reporting.
 - [x] Update CLI contracts and README documentation.
-- [ ] Run the configured source validation suite and implementation review gate.
+- [x] Run the configured validation suite and implementation review gate.
 
 ## Progress Log
 
@@ -82,6 +82,14 @@ record and clean worktree. Recorded the v1 empty-sanitized-tree decision in
 `docs/learnings/decisions.md`; it captures why recovery follows filtering
 instead of weakening pruning, cleanup, or verification. No House Rules
 exceptions were required.
+
+### 2026-09-14 18:08
+
+Finalized the implementation record. The branch contains focused implementation,
+documentation, progress, and learning commits; all configured source, wheel,
+and container validation passed. No lint or standalone type-check script is
+configured. House Rules compliance is complete with no approved exceptions.
+The next steps are branch push, PR creation, and moving BBQ-11 to In Review.
 
 ## Technical Notes
 
