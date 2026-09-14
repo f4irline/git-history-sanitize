@@ -31,9 +31,9 @@ reporting, portable-hook warnings, and forbidden-content verification.
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
 - [x] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -45,6 +45,11 @@ reporting, portable-hook warnings, and forbidden-content verification.
 - [x] Validate and complete implementation review gate
 
 ## Progress Log
+
+### 2026-09-14 22:26
+
+Pushed `fix/BBQ-6-preserve-trusted-hooks`, opened PR #13, and moved BBQ-6 to In
+Review. The workflow checklist is complete.
 
 ### 2026-09-14 22:24
 
