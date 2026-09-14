@@ -82,6 +82,41 @@ class CutoffContractTests(unittest.TestCase):
         verified = self.fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), "--source", str(self.source / ".git"), "--receipt", str(receipt))
         self.assertEqual(verified.stderr, "")
 
+    def test_cutoff_commit_all_excluded_history_recovers_before_receipt_creation(self) -> None:
+        self.fixture.write("private/old.txt", "old\n")
+        self.fixture.commit("old", "private/old.txt", timestamp="2026-09-02T23:59:59+00:00")
+        self.fixture.write("private/secret.txt", "secret\n")
+        boundary = self.fixture.commit(
+            "sensitive boundary", "private/secret.txt", timestamp="2026-09-03T01:00:00+00:00"
+        )
+        policy = self.fixture.write_policy(
+            cutoff=None, cutoff_commit=boundary, excluded_paths=("private/",), prefix_message="empty root"
+        )
+
+        plan = json.loads(self._plan(policy).stdout)
+        output = self.fixture.output_dir / "sanitized.git"
+        receipt = self.fixture.receipt_dir / "receipt.json"
+        self._rewrite(policy, output, receipt=receipt)
+        verified = self.fixture.run_cli(
+            "verify",
+            "--repository",
+            str(output),
+            "--policy",
+            str(policy),
+            "--source",
+            str(self.source / ".git"),
+            "--receipt",
+            str(receipt),
+        )
+
+        self.assertEqual(plan["retained_head_path_count"], 0)
+        self.assertEqual(self.fixture.git(output, "rev-list", "--count", "HEAD"), "1")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%P", "HEAD"), "")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%B", "HEAD"), "empty root")
+        self.assertEqual(self.fixture.git(output, "ls-tree", "-r", "--name-only", "HEAD"), "")
+        self.assertEqual(verified.returncode, 0)
+        self.assertEqual(verified.stderr, "")
+
     def test_commit_cutoff_requires_a_full_receipt_and_full_lowercase_oid(self) -> None:
         self.fixture.write("boundary.txt", "boundary\n")
         boundary = self.fixture.commit("boundary", "boundary.txt")

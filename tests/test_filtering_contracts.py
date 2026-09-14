@@ -167,6 +167,31 @@ class FilteringContractTests(unittest.TestCase):
         self.assertEqual(self.fixture.git(output, "show", "HEAD:keep.txt"), "safe snapshot")
         self.assertEqual(self.fixture.git(output, "ls-tree", "-r", "--name-only", root), "keep.txt")
 
+    def test_snapshot_all_excluded_head_recovers_one_empty_synthetic_root(self) -> None:
+        self.fixture.write("private/secret.txt", "snapshot secret\n")
+        self.fixture.commit(
+            "sensitive snapshot", "private/secret.txt", timestamp="2026-09-03T01:00:00+00:00"
+        )
+        policy = self.fixture.write_policy(
+            cutoff=None,
+            excluded_paths=("private/",),
+            prefix_message="snapshot root",
+            source_mode="snapshot",
+        )
+
+        output = self.rewrite(policy)
+
+        self.assertEqual(self.fixture.git(output, "rev-list", "--count", "HEAD"), "1")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%P", "HEAD"), "")
+        self.assertEqual(self.fixture.git(output, "show", "-s", "--format=%B", "HEAD"), "snapshot root")
+        self.assertEqual(self.fixture.git(output, "ls-tree", "-r", "--name-only", "HEAD"), "")
+        self.assertEqual(self.fixture.git(output, "symbolic-ref", "HEAD"), "refs/heads/main")
+        verified = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(policy)
+        )
+        self.assertEqual(verified.returncode, 0)
+        self.assertEqual(verified.stderr, "")
+
 
 if __name__ == "__main__":
     unittest.main()

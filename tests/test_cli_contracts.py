@@ -38,7 +38,7 @@ class CliContractTests(unittest.TestCase):
             {
                 "source_commits", "discarded_commits", "retained_commits_before_path_filter",
                 "mode", "scope", "boundary_count", "included_commit_count",
-                "included_object_count", "excluded_paths",
+                "included_object_count", "retained_head_path_count", "excluded_paths",
             },
         )
         self.assertIn("verification", json.loads(rewrite.stdout))
@@ -60,7 +60,7 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(
             plan.stdout,
             "Source commits: 1\nPre-cutoff commits: 0\nCommits before path filtering: 1\n"
-            "Excluded paths: none\nScope: complete reachable history\n",
+            "Retained HEAD paths: 1\nExcluded paths: none\nScope: complete reachable history\n",
         )
         self.assertEqual(
             rewrite.stdout,
@@ -78,6 +78,20 @@ class CliContractTests(unittest.TestCase):
         )
 
         self.assertEqual(json.loads(result.stdout)["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(result.stderr, "")
+
+    def test_plan_counts_paths_with_the_same_exact_and_directory_rules_as_filtering(self) -> None:
+        self.fixture.write("secret file.txt", "secret\n")
+        self.fixture.write("private/key.txt", "secret\n")
+        self.fixture.write("allowed/note.txt", "safe\n")
+        self.fixture.commit("mixed", "secret file.txt", "private/key.txt", "allowed/note.txt")
+        policy = self.fixture.write_policy(excluded_paths=("secret file.txt", "private/"))
+
+        result = self.fixture.run_cli(
+            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(policy), "--json"
+        )
+
+        self.assertEqual(json.loads(result.stdout)["retained_head_path_count"], 2)
         self.assertEqual(result.stderr, "")
 
     def test_expected_operational_failures_use_exit_two_and_actionable_stderr(self) -> None:
