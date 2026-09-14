@@ -187,6 +187,53 @@ class SourceScopeContracts(unittest.TestCase):
         self.assertEqual(rewrite.stderr, expected)
         self.assertFalse(output.exists())
 
+    def test_merge_history_has_identical_plan_and_rewrite_failure(self) -> None:
+        base = self.fixture.git(self.fixture.source, "rev-parse", "HEAD")
+        side = self.fixture.commit_tree(self.fixture.source, "HEAD^{tree}", "side", base)
+        self.fixture.write("main.txt", "main\n")
+        main = self.fixture.commit("main", "main.txt")
+        merge = self.fixture.commit_tree(self.fixture.source, "HEAD^{tree}", "merge", main, side)
+        self.fixture.git(self.fixture.source, "update-ref", "refs/heads/main", merge)
+        policy = self.fixture.write_policy()
+        output = self.fixture.output_dir / "merge.git"
+        source_snapshot = self.fixture.snapshot_source()
+
+        plan = self._plan(policy)
+        rewrite = self.fixture.run_cli(
+            "rewrite", "--source", str(self.fixture.source / ".git"), "--policy", str(policy),
+            "--output", str(output), check=False,
+        )
+
+        self.assertEqual(plan.returncode, 2)
+        self.assertEqual(plan.stdout, "")
+        self.assertEqual(rewrite.returncode, plan.returncode)
+        self.assertEqual(rewrite.stdout, plan.stdout)
+        self.assertEqual(rewrite.stderr, plan.stderr)
+        self.assertFalse(output.exists())
+        self.fixture.assert_no_staging_directories(output.parent)
+        self.fixture.assert_source_snapshot(source_snapshot)
+
+    def test_detached_head_has_identical_plan_and_rewrite_failure(self) -> None:
+        self.fixture.git(self.fixture.source, "checkout", "--detach")
+        policy = self.fixture.write_policy()
+        output = self.fixture.output_dir / "detached.git"
+        source_snapshot = self.fixture.snapshot_source()
+
+        plan = self._plan(policy)
+        rewrite = self.fixture.run_cli(
+            "rewrite", "--source", str(self.fixture.source / ".git"), "--policy", str(policy),
+            "--output", str(output), check=False,
+        )
+
+        self.assertEqual(plan.returncode, 2)
+        self.assertEqual(plan.stdout, "")
+        self.assertEqual(rewrite.returncode, plan.returncode)
+        self.assertEqual(rewrite.stdout, plan.stdout)
+        self.assertEqual(rewrite.stderr, plan.stderr)
+        self.assertFalse(output.exists())
+        self.fixture.assert_no_staging_directories(output.parent)
+        self.fixture.assert_source_snapshot(source_snapshot)
+
 
 if __name__ == "__main__":
     unittest.main()

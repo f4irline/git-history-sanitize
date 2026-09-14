@@ -52,6 +52,13 @@ class CutoffContractTests(unittest.TestCase):
         self.assertEqual(plan["mode"], "complete")
         self.assertEqual(plan["scope"], "complete reachable history")
         self.assertEqual(rewrite["history"], {"source_commits": 2, "discarded_commits": 1})
+        self.assertEqual(rewrite["verification"]["boundary_count"], plan["boundary_count"])
+        self.assertEqual(
+            rewrite["verification"]["included_commit_count"], plan["included_commit_count"]
+        )
+        self.assertEqual(
+            rewrite["verification"]["included_object_count"], plan["included_object_count"]
+        )
         self.assertEqual(self.fixture.git(output, "show", "HEAD:boundary.txt"), "retained")
 
     def test_reachable_cutoff_commit_selects_the_same_boundary_for_plan_and_rewrite(self) -> None:
@@ -160,6 +167,72 @@ class CutoffContractTests(unittest.TestCase):
         self.assertEqual(rewritten.returncode, 2)
         self.assertIn("No retained commit", rewritten.stderr)
         self.assertFalse(output.exists())
+
+    def test_timestamp_recrossing_has_identical_plan_and_rewrite_failure(self) -> None:
+        self.fixture.write("old.txt", "old\n")
+        self.fixture.commit("old", "old.txt", timestamp="2026-09-02T23:59:59+00:00")
+        self.fixture.write("retained.txt", "retained\n")
+        self.fixture.commit("retained", "retained.txt", timestamp="2026-09-03T00:00:00+00:00")
+        self.fixture.write("recrossed.txt", "recrossed\n")
+        self.fixture.commit("recrossed", "recrossed.txt", timestamp="2026-09-02T23:59:59+00:00")
+        policy = self.fixture.write_policy()
+        output = self.fixture.output_dir / "recrossed.git"
+        source_snapshot = self.fixture.snapshot_source()
+
+        planned = self._plan(policy, check=False)
+        rewritten = self._rewrite(policy, output, check=False)
+
+        self.assertEqual(planned.returncode, 2)
+        self.assertEqual(planned.stdout, "")
+        self.assertEqual(rewritten.returncode, planned.returncode)
+        self.assertEqual(rewritten.stdout, planned.stdout)
+        self.assertEqual(rewritten.stderr, planned.stderr)
+        self.assertFalse(output.exists())
+        self.fixture.assert_no_staging_directories(output.parent)
+        self.fixture.assert_source_snapshot(source_snapshot)
+
+    def test_unreachable_cutoff_commit_has_identical_plan_and_rewrite_failure(self) -> None:
+        self.fixture.write("head.txt", "head\n")
+        self.fixture.commit("head", "head.txt")
+        self.fixture.git(self.source, "checkout", "-qb", "side")
+        self.fixture.write("side.txt", "side\n")
+        unreachable = self.fixture.commit("side", "side.txt")
+        self.fixture.git(self.source, "checkout", "main")
+        policy = self.fixture.write_policy(cutoff=None, cutoff_commit=unreachable)
+        output = self.fixture.output_dir / "unreachable.git"
+        receipt = self.fixture.receipt_dir / "receipt.json"
+        source_snapshot = self.fixture.snapshot_source()
+
+        planned = self._plan(policy, check=False)
+        rewritten = self._rewrite(policy, output, receipt=receipt, check=False)
+
+        self.assertEqual(planned.returncode, 2)
+        self.assertEqual(planned.stdout, "")
+        self.assertEqual(rewritten.returncode, planned.returncode)
+        self.assertEqual(rewritten.stdout, planned.stdout)
+        self.assertEqual(rewritten.stderr, planned.stderr)
+        self.assertFalse(output.exists())
+        self.assertFalse(receipt.exists())
+        self.fixture.assert_no_staging_directories(output.parent)
+        self.fixture.assert_source_snapshot(source_snapshot)
+
+    def test_empty_source_has_identical_plan_and_rewrite_failure(self) -> None:
+        self.fixture.git(self.source, "read-tree", "--empty")
+        policy = self.fixture.write_policy()
+        output = self.fixture.output_dir / "empty.git"
+        source_snapshot = self.fixture.snapshot_source()
+
+        planned = self._plan(policy, check=False)
+        rewritten = self._rewrite(policy, output, check=False)
+
+        self.assertEqual(planned.returncode, 2)
+        self.assertEqual(planned.stdout, "")
+        self.assertEqual(rewritten.returncode, planned.returncode)
+        self.assertEqual(rewritten.stdout, planned.stdout)
+        self.assertEqual(rewritten.stderr, planned.stderr)
+        self.assertFalse(output.exists())
+        self.fixture.assert_no_staging_directories(output.parent)
+        self.fixture.assert_source_snapshot(source_snapshot)
 
 if __name__ == "__main__":
     unittest.main()
