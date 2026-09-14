@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-11-preserve-empty-synthetic-root`
 **Status:** In Progress
 **Started:** 2026-09-14
-**Last Updated:** 2026-09-14 18:03
+**Last Updated:** 2026-09-14 18:07
 
 ## Overview
 
@@ -19,15 +19,15 @@ verification, and symbolic-`HEAD` guarantees.
 > Check off each phase as you complete it. After ANY interruption, read this section first.
 
 ### Phase 1: Implementation
-- [ ] Write/modify tests (TDD)
-- [ ] Implement changes
-- [ ] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
-- [ ] Commit implementation changes — use `git-commit` skill
+- [x] Write/modify tests (TDD)
+- [x] Implement changes
+- [x] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
+- [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [ ] Update this progress doc to "Complete" status
@@ -75,6 +75,14 @@ configured. The first implementation review found only that this required
 progress record was untracked; this revision resolves that finding before the
 fresh review gate.
 
+### 2026-09-14 18:07
+
+The second implementation review passed after confirming the tracked progress
+record and clean worktree. Recorded the v1 empty-sanitized-tree decision in
+`docs/learnings/decisions.md`; it captures why recovery follows filtering
+instead of weakening pruning, cleanup, or verification. No House Rules
+exceptions were required.
+
 ## Technical Notes
 
 - `workflow_root`: `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize`
@@ -105,3 +113,4 @@ fresh review gate.
 - `tests/test_cutoff_contracts.py` - cutoff-commit recovery/receipt contract.
 - `tests/test_cli_contracts.py` - stable plan JSON and human output coverage.
 - `README.md` - document valid empty sanitized-tree output and plan scope.
+- `docs/learnings/decisions.md` - record the empty-sanitized-tree decision.
