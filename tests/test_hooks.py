@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import shutil
 import stat
 import unittest
+
+from git_history_sanitize.git import Repository
+from git_history_sanitize.hooks import HookError, discover
 
 from tests.support.git_fixture import GitFixture
 
@@ -101,6 +105,30 @@ class HookContractsTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["hooks"], {
             "action": "stripped", "count": 1, "names": ["pre-commit"], "warnings": {},
         })
+
+    def test_bare_source_rejects_hooks_path_outside_its_git_directory(self) -> None:
+        bare = self.fixture.root / "source.git"
+        self.fixture.git(self.fixture.root, "clone", "--bare", str(self.fixture.source / ".git"), str(bare))
+        outside = self.fixture.root / "foreign-hooks"
+        outside.mkdir()
+        (outside / "pre-push").write_bytes(b"outside-private\n")
+        self.fixture.git(bare, "config", "--local", "core.hooksPath", "../foreign-hooks")
+        with self.assertRaises(HookError) as error:
+            discover(Repository(bare))
+        self.assertIn("core.hooksPath", str(error.exception))
+        self.assertNotIn("foreign-hooks", str(error.exception))
+
+        output = self.fixture.root.parent / f"{self.fixture.root.name}-sanitized.git"
+        self.addCleanup(shutil.rmtree, output, ignore_errors=True)
+        result = self.fixture.run_cli(
+            "rewrite", "--source", str(bare), "--output", str(output), "--policy", str(self.policy),
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("core.hooksPath", result.stderr)
+        self.assertNotIn("foreign-hooks", result.stderr)
+        self.assertFalse(output.exists())
 
     def test_forbidden_content_checks_preserved_active_hooks_but_not_samples(self) -> None:
         hooks = self.fixture.source / ".git" / "hooks"

@@ -75,6 +75,9 @@ class Repository:
             self.git_dir = Path(
                 run(["-C", str(self.path), "rev-parse", "--absolute-git-dir"]).decode().strip()
             ).resolve()
+            self._bare = run(
+                ["-C", str(self.path), "rev-parse", "--is-bare-repository"]
+            ).decode().strip() == "true"
         except GitError as error:
             if (self.path / "config").is_file() and (self.path / "objects").is_dir():
                 self.git_dir = self.path
