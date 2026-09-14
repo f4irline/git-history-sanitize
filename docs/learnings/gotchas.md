@@ -16,6 +16,18 @@ empty-source precondition.
 
 ---
 
+## Detect bare repositories independently of the Git directory
+**Ticket:** BBQ-6
+**Date:** 2026-09-14
+
+`git rev-parse --absolute-git-dir` succeeds for a bare repository, so it cannot
+distinguish a bare repository from a normal repository passed as its `.git`
+directory. Query `rev-parse --is-bare-repository` before deriving a worktree
+root; otherwise a bare repository can treat its parent as a worktree and allow
+an external `core.hooksPath` through containment checks.
+
+---
+
 ## Stage leading-dash fixture paths explicitly
 **Ticket:** BBQ-14
 **Date:** 2026-09-12
