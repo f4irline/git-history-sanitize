@@ -10,9 +10,9 @@ from pathlib import Path
 
 from .cleanup import cleanup, retain_head_only
 from ._version import __version__
-from .compact import CompactResult, compact
+from .compact import CompactResult, compact, restore_empty_synthetic_root
 from .errors import SanitizeError
-from .filtering import filter_paths
+from .filtering import filter_paths, retained_head_path_count
 from .git import Repository, ensure_dependencies
 from .policy import Policy
 from .publication import (
@@ -39,6 +39,7 @@ class Plan:
     boundary_count: int
     included_commit_count: int
     included_object_count: int
+    retained_head_path_count: int
     excluded_paths: tuple[str, ...]
 
 
@@ -92,6 +93,7 @@ def plan(source: str | Path, policy: Policy) -> Plan:
         boundary_count=scope.boundary_count,
         included_commit_count=len(scope.commits),
         included_object_count=len(scope.objects),
+        retained_head_path_count=retained_head_path_count(repository, policy),
         excluded_paths=policy.excluded_paths,
     )
 
@@ -154,6 +156,7 @@ def rewrite(
         retain_head_only(rewrite_repository)
         compact_result = compact(rewrite_repository, policy)
         filter_paths(rewrite_repository, policy)
+        restore_empty_synthetic_root(rewrite_repository, compact_result.synthetic_root_context)
         cleanup(rewrite_repository)
 
         bare_repository = rewrite_repository.clone_to(

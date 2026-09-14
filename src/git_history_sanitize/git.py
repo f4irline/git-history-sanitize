@@ -109,7 +109,7 @@ class Repository:
         return self.run(*arguments).decode("utf-8", "surrogateescape").strip()
 
     def head_ref(self) -> str:
-        ref = self.run("symbolic-ref", "-q", "HEAD", check=False).decode().strip()
+        ref = self.run("symbolic-ref", "-q", "HEAD", check=False).decode("utf-8", "surrogateescape").strip()
         if not ref:
             raise SanitizeError("The retained repository must have a symbolic HEAD")
         return ref
