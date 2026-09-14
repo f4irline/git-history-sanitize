@@ -151,10 +151,18 @@ class Repository:
 
     def worktree_root(self) -> Path | None:
         result = self.run("rev-parse", "--show-toplevel", check=False).decode().strip()
-        return Path(result).resolve() if result else None
+        if result:
+            return Path(result).resolve()
+        if not self._bare and self.path == self.git_dir:
+            return self.git_dir.parent
+        return None
 
-    def clone_to(self, destination: Path, *, bare: bool = False) -> "Repository":
+    def clone_to(
+        self, destination: Path, *, bare: bool = False, template_directory: Path | None = None,
+    ) -> "Repository":
         arguments = ["clone", "--no-checkout", "--no-local"]
+        if template_directory is not None:
+            arguments.extend(["--template", str(template_directory)])
         if bare:
             arguments.append("--bare")
         arguments.extend([str(self.path), str(destination)])

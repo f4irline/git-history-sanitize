@@ -32,6 +32,7 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--source", required=True)
     preview.add_argument("--policy", required=True)
     preview.add_argument("--json", action="store_true")
+    preview.add_argument("--strip-hooks", action="store_true")
 
     rewrite_command = subcommands.add_parser("rewrite", help="create sanitized output")
     rewrite_command.add_argument("--source", required=True)
@@ -39,6 +40,7 @@ def _parser() -> argparse.ArgumentParser:
     rewrite_command.add_argument("--policy", required=True)
     rewrite_command.add_argument("--receipt")
     rewrite_command.add_argument("--json", action="store_true")
+    rewrite_command.add_argument("--strip-hooks", action="store_true")
 
     verification = subcommands.add_parser("verify", help="verify sanitized output")
     verification.add_argument("--repository", required=True)
@@ -65,6 +67,7 @@ def _print(value: object, as_json: bool) -> None:
         print(f"Sanitized HEAD: {value.verification.head}")
         print(f"Commits in output: {value.verification.commit_count}")
         print(f"Scope: {value.verification.scope}")
+        print(f"Hooks: {value.hooks_stripped and 'stripped' or 'preserved'} ({', '.join(value.hooks.names) or 'none'})")
         return
     if hasattr(value, "source_commits"):
         print(f"Source commits: {value.source_commits}")
@@ -73,6 +76,7 @@ def _print(value: object, as_json: bool) -> None:
         print(f"Retained HEAD paths: {value.retained_head_path_count}")
         print(f"Excluded paths: {', '.join(value.excluded_paths) or 'none'}")
         print(f"Scope: {value.scope}")
+        print(f"Hooks: {value.hooks_stripped and 'stripped' or 'preserved'} ({', '.join(value.hooks.names) or 'none'})")
         return
     print("Verification passed.")
 
@@ -86,9 +90,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         policy = _policy(arguments.policy)
         if arguments.command == "plan":
-            _print(plan(arguments.source, policy), arguments.json)
+            _print(plan(arguments.source, policy, preserve_hooks=not arguments.strip_hooks), arguments.json)
         elif arguments.command == "rewrite":
-            _print(rewrite(arguments.source, arguments.output, policy, arguments.receipt), arguments.json)
+            _print(rewrite(
+                arguments.source, arguments.output, policy, arguments.receipt,
+                preserve_hooks=not arguments.strip_hooks,
+            ), arguments.json)
         elif arguments.command == "verify":
             forbidden = collect(
                 arguments.forbid,

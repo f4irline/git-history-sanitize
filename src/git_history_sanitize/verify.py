@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -13,6 +11,7 @@ from typing import Callable, Iterator
 from .errors import VerificationError
 from .forbidden import CHUNK_SIZE, Matcher
 from .git import GitError, Repository, git_environment
+from .hooks import HookError, discover as discover_hooks
 from .policy import Policy
 from .receipt import Receipt, ReceiptError
 from .scope_metadata import read as read_scope_metadata
@@ -192,35 +191,11 @@ def _scan_object_bodies(repository: Repository, matcher: Matcher) -> None:
 
 
 def _scan_hooks(repository: Repository, matcher: Matcher) -> None:
-    hooks = repository.git_dir / "hooks"
-    directory: int | None = None
-    try:
-        hooks_mode = hooks.lstat().st_mode
-        if stat.S_ISLNK(hooks_mode) or not stat.S_ISDIR(hooks_mode):
-            raise ValueError("unsafe hooks directory")
-        directory = os.open(hooks, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        with os.scandir(directory) as entries:
-            for entry in entries:
-                mode = entry.stat(follow_symlinks=False).st_mode
-                if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
-                    raise ValueError("unsafe hook")
-                matcher.reset()
-                descriptor = os.open(
-                    entry.name,
-                    os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
-                    dir_fd=directory,
-                )
-                with os.fdopen(descriptor, "rb") as hook:
-                    if not stat.S_ISREG(os.fstat(hook.fileno()).st_mode):
-                        raise ValueError("unsafe hook")
-                    while chunk := hook.read(CHUNK_SIZE):
-                        if matcher.feed(chunk):
-                            _contract_fail("content.forbidden")
-    except FileNotFoundError:
-        return
-    finally:
-        if directory is not None:
-            os.close(directory)
+    for hook in discover_hooks(repository).hooks:
+        matcher.reset()
+        for start in range(0, len(hook.content), CHUNK_SIZE):
+            if matcher.feed(hook.content[start:start + CHUNK_SIZE]):
+                _contract_fail("content.forbidden")
 
 
 def _forbidden(repository: Repository, values: tuple[bytes, ...]) -> None:
@@ -232,7 +207,7 @@ def _forbidden(repository: Repository, values: tuple[bytes, ...]) -> None:
         _scan_hooks(repository, matcher)
     except VerificationError:
         raise
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (HookError, OSError, ValueError, subprocess.SubprocessError):
         _contract_fail("content.forbidden")
 
 
