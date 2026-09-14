@@ -157,7 +157,9 @@ class Repository:
         if result:
             return Path(result).resolve()
         if not self._bare and self.path == self.git_dir:
-            return self.git_dir.parent
+            marker = self.git_dir.parent / ".git"
+            if marker.exists() and marker.resolve() == self.git_dir:
+                return self.git_dir.parent
         return None
 
     def clone_to(
