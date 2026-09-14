@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-6-preserve-trusted-hooks`
 **Status:** In Progress
 **Started:** 2026-09-14
-**Last Updated:** 2026-09-14 22:02
+**Last Updated:** 2026-09-14 22:06
 
 ## Overview
 
@@ -45,6 +45,15 @@ reporting, portable-hook warnings, and forbidden-content verification.
 - [ ] Validate and complete implementation review gate
 
 ## Progress Log
+
+### 2026-09-14 22:06
+
+Implementation review required a correction: bare repositories must never gain a
+fabricated worktree root when their Git directory is inspected. The repository
+adapter now detects bare repositories explicitly; their hook paths remain bounded
+to the Git directory. Added unit and CLI coverage for an out-of-bound bare
+`core.hooksPath` with redacted failure behavior. The corrected full source suite
+passed: 183 tests. A second implementation review is pending.
 
 ### 2026-09-14 22:02
 
