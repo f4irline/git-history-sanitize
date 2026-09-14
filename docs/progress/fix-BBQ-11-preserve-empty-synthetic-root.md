@@ -32,9 +32,9 @@ verification, and symbolic-`HEAD` guarantees.
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
 - [x] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -90,6 +90,11 @@ documentation, progress, and learning commits; all configured source, wheel,
 and container validation passed. No lint or standalone type-check script is
 configured. House Rules compliance is complete with no approved exceptions.
 The next steps are branch push, PR creation, and moving BBQ-11 to In Review.
+
+### 2026-09-14 18:08
+
+Pushed `fix/BBQ-11-preserve-empty-synthetic-root`, opened PR #11, and moved
+BBQ-11 to In Review. All workflow checklist phases are complete.
 
 ## Technical Notes
 
