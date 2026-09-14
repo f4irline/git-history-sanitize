@@ -2,9 +2,9 @@
 
 **Branch:** `fix/BBQ-12-plan-rewrite-validation`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/fix-BBQ-12-plan-rewrite-validation`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-14
-**Last Updated:** 2026-09-14 19:50
+**Last Updated:** 2026-09-14 19:53
 
 ## Overview
 
@@ -24,13 +24,13 @@ share deterministic preflight facts without mutating source or creating output.
 - [x] Pass implementation review gate
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -42,7 +42,7 @@ share deterministic preflight facts without mutating source or creating output.
 - [x] Add shared-analysis unit and CLI parity tests
 - [x] Extract immutable source-only rewrite analysis
 - [x] Use shared analysis from plan, rewrite, and compaction
-- [ ] Document validation parity and run final checks
+- [x] Document validation parity and run final checks
 
 ## Progress Log
 
@@ -68,6 +68,19 @@ tests), pinned toolchain validation passed, source runtime contracts passed (62
 tests), and a wheel build succeeded. No lint or typecheck script is configured.
 Independent implementation review returned `REVIEW_RESULT: PASS` with no
 findings; House Rules compliance is confirmed with no exceptions.
+
+### 2026-09-14 19:51
+
+Evaluated learnings and documented one relevant fixture gotcha in
+`docs/learnings/gotchas.md`: initialize an index with `read-tree --empty`
+before snapshotting an empty `GitFixture` source. Committed it as `7b35b2a`.
+
+### 2026-09-14 19:53
+
+Final quality gate passed: 176 host unit tests, pinned toolchain validation, 62
+source runtime contracts, wheel build, and the `Containerfile` test target. No
+lint or typecheck script is configured. Implementation was completed in the
+recorded Herdr worktree; House Rules compliance is complete with no exceptions.
 
 ## Technical Notes
 
@@ -100,3 +113,4 @@ None. BBQ-22's fixture dependency is complete and available.
 - `tests/test_cutoff_contracts.py` - cutoff parity and source immutability contracts
 - `tests/test_source_scope_contracts.py` - merge and detached-HEAD parity contracts
 - `README.md` - document preflight parity and pre-filter facts
+- `docs/learnings/gotchas.md` - empty-source fixture snapshot setup
