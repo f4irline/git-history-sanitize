@@ -215,7 +215,12 @@ that is already covered by a configured directory. Errors identify only the
 escaped policy entry and its reason; they never inspect repository contents.
 
 `plan` reports its ordered `excluded_paths` value in JSON and its exclusions in
-human output. The same validated tuple is used for filtering and verification.
+human output. It also reports `retained_head_path_count` in JSON and `Retained
+HEAD paths` in human output: this is the number of paths in the source `HEAD`
+tree that remain after applying the validated exclusions. A value of `0` is a
+valid non-empty-source result; it does not describe historical content outside
+the source `HEAD` tree. The same validated tuple is used for planning,
+filtering, and verification.
 
 ### Source scope
 
@@ -281,7 +286,12 @@ git-history-sanitize verify --repository /artifacts/sanitized.git \
 prefix message. It retains the tree at the first allowed commit, removes
 pre-cutoff commits, then filters sensitive paths from the shortened history.
 Mixed commits retain allowed file changes but have their messages replaced.
-Sensitive-only commits are pruned when they become empty.
+Sensitive-only commits are pruned when they become empty. If filtering removes
+every retained path from a non-empty source, the result remains a valid,
+one-commit bare repository: the synthetic root keeps its configured message
+and deterministic boundary metadata, points at Git's canonical empty tree, and
+retains its symbolic branch `HEAD`. This is distinct from an empty source,
+which remains invalid.
 
 The first release supports a single linear retained branch. Merge histories,
 non-monotonic cutoff timestamps, and unsupported refs fail closed instead of
