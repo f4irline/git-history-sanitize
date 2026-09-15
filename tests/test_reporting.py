@@ -6,7 +6,9 @@ import json
 import unittest
 
 from git_history_sanitize.engine import Plan
-from git_history_sanitize.errors import PolicyError, VerificationError
+from git_history_sanitize.errors import DependencyError, PolicyError, PublicationError, VerificationError
+from git_history_sanitize.filtering import filter_paths
+from git_history_sanitize.git import GitError
 from git_history_sanitize.hooks import HookInventory
 from git_history_sanitize.reporting import error_document, success_document
 from git_history_sanitize.verify import VerificationReport
@@ -98,6 +100,26 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(payload["code"], "policy.invalid")
         self.assertEqual(payload["stage"], "policy")
         self.assertNotIn("private", json.dumps(payload))
+
+    def test_error_document_preserves_only_allowlisted_publication_states(self) -> None:
+        for state in ("not_published", "receipt_published", "output_published"):
+            with self.subTest(state=state):
+                payload = json.loads(error_document("rewrite", PublicationError("private path", publication_state=state)))
+                self.assertEqual(payload["code"], "publication.failed")
+                self.assertEqual(payload["publication_state"], state)
+                self.assertNotIn("private", json.dumps(payload))
+
+    def test_filter_repo_failure_is_a_dependency_error(self) -> None:
+        class BrokenRepository:
+            def run(self, *args: object, **kwargs: object) -> None:
+                raise GitError("private tool output")
+
+        class Policy:
+            excluded_paths = ("private/",)
+            mixed_message = "[sanitized]"
+
+        with self.assertRaises(DependencyError):
+            filter_paths(BrokenRepository(), Policy())  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
