@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-18-version-json-reports`
 **Status:** In Progress
 **Started:** 2026-09-15
-**Last Updated:** 2026-09-15 17:18
+**Last Updated:** 2026-09-15 17:23
 
 ## Overview
 
@@ -21,12 +21,12 @@ documented compatibility guarantees.
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
 - [x] Validate (lint, build, tests pass)
-- [ ] Commit implementation changes — use `git-commit` skill
-- [ ] Pass implementation review gate
+- [x] Commit implementation changes — use `git-commit` skill
+- [x] Pass implementation review gate
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
 - [ ] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
@@ -66,6 +66,12 @@ Implementation review round 1 found missing publication-state coverage and an
 incorrect `git-filter-repo` failure category. Added explicit allowlisted-state
 serializer tests and converted path-filtering tool failures to
 `dependency.unavailable`; focused reporting and CLI contracts pass (17 tests).
+
+### 2026-09-15 17:23
+
+Implementation review round 2 passed. The final source suite passed 190 tests
+with the pinned Git and git-filter-repo checks. Recorded one reusable JSON error
+classification pattern in `docs/learnings/patterns.md`.
 
 ### 2026-09-15 16:42
 
