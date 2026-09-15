@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import unittest
+from unittest.mock import patch
 
 from git_history_sanitize import __version__
+from git_history_sanitize import cli
 
 from tests.support.git_fixture import GitFixture
 
@@ -108,6 +112,26 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(failed.returncode, 2)
         self.assertEqual(failed.stdout, "")
         self.assertIn("Cannot read policy file", failed.stderr)
+
+    def test_json_parser_and_internal_failures_write_one_safe_stdout_document(self) -> None:
+        streams = StringIO(), StringIO()
+        with redirect_stdout(streams[0]), redirect_stderr(streams[1]):
+            code = cli.main(["plan", "--json"])
+        parsed = json.loads(streams[0].getvalue())
+        self.assertEqual(code, 2)
+        self.assertEqual(streams[1].getvalue(), "")
+        self.assertEqual(parsed["code"], "usage.invalid_arguments")
+        self.assertEqual(parsed["stage"], "parse")
+
+        streams = StringIO(), StringIO()
+        with patch("git_history_sanitize.cli.ensure_dependencies", side_effect=RuntimeError("private /path")):
+            with redirect_stdout(streams[0]), redirect_stderr(streams[1]):
+                code = cli.main(["doctor", "--json"])
+        internal = json.loads(streams[0].getvalue())
+        self.assertEqual(code, 2)
+        self.assertEqual(streams[1].getvalue(), "")
+        self.assertEqual(internal["code"], "internal_error")
+        self.assertNotIn("private", streams[0].getvalue())
 
     def test_receipt_arguments_have_stable_policy_conditional_failures(self) -> None:
         commit_policy = self.fixture.write_policy(

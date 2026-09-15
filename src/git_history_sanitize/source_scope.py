@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
-from .errors import SanitizeError
+from .errors import SourceError
 from .git import GitError, Repository
 from .policy import Policy
 
@@ -32,7 +32,7 @@ class SourceScope:
 
 
 def _fail(message: str) -> None:
-    raise SanitizeError(message)
+    raise SourceError(message)
 
 
 def _shallow_roots(repository: Repository) -> tuple[str, ...]:
@@ -42,7 +42,7 @@ def _shallow_roots(repository: Repository) -> tuple[str, ...]:
     try:
         roots = tuple(sorted(line.strip() for line in marker.read_text("ascii").splitlines() if line.strip()))
     except (OSError, UnicodeError) as error:
-        raise SanitizeError("Cannot inspect shallow history; fetch complete history or use bounded mode") from error
+        raise SourceError("Cannot inspect shallow history; fetch complete history or use bounded mode") from error
     if not roots:
         _fail("Cannot prove shallow history boundary; fetch complete history")
     return roots
@@ -77,7 +77,7 @@ def _closure(repository: Repository, revision: str) -> tuple[tuple[str, ...], tu
             if not repository.run("cat-file", "-t", oid, check=False).strip():
                 _fail("Source has unavailable required objects; explicitly materialize them before sanitizing")
     except (GitError, UnicodeError) as error:
-        raise SanitizeError("Source has unavailable required objects; explicitly materialize them before sanitizing") from error
+        raise SourceError("Source has unavailable required objects; explicitly materialize them before sanitizing") from error
     if not commits:
         _fail("Cannot sanitize an empty repository")
     return commits, objects
@@ -118,7 +118,7 @@ def inspect_source(repository: Repository, policy: Policy) -> SourceScope:
                 if not repository.run("cat-file", "-t", oid, check=False).strip():
                     _fail("Source has unavailable required objects; explicitly materialize them before sanitizing")
         except (GitError, UnicodeError) as error:
-            raise SanitizeError("Source has unavailable required objects; explicitly materialize them before sanitizing") from error
+            raise SourceError("Source has unavailable required objects; explicitly materialize them before sanitizing") from error
         commits = (head,)
     content = "\0".join((mode, *shallow_roots, *commits, *objects)).encode("ascii")
     return SourceScope(mode, commits, objects, shallow_roots, hashlib.sha256(content).hexdigest())

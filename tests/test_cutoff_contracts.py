@@ -135,8 +135,9 @@ class CutoffContractTests(unittest.TestCase):
 
         self.assertEqual(planned.returncode, 2)
         self.assertEqual(rewritten.returncode, 2)
-        self.assertEqual(rewritten.stdout, "")
-        self.assertEqual(rewritten.stderr, "error: cutoffCommit rewrite requires --receipt\n")
+        self.assertEqual(planned.stderr + rewritten.stderr, "")
+        self.assertEqual(json.loads(planned.stdout)["code"], "source.invalid")
+        self.assertEqual(json.loads(rewritten.stdout)["code"], "usage.invalid_arguments")
         self.assertFalse(output.exists())
 
     def test_annotated_tag_oid_is_not_a_commit_cutoff(self) -> None:
@@ -150,8 +151,8 @@ class CutoffContractTests(unittest.TestCase):
         result = self._plan(policy, check=False)
 
         self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "error: history.cutoffCommit must resolve to a commit\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(json.loads(result.stdout)["code"], "source.invalid")
 
     def test_no_timestamp_retained_commit_fails_without_publishing_output(self) -> None:
         self.fixture.write("old.txt", "old\n")
@@ -163,9 +164,10 @@ class CutoffContractTests(unittest.TestCase):
         rewritten = self._rewrite(policy, output, check=False)
 
         self.assertEqual(planned.returncode, 2)
-        self.assertIn("No retained commit", planned.stderr)
+        self.assertEqual(json.loads(planned.stdout)["code"], "source.invalid")
         self.assertEqual(rewritten.returncode, 2)
-        self.assertIn("No retained commit", rewritten.stderr)
+        self.assertEqual(json.loads(rewritten.stdout)["code"], "source.invalid")
+        self.assertEqual(planned.stderr + rewritten.stderr, "")
         self.assertFalse(output.exists())
 
     def test_timestamp_recrossing_has_identical_plan_and_rewrite_failure(self) -> None:
@@ -183,10 +185,11 @@ class CutoffContractTests(unittest.TestCase):
         rewritten = self._rewrite(policy, output, check=False)
 
         self.assertEqual(planned.returncode, 2)
-        self.assertEqual(planned.stdout, "")
+        self.assertEqual(json.loads(planned.stdout)["status"], "error")
+        self.assertEqual(planned.stderr, "")
         self.assertEqual(rewritten.returncode, planned.returncode)
-        self.assertEqual(rewritten.stdout, planned.stdout)
-        self.assertEqual(rewritten.stderr, planned.stderr)
+        self.assertEqual(json.loads(rewritten.stdout)["status"], "error")
+        self.assertEqual(rewritten.stderr, "")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)
@@ -207,10 +210,11 @@ class CutoffContractTests(unittest.TestCase):
         rewritten = self._rewrite(policy, output, receipt=receipt, check=False)
 
         self.assertEqual(planned.returncode, 2)
-        self.assertEqual(planned.stdout, "")
+        self.assertEqual(json.loads(planned.stdout)["status"], "error")
+        self.assertEqual(planned.stderr, "")
         self.assertEqual(rewritten.returncode, planned.returncode)
-        self.assertEqual(rewritten.stdout, planned.stdout)
-        self.assertEqual(rewritten.stderr, planned.stderr)
+        self.assertEqual(json.loads(rewritten.stdout)["status"], "error")
+        self.assertEqual(rewritten.stderr, "")
         self.assertFalse(output.exists())
         self.assertFalse(receipt.exists())
         self.fixture.assert_no_staging_directories(output.parent)
@@ -226,10 +230,11 @@ class CutoffContractTests(unittest.TestCase):
         rewritten = self._rewrite(policy, output, check=False)
 
         self.assertEqual(planned.returncode, 2)
-        self.assertEqual(planned.stdout, "")
+        self.assertEqual(json.loads(planned.stdout)["status"], "error")
+        self.assertEqual(planned.stderr, "")
         self.assertEqual(rewritten.returncode, planned.returncode)
-        self.assertEqual(rewritten.stdout, planned.stdout)
-        self.assertEqual(rewritten.stderr, planned.stderr)
+        self.assertEqual(json.loads(rewritten.stdout)["status"], "error")
+        self.assertEqual(rewritten.stderr, "")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)

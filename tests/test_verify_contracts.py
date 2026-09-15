@@ -332,8 +332,8 @@ class VerifierContractTests(unittest.TestCase):
         result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), "--source", str(fixture.source / ".git"), "--receipt", str(receipt), "--json", check=False)
 
         self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "error: sanitization receipt integrity check failed\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(json.loads(result.stdout)["code"], "verification.failed")
         fixture.assert_source_snapshot(snapshot)
 
     def test_accepts_a_valid_v1_receipt_for_complete_mode(self) -> None:

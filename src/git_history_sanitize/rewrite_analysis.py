@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .errors import SanitizeError
+from .errors import SourceError
 from .git import Repository
 from .policy import Policy
 from .source_scope import SourceScope, inspect_source
@@ -24,7 +24,7 @@ class RewriteAnalysis:
         repository.head_ref()
         commits = scope.commits
         if not commits:
-            raise SanitizeError("Cannot sanitize an empty repository")
+            raise SourceError("Cannot sanitize an empty repository")
         if scope.mode == "snapshot":
             return cls(scope, commits, 0)
         _validate_linear_history(repository, commits)
@@ -52,7 +52,7 @@ def _validate_linear_history(repository: Repository, commits: tuple[str, ...]) -
     for commit in commits:
         parents = repository.text("show", "-s", "--format=%P", commit).split()
         if parents != ([] if previous is None else [previous]):
-            raise SanitizeError(
+            raise SourceError(
                 "Version 1 cutoff compaction requires a linear retained HEAD history"
             )
         previous = commit
@@ -64,7 +64,7 @@ def _boundary_index(repository: Repository, commits: tuple[str, ...], policy: Po
         try:
             return commits.index(resolved)
         except ValueError as error:
-            raise SanitizeError("history.cutoffCommit is not reachable from HEAD") from error
+            raise SourceError("history.cutoffCommit is not reachable from HEAD") from error
 
     cutoff = policy.history.cutoff_epoch
     assert cutoff is not None
@@ -74,10 +74,10 @@ def _boundary_index(repository: Repository, commits: tuple[str, ...], policy: Po
             allowed = index
             break
     if allowed is None:
-        raise SanitizeError("No retained commit exists at or after history.cutoff")
+        raise SourceError("No retained commit exists at or after history.cutoff")
     for commit in commits[allowed:]:
         if int(repository.text("show", "-s", "--format=%ct", commit)) < cutoff:
-            raise SanitizeError(
+            raise SourceError(
                 "Committer timestamps cross the cutoff more than once; refusing "
                 "an ambiguous history rewrite"
             )

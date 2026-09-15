@@ -23,8 +23,8 @@ class SourceScopeContracts(unittest.TestCase):
         policy = self.fixture.write_policy()
         result = self._plan(policy)
         self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "error: Source uses replace refs; remove replacement state before sanitizing\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(json.loads(result.stdout)["code"], "source.invalid")
 
     def test_complete_mode_rejects_alternates(self) -> None:
         alternates = self.fixture.source / ".git" / "objects" / "info" / "alternates"
@@ -32,7 +32,8 @@ class SourceScopeContracts(unittest.TestCase):
         alternates.write_text("/untrusted/object-store\n")
         result = self._plan(self.fixture.write_policy())
         self.assertEqual(result.returncode, 2)
-        self.assertIn("repack without alternates", result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(json.loads(result.stdout)["code"], "source.invalid")
 
     def test_snapshot_reports_tree_only_scope(self) -> None:
         self.fixture.write("removed.txt", "old\n")
@@ -66,8 +67,8 @@ class SourceScopeContracts(unittest.TestCase):
         result = self._plan(self.fixture.write_policy())
 
         self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "error: Source is partial/promisor; explicitly materialize objects before sanitizing\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(json.loads(result.stdout)["code"], "source.invalid")
 
     def test_complete_mode_rejects_grafts_before_output(self) -> None:
         grafts = self.fixture.source / ".git" / "info" / "grafts"
@@ -77,8 +78,8 @@ class SourceScopeContracts(unittest.TestCase):
         result = self._plan(self.fixture.write_policy())
 
         self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "error: Source uses grafts; remove graft state before sanitizing\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(json.loads(result.stdout)["code"], "source.invalid")
 
     def test_complete_mode_rejects_shallow_rewrite_before_publication(self) -> None:
         shallow = self.fixture.root / "shallow"
@@ -105,8 +106,8 @@ class SourceScopeContracts(unittest.TestCase):
         result = self._plan(policy)
 
         self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "error: Source has unavailable required objects; explicitly materialize them before sanitizing\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(json.loads(result.stdout)["code"], "source.invalid")
 
     def test_bounded_mode_rewrites_a_local_shallow_head_without_publishing_shallow_state(self) -> None:
         self.fixture.write("new.txt", "safe\n")
@@ -180,7 +181,6 @@ class SourceScopeContracts(unittest.TestCase):
 
         expected = "error: Source has unavailable required objects; explicitly materialize them before sanitizing\n"
         self.assertEqual(plan.returncode, 2)
-        self.assertEqual(plan.stdout, "")
         self.assertEqual(plan.stderr, expected)
         self.assertEqual(rewrite.returncode, 2)
         self.assertEqual(rewrite.stdout, "")
@@ -205,10 +205,11 @@ class SourceScopeContracts(unittest.TestCase):
         )
 
         self.assertEqual(plan.returncode, 2)
-        self.assertEqual(plan.stdout, "")
+        self.assertEqual(json.loads(plan.stdout)["code"], "source.invalid")
+        self.assertEqual(plan.stderr, "")
         self.assertEqual(rewrite.returncode, plan.returncode)
-        self.assertEqual(rewrite.stdout, plan.stdout)
-        self.assertEqual(rewrite.stderr, plan.stderr)
+        self.assertEqual(rewrite.stdout, "")
+        self.assertEqual(rewrite.stderr, "error: Version 1 cutoff compaction requires a linear retained HEAD history\n")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)
@@ -226,10 +227,11 @@ class SourceScopeContracts(unittest.TestCase):
         )
 
         self.assertEqual(plan.returncode, 2)
-        self.assertEqual(plan.stdout, "")
+        self.assertEqual(json.loads(plan.stdout)["code"], "source.invalid")
+        self.assertEqual(plan.stderr, "")
         self.assertEqual(rewrite.returncode, plan.returncode)
-        self.assertEqual(rewrite.stdout, plan.stdout)
-        self.assertEqual(rewrite.stderr, plan.stderr)
+        self.assertEqual(rewrite.stdout, "")
+        self.assertEqual(rewrite.stderr, "error: The retained repository must have a symbolic HEAD\n")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)
