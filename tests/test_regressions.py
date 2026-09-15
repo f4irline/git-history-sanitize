@@ -45,7 +45,7 @@ refs:
             str(self.policy),
             "--json",
         )
-        return output, json.loads(result.stdout)
+        return output, json.loads(result.stdout)["result"]
 
     def test_rewrite_removes_unreachable_staging_objects_and_is_repeatable(self) -> None:
         first, first_report = self.rewrite("first.git")
@@ -130,7 +130,7 @@ class AllExcludedRootRegressionTests(unittest.TestCase):
             "plan", "--source", str(fixture.source / ".git"), "--policy", str(policy), "--json"
         )
         self.assertEqual(plan.stderr, "")
-        self.assertEqual(json.loads(plan.stdout)["retained_head_path_count"], 0)
+        self.assertEqual(json.loads(plan.stdout)["result"]["retained_head_path_count"], 0)
         human = fixture.run_cli("plan", "--source", str(fixture.source / ".git"), "--policy", str(policy))
         self.assertIn("Retained HEAD paths: 0\n", human.stdout)
         self.assertEqual(human.stderr, "")

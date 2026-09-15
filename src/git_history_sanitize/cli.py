@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from dataclasses import asdict
 
 from ._version import __version__
 from .engine import plan, rewrite
-from .errors import SanitizeError, VerificationError
+from .errors import SanitizeError, UsageError
 from .forbidden import collect
 from .git import ensure_dependencies
 from .policy import Policy
+from .reporting import error_document, success_document
 from .verify import verify
 
 
@@ -20,10 +19,21 @@ def _policy(path: str) -> Policy:
     return Policy.from_file(path)
 
 
+class _ArgumentParser(argparse.ArgumentParser):
+    """Keep JSON parser errors inside the same redacted CLI boundary."""
+
+    json_mode = False
+
+    def error(self, message: str) -> None:
+        if self.json_mode:
+            raise UsageError("invalid command arguments")
+        super().error(message)
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="git-history-sanitize")
+    parser = _ArgumentParser(prog="git-history-sanitize")
     parser.add_argument("--version", action="version", version=__version__)
-    subcommands = parser.add_subparsers(dest="command", required=True)
+    subcommands = parser.add_subparsers(dest="command", required=True, parser_class=_ArgumentParser)
 
     doctor = subcommands.add_parser("doctor", help="check required Git tooling")
     doctor.add_argument("--json", action="store_true")
@@ -54,15 +64,17 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print(value: object, as_json: bool) -> None:
-    if as_json:
-        if hasattr(value, "to_dict"):
-            print(json.dumps(value.to_dict(), sort_keys=True))
-        elif hasattr(value, "to_json"):
-            print(value.to_json())
-        else:
-            print(json.dumps(asdict(value), sort_keys=True))
-        return
+def _parse(argv: list[str], json_mode: bool) -> argparse.Namespace:
+    parser = _parser()
+    parser.json_mode = json_mode
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for subparser in action.choices.values():
+                subparser.json_mode = json_mode
+    return parser.parse_args(argv)
+
+
+def _print(value: object) -> None:
     if hasattr(value, "verification"):
         print(f"Sanitized HEAD: {value.verification.head}")
         print(f"Commits in output: {value.verification.commit_count}")
@@ -82,42 +94,52 @@ def _print(value: object, as_json: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    arguments = _parser().parse_args(argv)
+    values = list(sys.argv[1:] if argv is None else argv)
+    json_mode = "--json" in values
+    command = next((value for value in values if value in {"doctor", "plan", "rewrite", "verify"}), "unknown")
     try:
-        if arguments.command == "doctor":
+        arguments = _parse(values, json_mode)
+        command = arguments.command
+        if command == "doctor":
             result = ensure_dependencies()
-            print(json.dumps(result, sort_keys=True) if arguments.json else "\n".join(result.values()))
+            if arguments.json:
+                sys.stdout.write(success_document(command, result))
+            else:
+                print("\n".join(result.values()))
             return 0
+
         policy = _policy(arguments.policy)
-        if arguments.command == "plan":
-            _print(plan(arguments.source, policy, preserve_hooks=not arguments.strip_hooks), arguments.json)
-        elif arguments.command == "rewrite":
-            _print(rewrite(
+        if command == "plan":
+            result = plan(arguments.source, policy, preserve_hooks=not arguments.strip_hooks)
+        elif command == "rewrite":
+            result = rewrite(
                 arguments.source, arguments.output, policy, arguments.receipt,
                 preserve_hooks=not arguments.strip_hooks,
-            ), arguments.json)
-        elif arguments.command == "verify":
+            )
+        else:
             forbidden = collect(
                 arguments.forbid,
                 arguments.forbid_file,
                 sys.stdin.buffer if arguments.forbid_stdin else None,
             )
-            _print(
-                verify(
-                    arguments.repository, policy, forbidden,
-                    source=arguments.source, receipt=arguments.receipt,
-                ),
-                arguments.json,
+            result = verify(
+                arguments.repository, policy, forbidden,
+                source=arguments.source, receipt=arguments.receipt,
             )
+        if arguments.json:
+            sys.stdout.write(success_document(command, result))
+        else:
+            _print(result)
         return 0
     except SanitizeError as error:
-        if (
-            arguments.command == "verify"
-            and arguments.json
-            and isinstance(error, VerificationError)
-            and error.invariant
-        ):
-            print(json.dumps({"code": "verification_failed", "invariant": error.invariant}, sort_keys=True), file=sys.stderr)
-            return 2
-        print(f"error: {error}", file=sys.stderr)
+        if json_mode:
+            sys.stdout.write(error_document(command, error))
+        else:
+            print(f"error: {error}", file=sys.stderr)
+        return 2
+    except Exception:
+        if json_mode:
+            sys.stdout.write(error_document(command))
+        else:
+            print("error: unexpected internal error", file=sys.stderr)
         return 2

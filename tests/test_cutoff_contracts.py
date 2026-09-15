@@ -42,9 +42,9 @@ class CutoffContractTests(unittest.TestCase):
         self.fixture.commit("boundary", "boundary.txt", timestamp="2026-09-03T00:00:00+00:00")
         policy = self.fixture.write_policy()
 
-        plan = json.loads(self._plan(policy).stdout)
+        plan = json.loads(self._plan(policy).stdout)["result"]
         output = self.fixture.output_dir / "sanitized.git"
-        rewrite = json.loads(self._rewrite(policy, output).stdout)
+        rewrite = json.loads(self._rewrite(policy, output).stdout)["result"]
 
         self.assertEqual(plan["source_commits"], 2)
         self.assertEqual(plan["discarded_commits"], 1)
@@ -70,10 +70,10 @@ class CutoffContractTests(unittest.TestCase):
         self.fixture.commit("retained", "retained.txt")
         policy = self.fixture.write_policy(cutoff=None, cutoff_commit=boundary)
 
-        plan = json.loads(self._plan(policy).stdout)
+        plan = json.loads(self._plan(policy).stdout)["result"]
         output = self.fixture.output_dir / "sanitized.git"
         receipt = self.fixture.receipt_dir / "receipt.json"
-        rewrite = json.loads(self._rewrite(policy, output, receipt=receipt).stdout)
+        rewrite = json.loads(self._rewrite(policy, output, receipt=receipt).stdout)["result"]
         self.assertEqual(json.loads(receipt.read_text())["version"], 2)
 
         self.assertEqual(plan["source_commits"], 3)
@@ -100,7 +100,7 @@ class CutoffContractTests(unittest.TestCase):
             cutoff=None, cutoff_commit=boundary, excluded_paths=("private/",), prefix_message="empty root"
         )
 
-        plan = json.loads(self._plan(policy).stdout)
+        plan = json.loads(self._plan(policy).stdout)["result"]
         output = self.fixture.output_dir / "sanitized.git"
         receipt = self.fixture.receipt_dir / "receipt.json"
         self._rewrite(policy, output, receipt=receipt)

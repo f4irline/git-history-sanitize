@@ -89,7 +89,7 @@ refs:
         planned = self.fixture.run_cli(
             "plan", "--source", str(self.source / ".git"), "--policy", str(policy), "--json"
         )
-        proposed = json.loads(planned.stdout)
+        proposed = json.loads(planned.stdout)["result"]
         self.assertEqual(proposed["source_commits"], 7)
         self.assertEqual(proposed["discarded_commits"], 2)
 
@@ -106,7 +106,7 @@ refs:
             str(policy),
             "--json",
         )
-        report = json.loads(rewritten.stdout)
+        report = json.loads(rewritten.stdout)["result"]
 
         self.assertTrue(output.is_dir())
         self.fixture.assert_source_snapshot(source_snapshot)
@@ -146,7 +146,7 @@ refs:
             "--forbid",
             "Annotated tag secret message",
         )
-        self.assertEqual(json.loads(verified.stdout)["root"], report["verification"]["root"])
+        self.assertEqual(json.loads(verified.stdout)["result"]["root"], report["verification"]["root"])
         self.fixture.assert_output_snapshot(output, output_snapshot)
 
         # The tool accepts its own bare output as a future read-only source.
@@ -163,7 +163,7 @@ refs:
             str(policy),
             "--json",
         )
-        self.assertEqual(json.loads(second_rewrite.stdout)["verification"]["commit_count"], 4)
+        self.assertEqual(json.loads(second_rewrite.stdout)["result"]["verification"]["commit_count"], 4)
         self.assertEqual(
             self.fixture.git(second_output, "show", "HEAD:allowed.txt"),
             "one\ntwo\nthree\nfour\nfive\nsix",

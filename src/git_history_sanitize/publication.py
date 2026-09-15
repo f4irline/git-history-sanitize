@@ -8,7 +8,7 @@ import os
 import platform
 from pathlib import Path
 
-from .errors import SanitizeError
+from .errors import PublicationError
 
 _AT_FDCWD = -100
 _RENAME_NOREPLACE = 1
@@ -18,19 +18,19 @@ if hasattr(errno, "EOPNOTSUPP"):
     _UNSUPPORTED_DIRECTORY_SYNC_ERRORS.add(errno.EOPNOTSUPP)
 
 
-def publication_error(native_errno: int) -> SanitizeError:
+def publication_error(native_errno: int) -> PublicationError:
     """Return a stable, path-redacted publication error for a native failure."""
     if native_errno == errno.EEXIST:
-        return SanitizeError("Publication destination already exists")
+        return PublicationError("Publication destination already exists")
     if native_errno in {errno.EACCES, errno.EPERM}:
-        return SanitizeError("Publication failed: permission denied")
+        return PublicationError("Publication failed: permission denied")
     if native_errno in {errno.ENOSPC, getattr(errno, "EDQUOT", errno.ENOSPC)}:
-        return SanitizeError("Publication failed: insufficient storage")
+        return PublicationError("Publication failed: insufficient storage")
     if native_errno in {errno.ENOTDIR, errno.EISDIR, errno.EINVAL}:
-        return SanitizeError("Publication failed: destination or parent has an incompatible type")
+        return PublicationError("Publication failed: destination or parent has an incompatible type")
     if native_errno == errno.EXDEV:
-        return SanitizeError("Publication failed: source and destination must share a filesystem")
-    return SanitizeError("Atomic publication failed")
+        return PublicationError("Publication failed: source and destination must share a filesystem")
+    return PublicationError("Atomic publication failed")
 
 
 def publish(source: Path, destination: Path) -> None:
@@ -45,11 +45,11 @@ def publish(source: Path, destination: Path) -> None:
         numbers = {"aarch64": 276, "arm64": 276, "x86_64": 316}
         number = numbers.get(platform.machine())
         if number is None:
-            raise SanitizeError("Atomic no-replace publication is unsupported on this Linux architecture")
+            raise PublicationError("Atomic no-replace publication is unsupported on this Linux architecture")
         libc = ctypes.CDLL(None, use_errno=True)
         result = libc.syscall(number, _AT_FDCWD, os.fsencode(source), _AT_FDCWD, os.fsencode(destination), _RENAME_NOREPLACE)
     else:
-        raise SanitizeError("Atomic no-replace publication is unsupported on this platform")
+        raise PublicationError("Atomic no-replace publication is unsupported on this platform")
     if result:
         raise publication_error(ctypes.get_errno())
 
@@ -59,18 +59,18 @@ def set_private_mode(path: Path, mode: int) -> None:
     try:
         os.chmod(path, mode)
     except OSError as error:
-        raise SanitizeError("Unable to set private output permissions") from error
+        raise PublicationError("Unable to set private output permissions") from error
 
 
 def _sync_required(path: Path, failure: str) -> None:
     try:
         descriptor = os.open(path, os.O_RDONLY)
     except OSError as error:
-        raise SanitizeError(failure) from error
+        raise PublicationError(failure) from error
     try:
         os.fsync(descriptor)
     except OSError as error:
-        raise SanitizeError(failure) from error
+        raise PublicationError(failure) from error
     finally:
         os.close(descriptor)
 
@@ -111,13 +111,13 @@ def sync_published_parent(
     except OSError as error:
         if error.errno in _UNSUPPORTED_DIRECTORY_SYNC_ERRORS:
             return False
-        raise SanitizeError(failure) from error
+        raise PublicationError(failure) from error
     try:
         os.fsync(descriptor)
     except OSError as error:
         if error.errno in _UNSUPPORTED_DIRECTORY_SYNC_ERRORS:
             return False
-        raise SanitizeError(failure) from error
+        raise PublicationError(failure) from error
     finally:
         os.close(descriptor)
     return True

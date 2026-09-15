@@ -48,7 +48,7 @@ class HookContractsTests(unittest.TestCase):
             stat.S_IMODE(hook.stat().st_mode) & 0o111,
         )
         self.assertFalse((output / "hooks" / "pre-commit.sample").exists())
-        self.assertEqual(json.loads(result.stdout)["hooks"]["names"], ["pre-commit"])
+        self.assertEqual(json.loads(result.stdout)["result"]["hooks"]["names"], ["pre-commit"])
         self.fixture.assert_source_snapshot(source)
 
     def test_preserves_local_custom_hooks_path_in_output_configuration(self) -> None:
@@ -74,7 +74,7 @@ class HookContractsTests(unittest.TestCase):
         output, rewrite = self._rewrite("--json")
 
         for result in (plan, rewrite):
-            hooks = json.loads(result.stdout)["hooks"]
+            hooks = json.loads(result.stdout)["result"]["hooks"]
             self.assertEqual(hooks["warnings"], {
                 "absolute-path": ["pre-push"], "absolute-shebang": ["pre-push"],
             })
@@ -102,7 +102,7 @@ class HookContractsTests(unittest.TestCase):
         output, result = self._rewrite("--strip-hooks", "--json")
 
         self.assertFalse((output / "hooks" / "pre-commit").exists())
-        self.assertEqual(json.loads(result.stdout)["hooks"], {
+        self.assertEqual(json.loads(result.stdout)["result"]["hooks"], {
             "action": "stripped", "count": 1, "names": ["pre-commit"], "warnings": {},
         })
 

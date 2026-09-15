@@ -103,8 +103,8 @@ class VerifierContractTests(unittest.TestCase):
             "verify", "--repository", str(output), "--policy", str(policy), check=False
         )
 
-        self.assertEqual(json.loads(plan.stdout)["excluded_paths"], ["secret file.txt", "private/"])
-        self.assertEqual(json.loads(report.stdout)["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(json.loads(plan.stdout)["result"]["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(json.loads(report.stdout)["result"]["excluded_paths"], ["secret file.txt", "private/"])
         self.assertEqual(failed.returncode, 2)
         self.assertEqual(failed.stderr, "error: verification failed: paths.excluded\n")
 

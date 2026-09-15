@@ -372,10 +372,53 @@ Each contract failure uses a stable, redacted invariant identifier:
 `graph.linear`, `root.synthetic`, `head.symbolic`, `refs.retained`,
 `paths.excluded`, `remotes.absent`, `repository.complete`, `metadata.clean`,
 `objects.reachable-only`, or `content.forbidden`. Human output names only that
-identifier. With `--json`, a contract failure writes exactly
-`{"code": "verification_failed", "invariant": "<identifier>"}` to stderr,
-leaves stdout empty, and exits 2. It never includes paths, object IDs, commit
-messages, Git command output, or object contents.
+identifier.
+
+## JSON report schema v1
+
+`doctor`, `plan`, `rewrite`, and `verify` support a stable JSON v1 API. In
+JSON mode each invocation writes exactly one compact, ASCII-safe JSON document
+followed by one newline to stdout, writes nothing to stderr, and exits `0` on
+success or `2` for an expected or unexpected failure. Human-readable output is
+a separate contract and continues to use stdout for results and stderr for
+actionable failures.
+
+Every success uses this envelope:
+
+```json
+{"command":"plan","result":{},"schema_version":1,"status":"success"}
+```
+
+`result` is command-specific: doctor reports `git` and `git_filter_repo`; plan
+reports its source, scope, exclusion, and hook summary; rewrite reports history,
+verification, and hook summaries; and verify reports the verified artifact
+fields. Report tuples are ordered JSON arrays. Unavailable optional fields are
+omitted rather than represented by `null`. JSON objects have string keys and
+keys are sorted deterministically. Valid UTF-8 text is retained; surrogateescaped
+bytes become literal `\\xHH` text, while literal backslashes are doubled first
+so these two cases remain unambiguous.
+
+Every failure uses this envelope:
+
+```json
+{"code":"verification.failed","command":"verify","message":"Verification did not satisfy the sanitizer contract.","schema_version":1,"stage":"verification","status":"error"}
+```
+
+The closed code/stage catalog is: `usage.invalid_arguments`/`parse`,
+`dependency.unavailable`/`dependency`, `policy.invalid`/`policy`,
+`source.invalid`/`source`, `rewrite.failed`/`rewrite`,
+`publication.failed`/`publication`, `verification.failed`/`verification`,
+`forbidden_input.invalid`/`forbidden_input`, and `internal_error`/`internal`.
+Failures may additionally include fixed `remediation`, a stable verification
+`invariant`, or publication `publication_state` (`not_published`,
+`receipt_published`, or `output_published`). Consumers must branch on `code`
+and not English `message` text. The renderer never serializes exception text,
+arguments, paths, object IDs, removed messages, receipt bindings, or object
+contents.
+
+V1 permits additive optional fields only. Removing, renaming, or changing a
+field's type or meaning, or reassigning an error code, requires a new
+`schema_version` and a documented migration period.
 
 Successful verification can print a JSON report:
 

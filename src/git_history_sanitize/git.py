@@ -8,10 +8,10 @@ import subprocess
 from pathlib import Path
 from typing import Iterable
 
-from .errors import SanitizeError
+from .errors import DependencyError, SourceError
 
 
-class GitError(SanitizeError):
+class GitError(SourceError):
     """Raised when Git rejects an operation."""
 
 
@@ -35,14 +35,17 @@ def run(
 ) -> bytes:
     command = ["git", *arguments]
     env = git_environment(environment)
-    result = subprocess.run(
-        command,
-        cwd=str(cwd) if cwd else None,
-        input=input_bytes,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(cwd) if cwd else None,
+            input=input_bytes,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+    except OSError as error:
+        raise DependencyError("Git executable is unavailable") from error
     if check and result.returncode:
         detail = result.stderr.decode("utf-8", "replace").strip().splitlines()
         suffix = f": {detail[-1]}" if detail else ""
@@ -56,14 +59,18 @@ def ensure_dependencies() -> dict[str, str]:
         try:
             filter_repo_version = run(["filter-repo", "--version"]).decode().strip()
         except GitError as error:
-            raise SanitizeError("git-filter-repo is required on PATH") from error
+            raise DependencyError("git-filter-repo is required on PATH") from error
     else:
-        filter_repo_version = subprocess.run(
-            ["git-filter-repo", "--version"],
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True,
-        ).stdout.strip()
+        try:
+            filter_repo_version = subprocess.run(
+                ["git-filter-repo", "--version"],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError) as error:
+            raise DependencyError("git-filter-repo is unavailable") from error
     return {"git": git_version, "git_filter_repo": filter_repo_version}
 
 
@@ -83,7 +90,7 @@ class Repository:
                 self.git_dir = self.path
                 self._bare = True
             else:
-                raise SanitizeError(f"Not a Git repository: {self.path}") from error
+                raise SourceError(f"Not a Git repository: {self.path}") from error
 
     def run(
         self,
@@ -114,13 +121,13 @@ class Repository:
     def head_ref(self) -> str:
         ref = self.run("symbolic-ref", "-q", "HEAD", check=False).decode("utf-8", "surrogateescape").strip()
         if not ref:
-            raise SanitizeError("The retained repository must have a symbolic HEAD")
+            raise SourceError("The retained repository must have a symbolic HEAD")
         return ref
 
     def object_format(self) -> str:
         value = self.text("rev-parse", "--show-object-format=storage")
         if value not in {"sha1", "sha256"}:
-            raise SanitizeError("Unsupported Git object format")
+            raise SourceError("Unsupported Git object format")
         return value
 
     def head_identity(self) -> tuple[str, bytes, str]:
@@ -133,7 +140,7 @@ class Repository:
         for record in records:
             fields = record.split(b"\0")
             if len(fields) != 3 or fields[-1]:
-                raise SanitizeError("Cannot read source references")
+                raise SourceError("Cannot read source references")
             result.append((fields[0], fields[1].decode("ascii")))
         return tuple(result)
 
@@ -141,12 +148,12 @@ class Repository:
         object_format = self.object_format()
         width = 40 if object_format == "sha1" else 64
         if len(value) != width or any(character not in "0123456789abcdef" for character in value):
-            raise SanitizeError("history.cutoffCommit must be a full lowercase storage-format object ID")
+            raise SourceError("history.cutoffCommit must be a full lowercase storage-format object ID")
         if self.run("cat-file", "-t", "--", value, check=False).decode().strip() != "commit":
-            raise SanitizeError("history.cutoffCommit must resolve to a commit")
+            raise SourceError("history.cutoffCommit must resolve to a commit")
         result = self.run("rev-parse", "--verify", "--end-of-options", f"{value}^{{commit}}", check=False).decode().strip()
         if len(result) != width:
-            raise SanitizeError("history.cutoffCommit must resolve to a commit")
+            raise SourceError("history.cutoffCommit must resolve to a commit")
         return result
 
     def commit_tree(self, commit: str) -> str:

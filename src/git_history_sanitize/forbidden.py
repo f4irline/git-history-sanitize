@@ -7,15 +7,11 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import BinaryIO
 
-from .errors import SanitizeError
+from .errors import ForbiddenInputError
 
 INPUT_LIMIT = 64 * 1024
 CHUNK_SIZE = 64 * 1024
 TOTAL_LIMIT = 1024 * 1024
-
-
-class ForbiddenInputError(SanitizeError):
-    """Raised when forbidden-content input is unsafe or exceeds its budget."""
 
 
 class Matcher:
