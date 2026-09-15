@@ -86,14 +86,14 @@ class VerifierContractTests(unittest.TestCase):
         output = fixture.output_dir / "sanitized.git"
 
         plan = fixture.run_cli(
-            "plan", "--source", str(fixture.source / ".git"), "--policy", str(policy), "--json"
+            "plan", "--source", str(fixture.source / ".git"), "--policy", str(policy), "--json", "--diagnostics=trusted"
         )
         fixture.run_cli(
             "rewrite", "--source", str(fixture.source / ".git"), "--output", str(output),
             "--policy", str(policy),
         )
         report = fixture.run_cli(
-            "verify", "--repository", str(output), "--policy", str(policy), "--json"
+            "verify", "--repository", str(output), "--policy", str(policy), "--json", "--diagnostics=trusted"
         )
         clean_head = fixture.git(output, "rev-parse", "HEAD")
         tree = fixture.tree_with_file(output, "secret file.txt", "reintroduced\n")
@@ -103,8 +103,8 @@ class VerifierContractTests(unittest.TestCase):
             "verify", "--repository", str(output), "--policy", str(policy), check=False
         )
 
-        self.assertEqual(json.loads(plan.stdout)["result"]["excluded_paths"], ["secret file.txt", "private/"])
-        self.assertEqual(json.loads(report.stdout)["result"]["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(json.loads(plan.stdout)["diagnostics"]["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(json.loads(report.stdout)["diagnostics"]["excluded_paths"], ["secret file.txt", "private/"])
         self.assertEqual(failed.returncode, 2)
         self.assertEqual(failed.stderr, "error: verification failed: paths.excluded\n")
 
@@ -396,7 +396,7 @@ class VerifierContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "error: sanitization receipt is missing\n")
+        self.assertEqual(result.stderr, "error: verification failed\n")
 
 
 if __name__ == "__main__":

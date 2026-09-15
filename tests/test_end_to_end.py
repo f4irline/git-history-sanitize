@@ -146,7 +146,7 @@ refs:
             "--forbid",
             "Annotated tag secret message",
         )
-        self.assertEqual(json.loads(verified.stdout)["result"]["root"], report["verification"]["root"])
+        self.assertEqual(json.loads(verified.stdout)["result"]["commit_count"], report["verification"]["commit_count"])
         self.fixture.assert_output_snapshot(output, output_snapshot)
 
         # The tool accepts its own bare output as a future read-only source.
@@ -189,7 +189,7 @@ refs:
         )
 
         self.assertEqual(failed.returncode, 2)
-        self.assertIn("Output path already exists", failed.stderr)
+        self.assertEqual(failed.stderr, "error: invalid command arguments\n")
         self.fixture.assert_source_snapshot(source_snapshot)
 
 

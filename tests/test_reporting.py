@@ -1,4 +1,4 @@
-"""JSON v1 reporting unit contracts."""
+"""Versioned public and trusted JSON reporting contracts."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from git_history_sanitize.verify import VerificationReport
 
 
 class ReportingTests(unittest.TestCase):
-    def test_success_document_is_compact_sorted_and_versions_plan(self) -> None:
+    def test_public_v2_plan_uses_only_aggregate_fields(self) -> None:
         plan = Plan(
             source_commits=2,
             discarded_commits=1,
@@ -39,11 +39,11 @@ class ReportingTests(unittest.TestCase):
             json.loads(document),
             {
                 "command": "plan",
+                "report_audience": "public",
                 "result": {
                     "boundary_count": 1,
                     "discarded_commits": 1,
-                    "excluded_paths": ["private/"],
-                    "hooks": {"action": "preserved", "count": 0, "names": [], "warnings": {}},
+                    "hooks": {"action": "preserved", "count": 0},
                     "included_commit_count": 1,
                     "included_object_count": 2,
                     "mode": "complete",
@@ -52,12 +52,12 @@ class ReportingTests(unittest.TestCase):
                     "scope": "complete reachable history",
                     "source_commits": 2,
                 },
-                "schema_version": 1,
+                "schema_version": 2,
                 "status": "success",
             },
         )
 
-    def test_success_document_uses_arrays_omits_missing_values_and_escapes_surrogates(self) -> None:
+    def test_trusted_v2_contains_identity_data_only_in_diagnostics(self) -> None:
         report = VerificationReport(
             head="a" * 40,
             commit_count=1,
@@ -71,10 +71,28 @@ class ReportingTests(unittest.TestCase):
             included_object_count=1,
         )
 
-        payload = json.loads(success_document("verify", report))
+        payload = json.loads(success_document("verify", report, diagnostics="trusted"))
 
-        self.assertEqual(payload["result"]["retained_refs"], [r"refs/heads/\xff"])
+        self.assertEqual(payload["report_audience"], "trusted")
+        self.assertNotIn("head", payload["result"])
+        self.assertEqual(payload["diagnostics"]["head"], "a" * 40)
+        self.assertEqual(payload["diagnostics"]["root"], "b" * 40)
+        self.assertEqual(payload["diagnostics"]["retained_refs"], [r"refs/heads/\xff"])
         self.assertNotIn("remediation", payload)
+
+    def test_legacy_v1_requires_explicit_trusted_serialization(self) -> None:
+        plan = Plan(
+            source_commits=1, discarded_commits=0, retained_commits_before_path_filter=1,
+            mode="complete", scope="complete reachable history", boundary_count=1,
+            included_commit_count=1, included_object_count=1, retained_head_path_count=1,
+            excluded_paths=("private/",), hooks=HookInventory((), False), hooks_stripped=False,
+        )
+
+        payload = json.loads(success_document("plan", plan, diagnostics="trusted", schema_version=1))
+
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertNotIn("report_audience", payload)
+        self.assertEqual(payload["result"]["excluded_paths"], ["private/"])
 
     def test_error_document_uses_only_catalog_metadata_and_invariant(self) -> None:
         payload = json.loads(error_document("verify", VerificationError("private /path", invariant="refs.retained")))
@@ -86,7 +104,8 @@ class ReportingTests(unittest.TestCase):
                 "command": "verify",
                 "invariant": "refs.retained",
                 "message": "Verification did not satisfy the sanitizer contract.",
-                "schema_version": 1,
+                "report_audience": "public",
+                "schema_version": 2,
                 "stage": "verification",
                 "status": "error",
             },
