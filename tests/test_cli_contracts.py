@@ -26,23 +26,30 @@ class CliContractTests(unittest.TestCase):
         self.fixture.commit("allowed", "allowed.txt")
         self.policy = self.fixture.write_policy()
 
-    def test_plan_rewrite_and_verify_emit_parseable_json_on_success(self) -> None:
+    def test_doctor_plan_rewrite_and_verify_emit_versioned_json_on_success(self) -> None:
+        doctor = self.fixture.run_cli("doctor", "--json")
         plan = self.fixture.run_cli("plan", "--source", str(self.fixture.source / ".git"), "--policy", str(self.policy), "--json")
         output = self.fixture.output_dir / "sanitized.git"
         rewrite = self.fixture.run_cli("rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(output), "--policy", str(self.policy), "--json")
         verify = self.fixture.run_cli("verify", "--repository", str(output), "--policy", str(self.policy), "--json")
 
-        self.assertEqual(plan.stderr, "")
+        self.assertEqual(doctor.stderr + plan.stderr + rewrite.stderr + verify.stderr, "")
         self.assertEqual(
-            set(json.loads(plan.stdout)),
-            {
-                "source_commits", "discarded_commits", "retained_commits_before_path_filter",
-                "mode", "scope", "boundary_count", "included_commit_count",
-                "included_object_count", "retained_head_path_count", "excluded_paths", "hooks",
-            },
+            json.loads(doctor.stdout),
+            {"command": "doctor", "result": json.loads(doctor.stdout)["result"], "schema_version": 1, "status": "success"},
         )
-        self.assertIn("verification", json.loads(rewrite.stdout))
-        self.assertIn("root", json.loads(verify.stdout))
+        for command, document in (("plan", plan), ("rewrite", rewrite), ("verify", verify)):
+            payload = json.loads(document.stdout)
+            self.assertEqual(payload["schema_version"], 1)
+            self.assertEqual(payload["command"], command)
+            self.assertEqual(payload["status"], "success")
+            self.assertIn("result", payload)
+        self.assertEqual(
+            set(json.loads(plan.stdout)["result"]),
+            {"source_commits", "discarded_commits", "retained_commits_before_path_filter", "mode", "scope", "boundary_count", "included_commit_count", "included_object_count", "retained_head_path_count", "excluded_paths", "hooks"},
+        )
+        self.assertIn("verification", json.loads(rewrite.stdout)["result"])
+        self.assertIn("root", json.loads(verify.stdout)["result"])
 
     def test_successful_human_output_is_concise_and_actionable(self) -> None:
         plan = self.fixture.run_cli(
@@ -78,7 +85,7 @@ class CliContractTests(unittest.TestCase):
             "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(policy), "--json"
         )
 
-        self.assertEqual(json.loads(result.stdout)["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(json.loads(result.stdout)["result"]["excluded_paths"], ["secret file.txt", "private/"])
         self.assertEqual(result.stderr, "")
 
     def test_plan_counts_paths_with_the_same_exact_and_directory_rules_as_filtering(self) -> None:
@@ -92,7 +99,7 @@ class CliContractTests(unittest.TestCase):
             "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(policy), "--json"
         )
 
-        self.assertEqual(json.loads(result.stdout)["retained_head_path_count"], 2)
+        self.assertEqual(json.loads(result.stdout)["result"]["retained_head_path_count"], 2)
         self.assertEqual(result.stderr, "")
 
     def test_expected_operational_failures_use_exit_two_and_actionable_stderr(self) -> None:
@@ -112,10 +119,12 @@ class CliContractTests(unittest.TestCase):
         timestamp = self.fixture.write_policy()
         forbidden = self.fixture.run_cli("verify", "--repository", str(self.fixture.source / ".git"), "--policy", str(timestamp), "--receipt", str(self.fixture.receipt_dir / "unused.json"), check=False)
 
-        for result in (missing_human, missing_json):
-            self.assertEqual(result.returncode, 2)
-            self.assertEqual(result.stdout, "")
-            self.assertEqual(result.stderr, "error: cutoffCommit verification requires --receipt and --source\n")
+        self.assertEqual(missing_human.returncode, 2)
+        self.assertEqual(missing_human.stdout, "")
+        self.assertEqual(missing_human.stderr, "error: cutoffCommit verification requires --receipt and --source\n")
+        self.assertEqual(missing_json.returncode, 2)
+        self.assertEqual(missing_json.stderr, "")
+        self.assertEqual(json.loads(missing_json.stdout)["code"], "verification.failed")
         self.assertEqual(forbidden.returncode, 2)
         self.assertEqual(forbidden.stdout, "")
         self.assertEqual(forbidden.stderr, "error: history.cutoff does not accept --receipt or --source\n")
@@ -141,11 +150,12 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(human.stderr, "error: verification failed: refs.retained\n")
         self.assertNotIn("private-marker", human.stderr)
         self.assertEqual(structured.returncode, 2)
-        self.assertEqual(structured.stdout, "")
-        self.assertEqual(
-            structured.stderr,
-            '{"code": "verification_failed", "invariant": "refs.retained"}\n',
-        )
+        self.assertEqual(structured.stderr, "")
+        self.assertEqual(json.loads(structured.stdout), {
+            "code": "verification.failed", "command": "verify", "invariant": "refs.retained",
+            "message": "Verification did not satisfy the sanitizer contract.",
+            "schema_version": 1, "stage": "verification", "status": "error",
+        })
 
     def test_forbidden_file_and_stdin_records_are_scanned_without_leaking_inputs(self) -> None:
         output = self.fixture.output_dir / "sanitized.git"

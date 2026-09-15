@@ -11,7 +11,7 @@ from pathlib import Path
 from .cleanup import cleanup, retain_head_only
 from ._version import __version__
 from .compact import CompactResult, compact, restore_empty_synthetic_root
-from .errors import SanitizeError
+from .errors import PublicationError, SanitizeError, UsageError
 from .filtering import filter_paths, retained_head_path_count
 from .git import Repository, ensure_dependencies
 from .hooks import HookInventory, discover as discover_hooks, install as install_hooks
@@ -102,16 +102,16 @@ def plan(source: str | Path, policy: Policy, *, preserve_hooks: bool = True) -> 
 def _destination(path: str | Path, protected: tuple[Path, ...], label: str) -> Path:
     candidate = Path(path)
     if not candidate.is_absolute() or any(part in {".", ".."} for part in candidate.parts):
-        raise SanitizeError(f"{label} path must be an absolute path without aliases")
+        raise UsageError(f"{label} path must be an absolute path without aliases")
     for parent in (candidate, *candidate.parents):
         if parent.is_symlink():
-            raise SanitizeError(f"{label} path must not contain symlinks")
+            raise UsageError(f"{label} path must not contain symlinks")
     if candidate.exists():
-        raise SanitizeError(f"{label} path already exists")
+        raise UsageError(f"{label} path already exists")
     parent = candidate.parent.resolve()
     resolved = parent / candidate.name
     if any(resolved == root or root in resolved.parents for root in protected):
-        raise SanitizeError(f"{label} path must not be inside the source repository")
+        raise UsageError(f"{label} path must not be inside the source repository")
     return resolved
 
 
@@ -129,16 +129,16 @@ def rewrite(
     protected = tuple(root for root in (source_repository.git_dir, source_repository.worktree_root()) if root)
     output_path = _destination(output, protected, "Output")
     if policy.source.mode == "snapshot" and receipt is not None:
-        raise SanitizeError("snapshot source.mode does not accept --receipt")
+        raise UsageError("snapshot source.mode does not accept --receipt")
     if policy.history.cutoff_commit and receipt is None:
-        raise SanitizeError("cutoffCommit rewrite requires --receipt")
+        raise UsageError("cutoffCommit rewrite requires --receipt")
     if not policy.history.cutoff_commit and receipt is not None:
-        raise SanitizeError("history.cutoff does not accept --receipt")
+        raise UsageError("history.cutoff does not accept --receipt")
     receipt_path = _destination(receipt, (*protected, output_path), "Receipt") if receipt else None
     if receipt_path and (output_path in receipt_path.parents or receipt_path in output_path.parents):
-        raise SanitizeError("Receipt path must not be inside the output path")
+        raise UsageError("Receipt path must not be inside the output path")
     if not output_path.parent.exists():
-        raise SanitizeError("Output parent directory does not exist")
+        raise UsageError("Output parent directory does not exist")
 
     analysis = RewriteAnalysis.create(source_repository, policy)
     hooks = discover_hooks(source_repository)
@@ -154,6 +154,7 @@ def rewrite(
     set_private_mode(temporary_root, 0o700)
     staged_receipt: Path | None = None
     receipt_published = False
+    output_published = False
     try:
         template_directory = temporary_root / "template"
         template_directory.mkdir(mode=0o700)
@@ -211,14 +212,21 @@ def rewrite(
                 "Receipt was published but output was not; parent-directory durability could not be confirmed",
             )
             publish(bare_repository.path, output_path)
+            output_published = True
             sync_published_parent(output_path.parent)
         else:
             verification = verify(bare_repository.path, policy)
             sync_staged_tree(bare_repository.path)
             sync_staged_directory(temporary_root)
             publish(bare_repository.path, output_path)
+            output_published = True
             sync_published_parent(output_path.parent)
         return RewriteReport(compact_result, verification, hooks, not preserve_hooks)
+    except PublicationError as error:
+        state = "output_published" if output_published else (
+            "receipt_published" if receipt_published else "not_published"
+        )
+        raise error.with_publication_state(state) from error
     finally:
         if staged_receipt and not receipt_published:
             staged_receipt.unlink(missing_ok=True)

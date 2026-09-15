@@ -41,7 +41,7 @@ class SourceScopeContracts(unittest.TestCase):
         self.fixture.commit("remove", "removed.txt")
         policy = self.fixture.write_policy(cutoff=None, source_mode="snapshot", prefix_message="[snapshot]")
         result = self._plan(policy, check=True)
-        report = json.loads(result.stdout)
+        report = json.loads(result.stdout)["result"]
         self.assertEqual(report["mode"], "snapshot")
         self.assertEqual(report["scope"], "HEAD tree snapshot; inherited history excluded")
         self.assertEqual(report["source_commits"], 1)
@@ -56,7 +56,7 @@ class SourceScopeContracts(unittest.TestCase):
 
         result = self._plan(self.fixture.write_policy(), check=True)
 
-        report = json.loads(result.stdout)
+        report = json.loads(result.stdout)["result"]
         self.assertEqual(report["source_commits"], 1)
         self.assertEqual(report["included_commit_count"], 1)
 
@@ -121,7 +121,7 @@ class SourceScopeContracts(unittest.TestCase):
             "rewrite", "--source", str(shallow / ".git"), "--policy", str(policy),
             "--output", str(output), "--json", check=True,
         )
-        report = json.loads(result.stdout)
+        report = json.loads(result.stdout)["result"]
         self.assertEqual(report["verification"]["mode"], "bounded")
         self.assertEqual(self.fixture.git(output, "rev-parse", "--is-shallow-repository"), "false")
         self.assertFalse((output / "shallow").exists())
@@ -146,7 +146,7 @@ class SourceScopeContracts(unittest.TestCase):
         self.fixture.merge("side", "merge side")
         policy = self.fixture.write_policy(cutoff=None, source_mode="snapshot", prefix_message="[snapshot]")
 
-        plan = json.loads(self._plan(policy, check=True).stdout)
+        plan = json.loads(self._plan(policy, check=True).stdout)["result"]
         output = self.fixture.output_dir / "snapshot-merge.git"
         rewrite = self.fixture.run_cli(
             "rewrite", "--source", str(self.fixture.source / ".git"), "--policy", str(policy),
@@ -154,7 +154,7 @@ class SourceScopeContracts(unittest.TestCase):
         )
 
         self.assertEqual(plan["source_commits"], 1)
-        self.assertEqual(json.loads(rewrite.stdout)["history"], {"source_commits": 1, "discarded_commits": 0})
+        self.assertEqual(json.loads(rewrite.stdout)["result"]["history"], {"source_commits": 1, "discarded_commits": 0})
         self.assertEqual(self.fixture.git(output, "rev-list", "--count", "HEAD"), "1")
 
     def test_bounded_missing_in_scope_object_fails_plan_and_rewrite_without_publication(self) -> None:
