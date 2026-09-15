@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 
-from .git import Repository
+from .errors import DependencyError
+from .git import GitError, Repository
 from .policy import Policy
 
 _CALLBACK = r'''
@@ -72,12 +73,15 @@ def filter_paths(repository: Repository, policy: Policy) -> None:
         )
     )
     environment["GIT_HISTORY_SANITIZE_MIXED_MESSAGE"] = policy.mixed_message
-    repository.run(
-        "filter-repo",
-        "--force",
-        "--prune-empty",
-        "always",
-        "--commit-callback",
-        _CALLBACK,
-        environment=environment,
-    )
+    try:
+        repository.run(
+            "filter-repo",
+            "--force",
+            "--prune-empty",
+            "always",
+            "--commit-callback",
+            _CALLBACK,
+            environment=environment,
+        )
+    except GitError as error:
+        raise DependencyError("git-filter-repo failed during path filtering") from error

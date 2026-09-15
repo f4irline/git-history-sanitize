@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-18-version-json-reports`
 **Status:** In Progress
 **Started:** 2026-09-15
-**Last Updated:** 2026-09-15 17:12
+**Last Updated:** 2026-09-15 17:18
 
 ## Overview
 
@@ -59,6 +59,13 @@ Classified source preflight failures for JSON consumers and updated all existing
 JSON contract consumers to read the v1 `result` envelope. The focused source,
 cutoff, CLI, and verification suite passed 58 tests. No dedicated lint or
 typecheck command is configured.
+
+### 2026-09-15 17:18
+
+Implementation review round 1 found missing publication-state coverage and an
+incorrect `git-filter-repo` failure category. Added explicit allowlisted-state
+serializer tests and converted path-filtering tool failures to
+`dependency.unavailable`; focused reporting and CLI contracts pass (17 tests).
 
 ### 2026-09-15 16:42
 
