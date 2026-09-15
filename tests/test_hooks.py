@@ -39,7 +39,7 @@ class HookContractsTests(unittest.TestCase):
         (hooks / "pre-commit.sample").write_bytes(b"template-only\n")
         source = self.fixture.snapshot_source()
 
-        output, result = self._rewrite("--json")
+        output, result = self._rewrite("--json", "--diagnostics=trusted")
 
         preserved = output / "hooks" / "pre-commit"
         self.assertEqual(preserved.read_bytes(), hook.read_bytes())
@@ -48,7 +48,7 @@ class HookContractsTests(unittest.TestCase):
             stat.S_IMODE(hook.stat().st_mode) & 0o111,
         )
         self.assertFalse((output / "hooks" / "pre-commit.sample").exists())
-        self.assertEqual(json.loads(result.stdout)["result"]["hooks"]["names"], ["pre-commit"])
+        self.assertEqual(json.loads(result.stdout)["diagnostics"]["hook_names"], ["pre-commit"])
         self.fixture.assert_source_snapshot(source)
 
     def test_preserves_local_custom_hooks_path_in_output_configuration(self) -> None:
@@ -69,13 +69,13 @@ class HookContractsTests(unittest.TestCase):
         self.fixture.git(self.fixture.source, "config", "--local", "core.hooksPath", ".trusted-hooks")
 
         plan = self.fixture.run_cli(
-            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(self.policy), "--json"
+            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(self.policy), "--json", "--diagnostics=trusted"
         )
-        output, rewrite = self._rewrite("--json")
+        output, rewrite = self._rewrite("--json", "--diagnostics=trusted")
 
         for result in (plan, rewrite):
-            hooks = json.loads(result.stdout)["result"]["hooks"]
-            self.assertEqual(hooks["warnings"], {
+            hooks = json.loads(result.stdout)["diagnostics"]
+            self.assertEqual(hooks["hook_warnings"], {
                 "absolute-path": ["pre-push"], "absolute-shebang": ["pre-push"],
             })
             self.assertNotIn("/opt/tools/check", result.stdout)
@@ -102,9 +102,7 @@ class HookContractsTests(unittest.TestCase):
         output, result = self._rewrite("--strip-hooks", "--json")
 
         self.assertFalse((output / "hooks" / "pre-commit").exists())
-        self.assertEqual(json.loads(result.stdout)["result"]["hooks"], {
-            "action": "stripped", "count": 1, "names": ["pre-commit"], "warnings": {},
-        })
+        self.assertEqual(json.loads(result.stdout)["result"]["hooks"], {"action": "stripped", "count": 1})
 
     def test_bare_source_rejects_hooks_path_outside_its_git_directory(self) -> None:
         bare = self.fixture.root / "source.git"
@@ -126,7 +124,7 @@ class HookContractsTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stdout, "")
-        self.assertIn("core.hooksPath", result.stderr)
+        self.assertEqual(result.stderr, "error: sanitization failed\n")
         self.assertNotIn("foreign-hooks", result.stderr)
         self.assertFalse(output.exists())
 
