@@ -68,6 +68,17 @@ end-to-end tests pass. Full discovery (192 tests), the pinned source runtime
 matrix (64 tests), and package build pass. No lint or type-check script is
 configured in `pyproject.toml`.
 
+### 2026-09-15
+
+Implementation review identified missing persistence and release-output guards.
+Added a trusted-rewrite contract proving excluded paths and hook names remain
+only in transient report data and are absent from scope metadata and receipts.
+Added static CI/release/TestPyPI guards against trusted diagnostics, receipts,
+and scope metadata. Trusted human `rewrite` and `verify` output now use the
+same fixed identity labels as trusted JSON. Internal exceptions may retain
+private context for control flow, but the sole CLI rendering boundary projects
+only catalog metadata and fixed invariants; no exception text is emitted.
+
 ## Technical Notes
 
 - Default reports must be safe for shared logs and CI artifacts.
@@ -95,3 +106,5 @@ configured in `pyproject.toml`.
 - `tests/test_output_cleanup_contracts.py` - sensitive public-report redaction coverage.
 - `tests/test_hooks.py`, `tests/test_verify_contracts.py`, `tests/test_end_to_end.py` - trusted/public consumers.
 - `tests/test_engine_failure_contracts.py`, `tests/test_source_scope_contracts.py` - fixed safe human errors.
+- `tests/test_diagnostics.py` - trusted diagnostic persistence boundary.
+- `tests/test_release_workflow.py` - CI and release artifact privacy guard.

@@ -418,7 +418,8 @@ values only in a top-level `diagnostics` object. It is for local investigation:
 never redirect it to CI logs, artifacts, release notes, progress updates, or
 `$GITHUB_OUTPUT`. It never changes the sanitized Git database, scope metadata,
 or private receipt, and it still excludes every never-emitted value in the
-table.
+table. Trusted human output presents that same identity set with fixed labels
+and deterministic ordering.
 
 `--json` defaults to public v2. JSON v1 remains a temporary migration path for
 `plan`, `rewrite`, and `verify` only, and can be selected only with all three

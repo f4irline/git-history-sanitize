@@ -203,13 +203,38 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
         ]
         if diagnostics == "trusted":
             detail = _diagnostics(command, value)
-            lines.extend((f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}", f"Hook names: {', '.join(detail['hook_names']) or 'none'}"))
+            warnings = "; ".join(
+                f"{name}: {', '.join(categories)}" for name, categories in sorted(detail["hook_warnings"].items())
+            )
+            lines.extend((
+                f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
+                f"Hook names: {', '.join(detail['hook_names']) or 'none'}",
+                f"Hook warnings: {warnings or 'none'}",
+            ))
         return "\n".join(lines) + "\n"
     if command == "rewrite":
         lines = [f"Commits in output: {result['verification']['commit_count']}", f"Scope: {result['verification']['scope']}", f"Hooks: {result['hooks']['action']} ({result['hooks']['count']})"]
         if diagnostics == "trusted":
-            lines.append(f"Sanitized HEAD: {_diagnostics(command, value)['head']}")
+            detail = _diagnostics(command, value)
+            warnings = "; ".join(
+                f"{name}: {', '.join(categories)}" for name, categories in sorted(detail["hook_warnings"].items())
+            )
+            lines.extend((
+                f"Sanitized HEAD: {detail['head']}", f"Sanitized root: {detail['root']}",
+                f"Retained refs: {', '.join(detail['retained_refs']) or 'none'}",
+                f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
+                f"Hook names: {', '.join(detail['hook_names']) or 'none'}",
+                f"Hook warnings: {warnings or 'none'}",
+            ))
         return "\n".join(lines) + "\n"
+    if command == "verify" and diagnostics == "trusted":
+        detail = _diagnostics(command, value)
+        return "\n".join((
+            "Verification passed.", f"Sanitized HEAD: {detail['head']}",
+            f"Sanitized root: {detail['root']}",
+            f"Retained refs: {', '.join(detail['retained_refs']) or 'none'}",
+            f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
+        )) + "\n"
     return "Verification passed.\n"
 
 
