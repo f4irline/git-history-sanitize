@@ -2,9 +2,9 @@
 
 **Branch:** `feat/BBQ-18-version-json-reports`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-18-version-json-reports`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-15
-**Last Updated:** 2026-09-15 17:23
+**Last Updated:** 2026-09-15 17:28
 
 ## Overview
 
@@ -27,10 +27,10 @@ documented compatibility guarantees.
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
 - [x] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to `Complete` status
+- [x] Update this progress doc to `Complete` status
 - [ ] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
@@ -72,6 +72,11 @@ serializer tests and converted path-filtering tool failures to
 Implementation review round 2 passed. The final source suite passed 190 tests
 with the pinned Git and git-filter-repo checks. Recorded one reusable JSON error
 classification pattern in `docs/learnings/patterns.md`.
+
+### 2026-09-15 17:28
+
+All implementation, review, validation, and learnings work is complete. Final
+documentation is ready to commit before pushing the branch and opening the PR.
 
 ### 2026-09-15 16:42
 
@@ -115,4 +120,6 @@ strict-stderr, sensitive-input, and surrogateescape learnings.
 - `tests/test_cutoff_contracts.py` - v1 JSON consumer/failure contracts
 - `tests/test_source_scope_contracts.py` - v1 JSON source failure contracts
 - `tests/test_verify_contracts.py` - v1 JSON verification failure contract
+- `src/git_history_sanitize/filtering.py` - dependency classification for filter failures
+- `docs/learnings/patterns.md` - JSON error boundary learning
 - `tests/test_cli_contracts.py` - versioned CLI success/failure contracts
