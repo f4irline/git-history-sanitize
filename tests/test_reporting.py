@@ -10,7 +10,7 @@ from git_history_sanitize.errors import DependencyError, PolicyError, Publicatio
 from git_history_sanitize.filtering import filter_paths
 from git_history_sanitize.git import GitError
 from git_history_sanitize.hooks import HookInventory
-from git_history_sanitize.reporting import error_document, success_document
+from git_history_sanitize.reporting import error_document, success_document, success_text
 from git_history_sanitize.verify import VerificationReport
 
 
@@ -93,6 +93,21 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(payload["schema_version"], 1)
         self.assertNotIn("report_audience", payload)
         self.assertEqual(payload["result"]["excluded_paths"], ["private/"])
+
+    def test_trusted_human_verification_uses_the_identity_diagnostic_set(self) -> None:
+        report = VerificationReport(
+            head="a" * 40, commit_count=1, root="b" * 40,
+            retained_refs=("refs/heads/main",), excluded_paths=("private/",),
+            mode="complete", scope="complete", boundary_count=1,
+            included_commit_count=1, included_object_count=1,
+        )
+
+        text = success_text("verify", report, diagnostics="trusted")
+
+        self.assertIn(f"Sanitized HEAD: {'a' * 40}", text)
+        self.assertIn(f"Sanitized root: {'b' * 40}", text)
+        self.assertIn("Retained refs: refs/heads/main", text)
+        self.assertIn("Excluded paths: private/", text)
 
     def test_error_document_uses_only_catalog_metadata_and_invariant(self) -> None:
         payload = json.loads(error_document("verify", VerificationError("private /path", invariant="refs.retained")))
