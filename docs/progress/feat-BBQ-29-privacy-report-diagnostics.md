@@ -23,9 +23,9 @@ opt-in local trusted diagnostic view and a documented privacy contract.
 - [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
-- [ ] Extract learnings (or note: nothing noteworthy)
-- [ ] Document learnings if any — use `learnings` skill
-- [ ] Commit learnings if any — use `git-commit` skill
+- [x] Extract learnings (or note: nothing noteworthy)
+- [x] Document learnings if any — use `learnings` skill
+- [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [ ] Update this progress doc to "Complete" status
@@ -43,7 +43,7 @@ opt-in local trusted diagnostic view and a documented privacy contract.
 - [x] Route human errors through fixed safe summaries.
 - [x] Update documentation and affected integration contracts.
 - [x] Run focused and full quality checks.
-- [ ] Pass the implementation review gate.
+- [x] Pass the implementation review gate.
 
 ## Progress Log
 
@@ -85,6 +85,18 @@ Second review required explicit coverage for trusted human `plan` and `rewrite`
 rendering. Added unit contracts for the complete classified identity set across
 all trusted human commands. Human errors now include only fixed catalog
 remediation, preserving safe actionable guidance without reflecting user input.
+
+### 2026-09-15
+
+Implementation review passed on the third review round. Public v2 projections,
+trusted local diagnostics, fixed error rendering, receipt/scope non-persistence,
+release workflow guards, and trusted human/JSON contracts were independently
+reviewed against the ticket and House Rules.
+
+### 2026-09-15
+
+Documented one reusable pattern: trusted diagnostics must be validated as a
+render-only projection at the receipt, scope metadata, and output boundaries.
 
 ## Technical Notes
 
