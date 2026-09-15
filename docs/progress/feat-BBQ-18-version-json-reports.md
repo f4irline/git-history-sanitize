@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-18-version-json-reports`
 **Status:** In Progress
 **Started:** 2026-09-15
-**Last Updated:** 2026-09-15 17:02
+**Last Updated:** 2026-09-15 17:12
 
 ## Overview
 
@@ -19,8 +19,8 @@ documented compatibility guarantees.
 
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
-- [ ] Implement changes
-- [ ] Validate (lint, build, tests pass)
+- [x] Implement changes
+- [x] Validate (lint, build, tests pass)
 - [ ] Commit implementation changes — use `git-commit` skill
 - [ ] Pass implementation review gate
 
@@ -38,11 +38,11 @@ documented compatibility guarantees.
 
 ## Tasks
 
-- [ ] Define explicit JSON v1 serializers and safe error catalog
-- [ ] Route CLI JSON successes, expected failures, parser failures, and internal failures
-- [ ] Tag CLI-reachable failures by owning boundary and publication state
-- [ ] Add/update CLI contract, redaction, and failure tests
-- [ ] Document JSON schema v1 compatibility and stream contract
+- [x] Define explicit JSON v1 serializers and safe error catalog
+- [x] Route CLI JSON successes, expected failures, parser failures, and internal failures
+- [x] Tag CLI-reachable failures by owning boundary and publication state
+- [x] Add/update CLI contract, redaction, and failure tests
+- [x] Document JSON schema v1 compatibility and stream contract
 
 ## Progress Log
 
@@ -52,6 +52,13 @@ Implemented the CLI-owned reporting boundary, v1 envelope serializers, fixed
 error catalog projection, parser JSON failure containment, safe unexpected
 failure handling, and publication-state reporting. Focused reporting and CLI
 contracts pass in the isolated source virtual environment.
+
+### 2026-09-15 17:12
+
+Classified source preflight failures for JSON consumers and updated all existing
+JSON contract consumers to read the v1 `result` envelope. The focused source,
+cutoff, CLI, and verification suite passed 58 tests. No dedicated lint or
+typecheck command is configured.
 
 ### 2026-09-15 16:42
 
@@ -90,4 +97,9 @@ strict-stderr, sensitive-input, and surrogateescape learnings.
 - `src/git_history_sanitize/engine.py` - argument categories and publication state
 - `src/git_history_sanitize/git.py` - dependency and source failure categories
 - `src/git_history_sanitize/publication.py` - typed publication failures
+- `src/git_history_sanitize/source_scope.py` - source failure category
+- `src/git_history_sanitize/rewrite_analysis.py` - source analysis category
+- `tests/test_cutoff_contracts.py` - v1 JSON consumer/failure contracts
+- `tests/test_source_scope_contracts.py` - v1 JSON source failure contracts
+- `tests/test_verify_contracts.py` - v1 JSON verification failure contract
 - `tests/test_cli_contracts.py` - versioned CLI success/failure contracts
