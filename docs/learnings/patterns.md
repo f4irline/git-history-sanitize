@@ -4,6 +4,17 @@ How we do things around here. Follow these for consistency.
 
 ---
 
+## Test trusted diagnostics at the persistence boundary
+**Ticket:** BBQ-29
+**Date:** 2026-09-15
+
+Treat trusted diagnostics as a render-only projection. For a trusted rewrite,
+assert identity markers appear in the diagnostic report but are absent from
+scope metadata, private receipts, and output-repository paths; this prevents a
+future convenience change from embedding local diagnostic data in artifacts.
+
+---
+
 ## Project JSON errors through fixed boundary metadata
 **Ticket:** BBQ-18
 **Date:** 2026-09-15
