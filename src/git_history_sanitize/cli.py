@@ -11,7 +11,7 @@ from .errors import SanitizeError, UsageError
 from .forbidden import collect
 from .git import ensure_dependencies
 from .policy import Policy
-from .reporting import error_document, success_document
+from .reporting import error_document, error_text, success_document, success_text
 from .verify import verify
 
 
@@ -25,9 +25,7 @@ class _ArgumentParser(argparse.ArgumentParser):
     json_mode = False
 
     def error(self, message: str) -> None:
-        if self.json_mode:
-            raise UsageError("invalid command arguments")
-        super().error(message)
+        raise UsageError("invalid command arguments")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -42,6 +40,8 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--source", required=True)
     preview.add_argument("--policy", required=True)
     preview.add_argument("--json", action="store_true")
+    preview.add_argument("--json-schema", type=int, choices=(1, 2))
+    preview.add_argument("--diagnostics", choices=("trusted",))
     preview.add_argument("--strip-hooks", action="store_true")
 
     rewrite_command = subcommands.add_parser("rewrite", help="create sanitized output")
@@ -50,6 +50,8 @@ def _parser() -> argparse.ArgumentParser:
     rewrite_command.add_argument("--policy", required=True)
     rewrite_command.add_argument("--receipt")
     rewrite_command.add_argument("--json", action="store_true")
+    rewrite_command.add_argument("--json-schema", type=int, choices=(1, 2))
+    rewrite_command.add_argument("--diagnostics", choices=("trusted",))
     rewrite_command.add_argument("--strip-hooks", action="store_true")
 
     verification = subcommands.add_parser("verify", help="verify sanitized output")
@@ -61,6 +63,8 @@ def _parser() -> argparse.ArgumentParser:
     verification.add_argument("--forbid-file", action="append", default=[])
     verification.add_argument("--forbid-stdin", action="store_true")
     verification.add_argument("--json", action="store_true")
+    verification.add_argument("--json-schema", type=int, choices=(1, 2))
+    verification.add_argument("--diagnostics", choices=("trusted",))
     return parser
 
 
@@ -74,25 +78,6 @@ def _parse(argv: list[str], json_mode: bool) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _print(value: object) -> None:
-    if hasattr(value, "verification"):
-        print(f"Sanitized HEAD: {value.verification.head}")
-        print(f"Commits in output: {value.verification.commit_count}")
-        print(f"Scope: {value.verification.scope}")
-        print(f"Hooks: {value.hooks_stripped and 'stripped' or 'preserved'} ({', '.join(value.hooks.names) or 'none'})")
-        return
-    if hasattr(value, "source_commits"):
-        print(f"Source commits: {value.source_commits}")
-        print(f"Pre-cutoff commits: {value.discarded_commits}")
-        print(f"Commits before path filtering: {value.retained_commits_before_path_filter}")
-        print(f"Retained HEAD paths: {value.retained_head_path_count}")
-        print(f"Excluded paths: {', '.join(value.excluded_paths) or 'none'}")
-        print(f"Scope: {value.scope}")
-        print(f"Hooks: {value.hooks_stripped and 'stripped' or 'preserved'} ({', '.join(value.hooks.names) or 'none'})")
-        return
-    print("Verification passed.")
-
-
 def main(argv: list[str] | None = None) -> int:
     values = list(sys.argv[1:] if argv is None else argv)
     json_mode = "--json" in values
@@ -100,12 +85,19 @@ def main(argv: list[str] | None = None) -> int:
     try:
         arguments = _parse(values, json_mode)
         command = arguments.command
+        diagnostics = getattr(arguments, "diagnostics", None) or "public"
+        requested_schema = getattr(arguments, "json_schema", None) or 2
+        if getattr(arguments, "json_schema", None) is not None and not arguments.json:
+            raise UsageError("JSON schema requires JSON output")
+        if requested_schema == 1 and diagnostics != "trusted":
+            raise UsageError("legacy JSON requires trusted diagnostics")
+        schema_version = requested_schema
         if command == "doctor":
             result = ensure_dependencies()
             if arguments.json:
                 sys.stdout.write(success_document(command, result))
             else:
-                print("\n".join(result.values()))
+                sys.stdout.write(success_text(command, result))
             return 0
 
         policy = _policy(arguments.policy)
@@ -127,19 +119,19 @@ def main(argv: list[str] | None = None) -> int:
                 source=arguments.source, receipt=arguments.receipt,
             )
         if arguments.json:
-            sys.stdout.write(success_document(command, result))
+            sys.stdout.write(success_document(command, result, diagnostics=diagnostics, schema_version=schema_version))
         else:
-            _print(result)
+            sys.stdout.write(success_text(command, result, diagnostics=diagnostics))
         return 0
     except SanitizeError as error:
         if json_mode:
-            sys.stdout.write(error_document(command, error))
+            sys.stdout.write(error_document(command, error, schema_version=schema_version if 'schema_version' in locals() else 2, diagnostics=diagnostics if 'diagnostics' in locals() else "public"))
         else:
-            print(f"error: {error}", file=sys.stderr)
+            sys.stderr.write(error_text(error))
         return 2
     except Exception:
         if json_mode:
-            sys.stdout.write(error_document(command))
+            sys.stdout.write(error_document(command, schema_version=schema_version if 'schema_version' in locals() else 2, diagnostics=diagnostics if 'diagnostics' in locals() else "public"))
         else:
-            print("error: unexpected internal error", file=sys.stderr)
+            sys.stderr.write(error_text())
         return 2

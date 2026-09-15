@@ -42,3 +42,11 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
         self.assertIn('scripts/release.py check --version "$version" --output dist', workflow)
         self.assertIn('GHS_WHEEL="$(realpath dist/distributions/*.whl)"', workflow)
+
+    def test_release_workflows_never_publish_trusted_diagnostics_or_receipts(self) -> None:
+        for name in ("ci.yml", "release.yml", "testpypi.yml"):
+            workflow = (ROOT / ".github/workflows" / name).read_text()
+            with self.subTest(workflow=name):
+                self.assertNotIn("--diagnostics", workflow)
+                self.assertNotIn("--receipt", workflow)
+                self.assertNotIn("git-history-sanitize-scope.json", workflow)

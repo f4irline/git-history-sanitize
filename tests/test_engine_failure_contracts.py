@@ -83,7 +83,7 @@ class EngineFailureContractTests(unittest.TestCase):
         assert staging_root is not None
         self.assertEqual(
             stderr,
-            "error: Path filtering failed; check git-filter-repo and retry\n",
+            "error: sanitization failed\n",
         )
         self.assert_atomic_failure(status, stdout, stderr, staging_root)
 
@@ -99,7 +99,7 @@ class EngineFailureContractTests(unittest.TestCase):
 
         self.assertEqual(
             stderr,
-            "error: Staged output synchronization failed before publication\n",
+            "error: sanitization failed\n",
         )
         self.assert_atomic_failure(status, stdout, stderr, self.output.parent / ".unused")
 
@@ -182,7 +182,7 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertEqual(len(successful), 1)
         self.assertEqual(len(failed), 1)
         self.assertEqual(failed[0].stdout, "")
-        self.assertEqual(failed[0].stderr, "error: Publication destination already exists\n")
+        self.assertEqual(failed[0].stderr, "error: sanitized output publication failed\n")
         fixture.assert_redacted(failed[0].stderr, str(fixture.root))
         self.assertEqual(fixture.git(output, "rev-parse", "--is-bare-repository"), "true")
         fixture.assert_no_staging_directories(output.parent)
@@ -208,7 +208,7 @@ class EngineFailureContractTests(unittest.TestCase):
         assert staged_bare is not None
         self.assertEqual(
             stderr,
-            "error: Post-rewrite verification failed; output was not published\n",
+            "error: verification failed\n",
         )
         self.assert_atomic_failure(status, stdout, stderr, staged_bare.parent)
 
@@ -237,7 +237,7 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertEqual(
             stderr,
-            "error: Post-rewrite verification failed; output was not published\n",
+            "error: verification failed\n",
         )
         self.assertFalse(self.output.exists())
         self.assertFalse(receipt.exists())
@@ -265,7 +265,7 @@ class EngineFailureContractTests(unittest.TestCase):
 
         self.assertEqual(status, 2)
         self.assertEqual(stdout, "")
-        self.assertEqual(stderr, "error: Atomic publication failed\n")
+        self.assertEqual(stderr, "error: sanitization failed\n")
         self.assertFalse(self.output.exists())
         self.assertTrue(receipt.is_file())
         self.assertEqual(len(calls), 2)
@@ -290,7 +290,7 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertEqual(
             stderr,
-            "error: Output was published but parent-directory durability could not be confirmed\n",
+            "error: sanitization failed\n",
         )
         self.assertTrue(self.output.is_dir())
         self.assertEqual(self.fixture.git(self.output, "rev-parse", "--is-bare-repository"), "true")
@@ -328,8 +328,7 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertEqual(stdout, "")
         self.assertEqual(
             stderr,
-            "error: Receipt was published but output was not; "
-            "parent-directory durability could not be confirmed\n",
+            "error: sanitization failed\n",
         )
         self.assertTrue(receipt.is_file())
         self.assertFalse(self.output.exists())

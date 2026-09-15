@@ -374,53 +374,68 @@ Each contract failure uses a stable, redacted invariant identifier:
 `objects.reachable-only`, or `content.forbidden`. Human output names only that
 identifier.
 
-## JSON report schema v1
+## Reporting privacy and JSON schema v2
 
-`doctor`, `plan`, `rewrite`, and `verify` support a stable JSON v1 API. In
-JSON mode each invocation writes exactly one compact, ASCII-safe JSON document
-followed by one newline to stdout, writes nothing to stderr, and exits `0` on
-success or `2` for an expected or unexpected failure. Human-readable output is
-a separate contract and continues to use stdout for results and stderr for
-actionable failures.
+`doctor`, `plan`, `rewrite`, and `verify` write deterministic, compact,
+ASCII-safe reports. The default human and JSON reports are safe for shared logs
+and CI artifacts: they use only fixed protocol metadata and aggregate operation
+data. JSON writes one document plus one newline to stdout, nothing to stderr,
+and exits `0` on success or `2` on failure.
 
-Every success uses this envelope:
+| Classification | Default public report | `--diagnostics=trusted` local report | Never emitted |
+| --- | --- | --- | --- |
+| Fixed protocol/status | schema version, audience, command, status, fixed catalog metadata, invariant, publication state | same | — |
+| Aggregate operation data | mode, scope, commit/path/object/boundary counts, hook action/count, dependency availability/version | same | — |
+| Repository/policy identity | — | excluded paths, retained refs, sanitized head/root IDs, hook names/warning associations | receipt bindings, source ref fingerprints, policy digests |
+| Sensitive values | — | — | forbidden values or matches, removed messages, object/hook bodies, raw policy values, credentials, raw subprocess stderr, command arguments |
 
-```json
-{"command":"plan","result":{},"schema_version":1,"status":"success"}
-```
-
-`result` is command-specific: doctor reports `git` and `git_filter_repo`; plan
-reports its source, scope, exclusion, and hook summary; rewrite reports history,
-verification, and hook summaries; and verify reports the verified artifact
-fields. Report tuples are ordered JSON arrays. Unavailable optional fields are
-omitted rather than represented by `null`. JSON objects have string keys and
-keys are sorted deterministically. Valid UTF-8 text is retained; surrogateescaped
-bytes become literal `\\xHH` text, while literal backslashes are doubled first
-so these two cases remain unambiguous.
-
-Every failure uses this envelope:
+Public v2 success envelopes have a stable `(schema_version, report_audience)`
+contract:
 
 ```json
-{"code":"verification.failed","command":"verify","message":"Verification did not satisfy the sanitizer contract.","schema_version":1,"stage":"verification","status":"error"}
+{"command":"plan","report_audience":"public","result":{},"schema_version":2,"status":"success"}
 ```
 
-The closed code/stage catalog is: `usage.invalid_arguments`/`parse`,
-`dependency.unavailable`/`dependency`, `policy.invalid`/`policy`,
-`source.invalid`/`source`, `rewrite.failed`/`rewrite`,
-`publication.failed`/`publication`, `verification.failed`/`verification`,
-`forbidden_input.invalid`/`forbidden_input`, and `internal_error`/`internal`.
-Failures may additionally include fixed `remediation`, a stable verification
-`invariant`, or publication `publication_state` (`not_published`,
-`receipt_published`, or `output_published`). Consumers must branch on `code`
-and not English `message` text. The renderer never serializes exception text,
-arguments, paths, object IDs, removed messages, receipt bindings, or object
-contents.
+Every v2 error envelope also carries `report_audience`. It contains only the
+fixed error catalog (`code`, `stage`, `message`, optional fixed `remediation`),
+errors use the same catalog and optional invariant rather than exception text.
+The renderer never serializes an exception message, filesystem path, source or
+output object ID, receipt data, subprocess stderr, command arguments, removed
+content, or credentials by default.
 
-V1 permits additive optional fields only. Removing, renaming, or changing a
-field's type or meaning, or reassigning an error code, requires a new
-`schema_version` and a documented migration period.
+Trusted diagnostics are an exact, explicit local opt-in for `plan`, `rewrite`,
+and `verify`:
 
-Successful verification can print a JSON report:
+```bash
+git-history-sanitize verify \
+  --repository build/sanitized.git \
+  --policy .git-history-sanitize.yml \
+  --json --diagnostics=trusted
+```
+
+Trusted v2 uses `"report_audience":"trusted"` and puts identity-bearing
+values only in a top-level `diagnostics` object. It is for local investigation:
+never redirect it to CI logs, artifacts, release notes, progress updates, or
+`$GITHUB_OUTPUT`. It never changes the sanitized Git database, scope metadata,
+or private receipt, and it still excludes every never-emitted value in the
+table. Trusted human output presents that same identity set with fixed labels
+and deterministic ordering.
+
+`--json` defaults to public v2. JSON v1 remains a temporary migration path for
+`plan`, `rewrite`, and `verify` only, and can be selected only with all three
+flags: `--json --diagnostics=trusted --json-schema=1`. This makes legacy
+identity-bearing output a deliberate local choice rather than a silent shared
+default. Migrate consumers to public v2 aggregate fields; v1 will be removed
+only in a future major contract change. Within a documented
+`(schema_version, report_audience)` pair, fields are additive-only; changing a
+field's type or meaning requires a new version and migration note.
+
+Report tuples are ordered JSON arrays, unavailable optional values are omitted,
+and object keys are sorted deterministically. Valid UTF-8 text is retained;
+surrogateescaped bytes become literal `\\xHH` text after literal backslashes
+are doubled, keeping both cases unambiguous.
+
+Successful verification can print a public JSON report:
 
 ```bash
 git-history-sanitize verify \
@@ -429,8 +444,8 @@ git-history-sanitize verify \
   --json
 ```
 
-The report intentionally contains no source-to-output mappings or removed
-commit messages.
+Public output intentionally contains no source-to-output mappings, paths,
+refs, object IDs, hook names, or removed commit messages.
 
 New outputs include canonical `git-history-sanitize-scope.json` at the bare
 repository root. It contains only the mode, non-sensitive coverage wording,

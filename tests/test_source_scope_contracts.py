@@ -95,7 +95,7 @@ class SourceScopeContracts(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertFalse(output.exists())
-        self.assertEqual(result.stderr, "error: Source is shallow; fetch complete history or explicitly select bounded mode\n")
+        self.assertEqual(result.stderr, "error: source repository unavailable\n")
 
     def test_snapshot_mode_rejects_missing_head_tree_object(self) -> None:
         blob = self.fixture.git(self.fixture.source, "rev-parse", "HEAD:tracked.txt")
@@ -179,7 +179,7 @@ class SourceScopeContracts(unittest.TestCase):
             "--output", str(output), check=False,
         )
 
-        expected = "error: Source has unavailable required objects; explicitly materialize them before sanitizing\n"
+        expected = "error: source repository unavailable\n"
         self.assertEqual(plan.returncode, 2)
         self.assertEqual(plan.stderr, expected)
         self.assertEqual(rewrite.returncode, 2)
@@ -209,7 +209,7 @@ class SourceScopeContracts(unittest.TestCase):
         self.assertEqual(plan.stderr, "")
         self.assertEqual(rewrite.returncode, plan.returncode)
         self.assertEqual(rewrite.stdout, "")
-        self.assertEqual(rewrite.stderr, "error: Version 1 cutoff compaction requires a linear retained HEAD history\n")
+        self.assertEqual(rewrite.stderr, "error: source repository unavailable\n")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)
@@ -231,7 +231,7 @@ class SourceScopeContracts(unittest.TestCase):
         self.assertEqual(plan.stderr, "")
         self.assertEqual(rewrite.returncode, plan.returncode)
         self.assertEqual(rewrite.stdout, "")
-        self.assertEqual(rewrite.stderr, "error: The retained repository must have a symbolic HEAD\n")
+        self.assertEqual(rewrite.stderr, "error: source repository unavailable\n")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)

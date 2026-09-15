@@ -27,17 +27,18 @@ class OutputContractTests(unittest.TestCase):
         )
         return output
 
-    def test_successful_reports_omit_removed_source_content_and_messages(self) -> None:
+    def test_public_reports_omit_sensitive_identity_and_removed_content(self) -> None:
         fixture = GitFixture(self)
         secret = "customer-secret-value"
         old_message = "old customer implementation"
-        fixture.write("private/secret.txt", secret)
+        private_path = "private-customer-data/secret.txt"
+        fixture.write(private_path, secret)
         old_commit = fixture.commit(
-            old_message, "private/secret.txt", timestamp="2026-09-02T12:00:00+00:00"
+            old_message, private_path, timestamp="2026-09-02T12:00:00+00:00"
         )
         fixture.write("allowed.txt", "safe\n")
         fixture.commit("retained implementation", "allowed.txt")
-        policy = fixture.write_policy(excluded_paths=("private/",))
+        policy = fixture.write_policy(excluded_paths=("private-customer-data/",))
         output = fixture.output_dir / "sanitized.git"
 
         plan = fixture.run_cli(
@@ -52,7 +53,10 @@ class OutputContractTests(unittest.TestCase):
         )
 
         for result in (plan, rewrite, verify):
-            fixture.assert_redacted(result.stdout + result.stderr, secret, old_message, old_commit)
+            fixture.assert_redacted(
+                result.stdout + result.stderr, secret, old_message, old_commit,
+                "private-customer-data", "refs/heads/main",
+            )
 
     def test_output_is_bare_and_has_no_cleanup_artifacts(self) -> None:
         output = self.rewrite("sanitized.git")
@@ -90,7 +94,7 @@ class OutputContractTests(unittest.TestCase):
         )
 
         self.assertEqual(failed.returncode, 2)
-        self.assertIn("linear retained HEAD history", failed.stderr)
+        self.assertEqual(failed.stderr, "error: source repository unavailable\n")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)
