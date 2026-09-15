@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import unittest
 
-from git_history_sanitize.engine import Plan
-from git_history_sanitize.errors import DependencyError, PolicyError, PublicationError, VerificationError
+from git_history_sanitize.compact import CompactResult, SyntheticRootContext
+from git_history_sanitize.engine import Plan, RewriteReport
+from git_history_sanitize.errors import DependencyError, PolicyError, PublicationError, UsageError, VerificationError
 from git_history_sanitize.filtering import filter_paths
 from git_history_sanitize.git import GitError
-from git_history_sanitize.hooks import HookInventory
-from git_history_sanitize.reporting import error_document, success_document, success_text
+from git_history_sanitize.hooks import Hook, HookInventory
+from git_history_sanitize.reporting import error_document, error_text, success_document, success_text
 from git_history_sanitize.verify import VerificationReport
 
 
@@ -108,6 +109,42 @@ class ReportingTests(unittest.TestCase):
         self.assertIn(f"Sanitized root: {'b' * 40}", text)
         self.assertIn("Retained refs: refs/heads/main", text)
         self.assertIn("Excluded paths: private/", text)
+
+    def test_trusted_human_plan_and_rewrite_use_the_identity_diagnostic_set(self) -> None:
+        hooks = HookInventory((Hook("pre-push", b"", 0o755, ("absolute-path",)),), False)
+        plan = Plan(
+            source_commits=1, discarded_commits=0, retained_commits_before_path_filter=1,
+            mode="complete", scope="complete", boundary_count=1, included_commit_count=1,
+            included_object_count=1, retained_head_path_count=1, excluded_paths=("private/",),
+            hooks=hooks, hooks_stripped=False,
+        )
+        verification = VerificationReport(
+            head="a" * 40, commit_count=1, root="b" * 40,
+            retained_refs=("refs/heads/main",), excluded_paths=("private/",),
+            mode="complete", scope="complete", boundary_count=1,
+            included_commit_count=1, included_object_count=1,
+        )
+        rewrite = RewriteReport(
+            CompactResult(1, 0, "c" * 40, "b" * 40, SyntheticRootContext("refs/heads/main", b"", ())),
+            verification, hooks, False,
+        )
+
+        plan_text = success_text("plan", plan, diagnostics="trusted")
+        rewrite_text = success_text("rewrite", rewrite, diagnostics="trusted")
+
+        for text in (plan_text, rewrite_text):
+            self.assertIn("Excluded paths: private/", text)
+            self.assertIn("Hook names: pre-push", text)
+            self.assertIn("Hook warnings: absolute-path: pre-push", text)
+        self.assertIn(f"Sanitized HEAD: {'a' * 40}", rewrite_text)
+        self.assertIn(f"Sanitized root: {'b' * 40}", rewrite_text)
+        self.assertIn("Retained refs: refs/heads/main", rewrite_text)
+
+    def test_human_errors_include_only_fixed_catalog_remediation(self) -> None:
+        self.assertEqual(
+            error_text(UsageError("private command arguments")),
+            "error: invalid command arguments: Run the command with --help for usage.\n",
+        )
 
     def test_error_document_uses_only_catalog_metadata_and_invariant(self) -> None:
         payload = json.loads(error_document("verify", VerificationError("private /path", invariant="refs.retained")))
