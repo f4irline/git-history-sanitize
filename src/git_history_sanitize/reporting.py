@@ -254,4 +254,5 @@ def error_text(error: SanitizeError | None = None) -> str:
         "rewrite.failed": "sanitization failed",
         "internal_error": "unexpected internal error",
     }
-    return f"error: {summaries[metadata.code]}\n"
+    remediation = f": {metadata.remediation}" if metadata.remediation else ""
+    return f"error: {summaries[metadata.code]}{remediation}\n"

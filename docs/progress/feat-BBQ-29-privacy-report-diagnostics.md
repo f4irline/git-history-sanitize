@@ -79,6 +79,13 @@ same fixed identity labels as trusted JSON. Internal exceptions may retain
 private context for control flow, but the sole CLI rendering boundary projects
 only catalog metadata and fixed invariants; no exception text is emitted.
 
+### 2026-09-15
+
+Second review required explicit coverage for trusted human `plan` and `rewrite`
+rendering. Added unit contracts for the complete classified identity set across
+all trusted human commands. Human errors now include only fixed catalog
+remediation, preserving safe actionable guidance without reflecting user input.
+
 ## Technical Notes
 
 - Default reports must be safe for shared logs and CI artifacts.

@@ -189,7 +189,7 @@ refs:
         )
 
         self.assertEqual(failed.returncode, 2)
-        self.assertEqual(failed.stderr, "error: invalid command arguments\n")
+        self.assertEqual(failed.stderr, "error: invalid command arguments: Run the command with --help for usage.\n")
         self.fixture.assert_source_snapshot(source_snapshot)
 
 
