@@ -19,8 +19,8 @@ opt-in local trusted diagnostic view and a documented privacy contract.
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [ ] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
-- [ ] Commit implementation changes — use `git-commit` skill
+- [x] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
+- [x] Commit implementation changes — use `git-commit` skill
 
 ### Phase 2: Learnings
 - [ ] Extract learnings (or note: nothing noteworthy)
@@ -42,7 +42,7 @@ opt-in local trusted diagnostic view and a documented privacy contract.
 - [x] Implement the safe v2 renderer and trusted diagnostics opt-in.
 - [x] Route human errors through fixed safe summaries.
 - [x] Update documentation and affected integration contracts.
-- [ ] Run focused and full quality checks.
+- [x] Run focused and full quality checks.
 - [ ] Pass the implementation review gate.
 
 ## Progress Log
@@ -64,8 +64,9 @@ reports now contain only aggregate data; trusted identity values are confined
 to `diagnostics`; legacy v1 requires explicit trusted JSON selection. Human
 success and failures now share fixed safe rendering. Focused reporting, CLI,
 engine-failure, source-scope, hook, output-cleanup, verification, and
-end-to-end tests pass. Full discovery was started and remaining assertion
-updates are being completed before the final gate.
+end-to-end tests pass. Full discovery (192 tests), the pinned source runtime
+matrix (64 tests), and package build pass. No lint or type-check script is
+configured in `pyproject.toml`.
 
 ## Technical Notes
 
@@ -79,9 +80,9 @@ updates are being completed before the final gate.
 
 ## Testing
 
-- [ ] Unit tests written
-- [ ] Integration tests written
-- [ ] Manual testing completed
+- [x] Unit tests written
+- [x] Integration tests written
+- [x] Manual testing completed
 
 ## Files Changed
 
