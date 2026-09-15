@@ -4,6 +4,17 @@ How we do things around here. Follow these for consistency.
 
 ---
 
+## Project JSON errors through fixed boundary metadata
+**Ticket:** BBQ-18
+**Date:** 2026-09-15
+
+For machine-readable CLI failures, serialize only fixed error metadata owned by
+the boundary, never `str(error)`. Classify subprocess failures where they occur:
+a `git-filter-repo` execution failure is `dependency.unavailable`, not a source
+failure merely because it surfaced as a generic Git command error.
+
+---
+
 ## Validate snapshot scope before inherited history
 **Ticket:** BBQ-10
 **Date:** 2026-09-10
