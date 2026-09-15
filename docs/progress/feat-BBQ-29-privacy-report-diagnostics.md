@@ -2,7 +2,7 @@
 
 **Branch:** `feat/BBQ-29-privacy-report-diagnostics`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-29-privacy-report-diagnostics`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-15
 **Last Updated:** 2026-09-15
 
@@ -28,8 +28,8 @@ opt-in local trusted diagnostic view and a documented privacy contract.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
 - [ ] Push all commits to remote — use `git-push-remote` skill
 - [ ] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
@@ -98,6 +98,11 @@ reviewed against the ticket and House Rules.
 Documented one reusable pattern: trusted diagnostics must be validated as a
 render-only projection at the receipt, scope metadata, and output boundaries.
 
+### 2026-09-15
+
+Implementation, validation, review, and learnings are complete. Final remote
+push and pull-request workflow remain pending in this checklist.
+
 ## Technical Notes
 
 - Default reports must be safe for shared logs and CI artifacts.
@@ -106,7 +111,10 @@ render-only projection at the receipt, scope metadata, and output boundaries.
 - JSON v2 is required for public-field removal; v1 must require explicit JSON
   plus trusted diagnostics before legacy identity fields can be selected.
 - House Rules: Security First, predictable deterministic CLI, no dependencies,
-  focused sanitizer scope. Compliance is active; no exceptions.
+  focused sanitizer scope. Fully compliant; no exceptions were requested or
+  approved.
+- Worktree provider: Herdr (`workspace_id` metadata was `wE`); all work used
+  the resolved checkout path shown above.
 
 ## Testing
 
@@ -127,3 +135,4 @@ render-only projection at the receipt, scope metadata, and output boundaries.
 - `tests/test_engine_failure_contracts.py`, `tests/test_source_scope_contracts.py` - fixed safe human errors.
 - `tests/test_diagnostics.py` - trusted diagnostic persistence boundary.
 - `tests/test_release_workflow.py` - CI and release artifact privacy guard.
+- `docs/learnings/patterns.md` - render-only trusted diagnostics pattern.
