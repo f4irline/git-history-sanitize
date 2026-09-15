@@ -30,9 +30,9 @@ opt-in local trusted diagnostic view and a documented privacy contract.
 ### Phase 3: Finalize & Push (DO NOT SKIP)
 - [x] Update this progress doc to "Complete" status
 - [x] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -102,6 +102,11 @@ render-only projection at the receipt, scope metadata, and output boundaries.
 
 Implementation, validation, review, and learnings are complete. Final remote
 push and pull-request workflow remain pending in this checklist.
+
+### 2026-09-15
+
+Pushed `feat/BBQ-29-privacy-report-diagnostics`, opened pull request #15, and
+moved BBQ-29 to In Review. All workflow phases are complete.
 
 ## Technical Notes
 
