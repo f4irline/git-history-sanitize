@@ -101,9 +101,11 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
     def test_security_refresh_scans_the_pinned_container_and_tracks_exceptions(self) -> None:
         workflow = (ROOT / ".github/workflows/security-refresh.yml").read_text()
+        dependabot = (ROOT / ".github/dependabot.yml").read_text()
         ignore = (ROOT / "security/trivyignore.yaml").read_text()
         process = (ROOT / "docs/security-update-process.md").read_text()
 
+        self.assertIn("pull_request:", workflow)
         self.assertIn("schedule:", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("trivyignores: security/trivyignore.yaml", workflow)
@@ -112,7 +114,12 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual(json.loads(ignore)["vulnerabilities"], [])
         self.assertIn("expired_at", process)
         self.assertIn("owner", process.lower())
-        self.assertIn("Review the scheduled security-refresh workflow", process)
+        self.assertIn("Dependabot", process)
+        self.assertIn('package-ecosystem: docker', dependabot)
+        self.assertIn('package-ecosystem: github-actions', dependabot)
+        self.assertIn("interval: weekly", dependabot)
+        self.assertNotIn("docker push", workflow)
+        self.assertNotIn("gh pr create", workflow)
 
     def test_workflow_actions_are_pinned_to_full_commit_shas(self) -> None:
         for path in (ROOT / ".github/workflows").glob("*.yml"):
