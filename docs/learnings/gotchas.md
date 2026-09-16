@@ -4,6 +4,17 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Keep emulated platform checks focused
+**Ticket:** BBQ-21
+**Date:** 2026-09-16
+
+Running the complete rewrite fixture suite inside an arm64 image under QEMU can
+hold CI for more than 40 minutes. The platform matrix should run one focused
+caller-owned rewrite and output-cleanup contract; retain the complete suite in
+the locked OCI test target, where it runs natively in about 14 seconds.
+
+---
+
 ## Pass the target platform to nested OCI fixture commands
 **Ticket:** BBQ-21
 **Date:** 2026-09-16
