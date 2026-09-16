@@ -96,6 +96,7 @@ jobs:
         env:
           GHS_CONTAINER_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           GHS_OCI_RUNTIME: docker
+          GHS_OCI_PLATFORM: ${{ matrix.platform }}
           GHS_TEST_RUNTIME: container
         run: |
           python3 -m venv .venv-oci-contracts

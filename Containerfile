@@ -53,6 +53,7 @@ RUN sed -i -e 's|http://archive.ubuntu.com/ubuntu/|https://snapshot.ubuntu.com/u
         libcurl4t64=8.18.0-1ubuntu2.5 libexpat1=2.7.4-1 libssl3t64=3.5.5-1ubuntu3.5 \
         python3=3.14.3-0ubuntu2 python3-venv=3.14.3-0ubuntu2 \
         zlib1g=1:1.3.dfsg+really1.3.1-1ubuntu3.1 \
+    && rm -f /usr/bin/pebble \
     && groupadd --gid 65532 sanitize \
     && useradd --uid 65532 --gid 65532 --create-home --shell /usr/sbin/nologin sanitize \
     && rm -rf /var/lib/apt/lists/*

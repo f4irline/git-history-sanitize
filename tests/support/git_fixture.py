@@ -273,6 +273,7 @@ class GitFixture:
             runtime,
             "run",
             "--rm",
+            *(("--platform", platform) if (platform := os.environ.get("GHS_OCI_PLATFORM")) else ()),
             *(("-i",) if "--forbid-stdin" in translated else ()),
             "--user",
             f"{os.getuid()}:{os.getgid()}",

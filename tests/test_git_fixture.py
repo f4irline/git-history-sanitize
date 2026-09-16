@@ -314,6 +314,7 @@ class GitFixtureTests(unittest.TestCase):
         self.assertIn("--read-only", command)
         self.assertIn("--network=none", command)
         self.assertEqual(command[command.index("--user") + 1], f"{os.getuid()}:{os.getgid()}")
+
         self.assertEqual(
             {command[index + 1] for index, value in enumerate(command[:-1]) if value == "--env"},
             {
@@ -345,6 +346,23 @@ class GitFixtureTests(unittest.TestCase):
         self.assertFalse(
             any(str(self.fixture.root) in value for value in command[image_index + 1:] if value)
         )
+
+    def test_container_runner_forwards_the_requested_platform(self) -> None:
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "GHS_TEST_RUNTIME": "container",
+                    "GHS_CONTAINER_IMAGE": "fixture-image",
+                    "GHS_OCI_PLATFORM": "linux/arm64",
+                },
+                clear=False,
+            ),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+        ):
+            command = self.fixture._container_cli(("doctor",))
+
+        self.assertEqual(command[command.index("--platform") + 1], "linux/arm64")
 
     def test_container_runner_mounts_forbid_files_and_forwards_stdin(self) -> None:
         policy = self.fixture.write_policy()
