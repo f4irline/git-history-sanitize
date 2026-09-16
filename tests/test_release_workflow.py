@@ -118,6 +118,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('package-ecosystem: docker', dependabot)
         self.assertIn('package-ecosystem: github-actions', dependabot)
         self.assertIn("interval: weekly", dependabot)
+        self.assertIn("branches: [main]", workflow)
         self.assertNotIn("docker push", workflow)
         self.assertNotIn("gh pr create", workflow)
 

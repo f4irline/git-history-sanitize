@@ -37,7 +37,7 @@ class OciContractsTests(unittest.TestCase):
         bootstrap = (ROOT / "scripts/bootstrap-test-git.sh").read_text()
         requirements = (ROOT / "requirements/container-runtime.txt").read_text()
 
-        self.assertIn(lock["base_image"], containerfile)
+        self.assertEqual(containerfile.count(f"FROM {lock['base_image']}"), 2)
         self.assertIn(lock["apt_snapshot"]["url"], containerfile)
         for record in lock["platforms"].values():
             for package in record["runtime_apt"] + record["build_apt"]:
