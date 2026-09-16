@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-21-reproducible-oci-image`
 **Status:** In Progress
 **Started:** 2026-09-16
-**Last Updated:** 2026-09-16 11:44
+**Last Updated:** 2026-09-16 15:13
 
 ## Overview
 
@@ -18,10 +18,10 @@ and operator-documentation plan for reproducible multi-platform releases.
 
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
-- [ ] Implement changes
-- [ ] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
-- [ ] Commit implementation changes — use `git-commit` skill
-- [ ] Pass implementation review gate
+- [x] Implement changes
+- [x] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
+- [x] Commit implementation changes — use `git-commit` skill
+- [x] Pass implementation review gate
 
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
@@ -40,10 +40,27 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Add locked OCI toolchain manifest, deterministic verifier, and sentinel contract.
 - [x] Build a minimal, non-root OCI runtime from pinned artifacts.
 - [x] Extend doctor and OCI contract coverage with fail-closed metadata checks.
-- [ ] Add multi-platform CI/release, SBOM/provenance, scanning, and refresh controls.
+- [x] Add multi-platform CI/release, SBOM/provenance, scanning, and refresh controls.
 - [x] Document hardened usage and security update process.
 
 ## Progress Log
+
+### 2026-09-16
+
+Final local quality gate passed. The locked OCI test target completed all 210
+tests; the final runtime image built, `doctor --json` validated the manifest,
+and its configured user is `65532:65532`. No linter or typecheck script is
+configured; the locked OCI test target is the project test/build validation.
+
+### 2026-09-16
+
+Added weekly Dependabot review proposals for the literal, digest-pinned OCI
+base and GitHub Actions. `security-refresh` now scans pull requests targeting
+main that change a reviewed toolchain input, remains read-only, and cannot push
+an image or create a pull request. The lock-binding contract requires the
+reviewed digest on both Docker stages. An independent review found Dependabot
+cannot resolve an ARG-backed `FROM`; replacing that indirection was reviewed
+cleanly. The locked OCI test target passes all 210 tests.
 
 ### 2026-09-16
 
@@ -158,6 +175,7 @@ Loaded House Rules and relevant OCI learnings. No approved House Rules exception
 - `tests/test_output_cleanup_contracts.py` - caller-owned output contract.
 - `tests/test_release_workflow.py` - release, CI, scanning, and provenance contracts.
 - `.github/workflows/` - CI platform matrix, release promotion, and security refresh.
+- `.github/dependabot.yml` - weekly Docker and GitHub Actions review proposals.
 - `docs/security-update-process.md` - image refresh and exception process.
 - `README.md`, `PUBLISHING_PLAN.md`, `docs/release-notes.md` - hardened operator guidance.
 - `docs/progress/feat-BBQ-21-reproducible-oci-image.md` - workflow progress tracking.
