@@ -4,6 +4,17 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Dependabot only discovers literal Docker FROM references
+**Ticket:** BBQ-21
+**Date:** 2026-09-16
+
+Dependabot's Docker parser does not resolve an image stored in `ARG`. Keep the
+immutable digest literal on each `FROM` line and contract-test that both stages
+match `container/toolchain.lock.json`; otherwise the scheduled Docker update
+entry silently creates no base-image pull request.
+
+---
+
 ## A scheduled refresh cannot safely synthesize a reviewed OCI lock
 **Ticket:** BBQ-21
 **Date:** 2026-09-16
