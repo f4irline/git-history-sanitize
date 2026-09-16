@@ -58,7 +58,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("docker image inspect --format '{{.Config.User}}'", oci)
         self.assertIn('--user "$(id -u):$(id -g)"', oci)
         self.assertIn("GHS_TEST_RUNTIME: container", oci)
-        self.assertIn("run_runtime_contracts.sh", oci)
+        self.assertIn(
+            "tests.test_output_cleanup_contracts.OutputContractTests.test_output_is_bare_and_has_no_cleanup_artifacts",
+            oci,
+        )
         self.assertNotIn("--entrypoint", oci)
 
     def test_oci_documentation_preserves_caller_ownership_and_release_evidence(self) -> None:

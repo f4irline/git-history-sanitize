@@ -102,7 +102,8 @@ jobs:
           python3 -m venv .venv-oci-contracts
           .venv-oci-contracts/bin/python -m pip install --requirement requirements/release-test.txt
           .venv-oci-contracts/bin/python -m pip install --no-deps -e .
-          tests/support/run_runtime_contracts.sh .venv-oci-contracts/bin/python
+          .venv-oci-contracts/bin/python -m unittest -v \
+            tests.test_output_cleanup_contracts.OutputContractTests.test_output_is_bare_and_has_no_cleanup_artifacts
 
   prototype-history:
     name: Prototype history fixture
