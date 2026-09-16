@@ -4,7 +4,7 @@
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-21-reproducible-oci-image`
 **Status:** In Progress
 **Started:** 2026-09-16
-**Last Updated:** 2026-09-16 20:54
+**Last Updated:** 2026-09-16 21:39
 
 ## Overview
 
@@ -44,6 +44,15 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Document hardened usage and security update process.
 
 ## Progress Log
+
+### 2026-09-16
+
+The full rewrite fixture suite under arm64 emulation remained in progress for
+over 40 minutes. Replaced the platform-matrix invocation with the focused
+caller-owned output rewrite contract, while retaining the full suite in the
+locked OCI test target. `9b11470` was pushed after that locked target passed
+all 211 tests. Cancelled the superseded run and started the hosted quality gate
+for the focused contract. Learning recorded in `docs/learnings/gotchas.md`.
 
 ### 2026-09-16
 
