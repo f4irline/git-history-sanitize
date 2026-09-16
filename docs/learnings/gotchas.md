@@ -4,6 +4,18 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Pass the target platform to nested OCI fixture commands
+**Ticket:** BBQ-21
+**Date:** 2026-09-16
+
+The platform matrix builds an arm64 image on an amd64 runner. Every nested
+`docker run` issued by `GitFixture` must receive the matching `--platform`; if
+it does not, Docker emits an architecture warning on stderr and breaks the
+CLI's strict stderr contracts. Thread `GHS_OCI_PLATFORM` from CI into the
+fixture command rather than weakening those contracts.
+
+---
+
 ## Dependabot only discovers literal Docker FROM references
 **Ticket:** BBQ-21
 **Date:** 2026-09-16
