@@ -4,6 +4,19 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Bootstrap the CA bundle from the signed snapshot before normal TLS checks
+**Ticket:** BBQ-21
+**Date:** 2026-09-16
+
+The pinned Ubuntu base cannot validate the current snapshot certificate while
+fetching the newer `ca-certificates` package. Point APT at the immutable
+snapshot first, temporarily disable TLS peer validation only for the pinned CA
+bundle transaction, then restore normal TLS verification. APT repository
+signature and package checksum verification remain enabled throughout; do not
+fall back to a mutable Ubuntu index.
+
+---
+
 ## Initialize an index before snapshotting an empty Git fixture
 **Ticket:** BBQ-12
 **Date:** 2026-09-14
