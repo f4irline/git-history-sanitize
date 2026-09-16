@@ -2,9 +2,9 @@
 
 **Branch:** `feat/BBQ-21-reproducible-oci-image`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-21-reproducible-oci-image`
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-09-16
-**Last Updated:** 2026-09-16 15:13
+**Last Updated:** 2026-09-16 15:14
 
 ## Overview
 
@@ -29,11 +29,11 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [ ] Update this progress doc to "Complete" status
-- [ ] Commit progress doc update — use `git-commit` skill
+- [x] Update this progress doc to "Complete" status
+- [x] Commit progress doc update — use `git-commit` skill
 - [x] Push all commits to remote — use `git-push-remote` skill
 - [x] Create pull request — use GitHub MCP
-- [ ] Move ticket to "In Review" — use Linear MCP
+- [x] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
 
@@ -44,6 +44,11 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Document hardened usage and security update process.
 
 ## Progress Log
+
+### 2026-09-16
+
+Pushed the implementation through `7940192`, then moved BBQ-21 to In Review.
+The follow-up progress commit finalizes the workflow record.
 
 ### 2026-09-16
 
