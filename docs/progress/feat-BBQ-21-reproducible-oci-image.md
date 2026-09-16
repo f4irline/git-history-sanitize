@@ -2,9 +2,9 @@
 
 **Branch:** `feat/BBQ-21-reproducible-oci-image`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-21-reproducible-oci-image`
-**Status:** Complete
+**Status:** In Progress
 **Started:** 2026-09-16
-**Last Updated:** 2026-09-16 15:14
+**Last Updated:** 2026-09-16 20:54
 
 ## Overview
 
@@ -19,9 +19,9 @@ and operator-documentation plan for reproducible multi-platform releases.
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
 - [x] Implement changes
-- [x] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
+- [ ] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
 - [x] Commit implementation changes — use `git-commit` skill
-- [x] Pass implementation review gate
+- [ ] Pass implementation review gate
 
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
@@ -29,9 +29,9 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [x] Update this progress doc to "Complete" status
-- [x] Commit progress doc update — use `git-commit` skill
-- [x] Push all commits to remote — use `git-push-remote` skill
+- [ ] Update this progress doc to "Complete" status
+- [ ] Commit progress doc update — use `git-commit` skill
+- [ ] Push all commits to remote — use `git-push-remote` skill
 - [x] Create pull request — use GitHub MCP
 - [x] Move ticket to "In Review" — use Linear MCP
 
@@ -44,6 +44,17 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Document hardened usage and security update process.
 
 ## Progress Log
+
+### 2026-09-16
+
+CI reported two defects. The arm64 fixture suite omitted `--platform` on nested
+Docker commands, causing Docker's architecture warning to violate strict stderr
+contracts. The security refresh scan found eight HIGH CVEs in the unused
+`/usr/bin/pebble` binary inherited from the Ubuntu image. `b7f5f5a` forwards
+the selected platform through the fixture runner and removes that unused binary.
+The locked OCI test target now passes 211 tests; local arm64 image build,
+caller-UID `doctor`, and absence of the binary were verified. Push and hosted
+CI confirmation remain.
 
 ### 2026-09-16
 
