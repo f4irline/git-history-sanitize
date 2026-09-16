@@ -81,6 +81,7 @@ class OciContractsTests(unittest.TestCase):
         self.assertIn("USER 65532:65532", containerfile)
         self.assertIn("--require-hashes", containerfile)
         self.assertIn("COPY --from=builder", containerfile)
+        self.assertIn("rm -f /usr/bin/pebble", containerfile)
         self.assertIn("Acquire::Retries=20", containerfile)
         self.assertIn("oci-runtime-entrypoint.sh", containerfile)
         self.assertIn("oci-manifest-required", containerfile)
