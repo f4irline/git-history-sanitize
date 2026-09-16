@@ -44,7 +44,11 @@ class OciContractsTests(unittest.TestCase):
                 with self.subTest(package=package):
                     self.assertIn(package, containerfile)
         for value in lock["git"].values():
-            self.assertIn(value, bootstrap)
+            if isinstance(value, str):
+                self.assertIn(value, bootstrap)
+        for patch in lock["git"]["patches"].values():
+            self.assertIn(patch["before_sha256"], bootstrap)
+            self.assertIn(patch["after_sha256"], bootstrap)
         self.assertIn(lock["git_filter_repo"]["version"], requirements)
         self.assertIn(lock["git_filter_repo"]["artifact_sha256"], requirements)
 
