@@ -4,6 +4,19 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## A scheduled refresh cannot safely synthesize a reviewed OCI lock
+**Ticket:** BBQ-21
+**Date:** 2026-09-16
+
+`container/toolchain.lock.json` records a digest, immutable snapshot, and exact
+per-architecture package versions. A scheduled workflow must consume an
+approved authoritative update source or a dedicated lock generator; it must not
+invent a current snapshot, mutable base tag, or package set just to create a
+pull request. Keep the refresh path reviewable and limited to declared lock
+inputs.
+
+---
+
 ## Bootstrap the CA bundle from the signed snapshot before normal TLS checks
 **Ticket:** BBQ-21
 **Date:** 2026-09-16
