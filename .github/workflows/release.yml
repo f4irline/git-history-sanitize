@@ -86,6 +86,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - id: source
+        run: printf 'date_epoch=%s\n' "$(git show -s --format=%ct "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -108,15 +110,36 @@ jobs:
           context: .
           file: Containerfile
           platforms: linux/amd64,linux/arm64
-          push: true
-          provenance: false
-          tags: ${{ steps.metadata.outputs.tags }}
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            SOURCE_DATE_EPOCH=${{ steps.source.outputs.date_epoch }}
+            SOURCE_REVISION=${{ github.sha }}
+            PACKAGE_VERSION=${{ needs.release-gate.outputs.version }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.metadata.outputs.labels }}
+      - name: Validate Trivy exceptions
+        run: python3 scripts/validate-trivy-exceptions.py security/trivyignore.yaml
+      - name: Scan the pushed image digest
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          trivyignores: security/trivyignore.yaml
       - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+      - name: Promote the scanned image digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.metadata.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            docker buildx imagetools create --tag "$tag" "$IMAGE_NAME@$DIGEST"
+          done <<< "$TAGS"
 
   github-release:
     name: Create GitHub Release

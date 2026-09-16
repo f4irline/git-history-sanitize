@@ -167,8 +167,12 @@ class ReleaseVersioningTests(unittest.TestCase):
     def _write_artifacts(self, directory: Path, version: str, wheel_version: str | None = None) -> None:
         wheel = directory / f"git_history_sanitize-{version}-py3-none-any.whl"
         with zipfile.ZipFile(wheel, "w") as archive:
-            archive.writestr(
+            metadata = zipfile.ZipInfo(
                 f"git_history_sanitize-{version}.dist-info/METADATA",
+                date_time=(1980, 1, 1, 0, 0, 0),
+            )
+            archive.writestr(
+                metadata,
                 f"Metadata-Version: 2.1\nVersion: {wheel_version or version}\n",
             )
         sdist = directory / f"git_history_sanitize-{version}.tar.gz"

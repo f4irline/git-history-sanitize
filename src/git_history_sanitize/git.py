@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Iterable
 
 from .errors import DependencyError, SourceError
+from .oci_toolchain import ToolchainManifestError, load_required_manifest
+
+
+OCI_MANIFEST_SENTINEL = Path("/usr/local/etc/git-history-sanitize/oci-manifest-required")
 
 
 class GitError(SourceError):
@@ -71,7 +76,25 @@ def ensure_dependencies() -> dict[str, str]:
             ).stdout.strip()
         except (OSError, subprocess.SubprocessError) as error:
             raise DependencyError("git-filter-repo is unavailable") from error
-    return {"git": git_version, "git_filter_repo": filter_repo_version}
+    result = {"git": git_version, "git_filter_repo": filter_repo_version}
+    if not OCI_MANIFEST_SENTINEL.is_file():
+        return result
+    try:
+        manifest = load_required_manifest(OCI_MANIFEST_SENTINEL)
+    except ToolchainManifestError as error:
+        raise DependencyError("required OCI toolchain manifest is unavailable") from error
+    if (
+        manifest["git"] != git_version
+        or manifest["git_filter_repo"] != filter_repo_version
+        or manifest["python"] != platform.python_version()
+    ):
+        raise DependencyError("required OCI toolchain does not match its declaration")
+    return result | {
+        "python": str(manifest["python"]),
+        "manifest_sha256": str(manifest["lock_sha256"]),
+        "package_version": str(manifest["package_version"]),
+        "source_revision": str(manifest["source_revision"]),
+    }
 
 
 class Repository:
