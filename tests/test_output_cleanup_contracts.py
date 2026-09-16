@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 
 from tests.support.git_fixture import GitFixture
@@ -61,6 +62,8 @@ class OutputContractTests(unittest.TestCase):
     def test_output_is_bare_and_has_no_cleanup_artifacts(self) -> None:
         output = self.rewrite("sanitized.git")
 
+        self.assertEqual(output.stat().st_uid, os.getuid())
+        self.assertEqual(output.stat().st_gid, os.getgid())
         self.assertEqual(self.fixture.git(output, "rev-parse", "--is-bare-repository"), "true")
         self.assertEqual(self.fixture.git(output, "remote"), "")
         self.assertFalse((output / "logs").exists())

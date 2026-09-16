@@ -55,6 +55,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f", oci)
         self.assertIn('--platform "${{ matrix.platform }}"', oci)
         self.assertIn('"${OCI_TEST_IMAGE}" doctor', oci)
+        self.assertIn("docker image inspect --format '{{.Config.User}}'", oci)
+        self.assertIn('--user "$(id -u):$(id -g)"', oci)
+        self.assertIn("GHS_TEST_RUNTIME: container", oci)
+        self.assertIn("run_runtime_contracts.sh", oci)
         self.assertNotIn("--entrypoint", oci)
 
     def test_oci_documentation_preserves_caller_ownership_and_release_evidence(self) -> None:
