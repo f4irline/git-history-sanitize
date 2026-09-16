@@ -86,6 +86,22 @@ jobs:
         env:
           OCI_TEST_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
         run: docker run --rm --platform "${{ matrix.platform }}" "${OCI_TEST_IMAGE}" doctor
+      - name: Validate runtime identity and caller-owned output mode
+        env:
+          OCI_TEST_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' "${OCI_TEST_IMAGE}")" = "65532:65532"
+          docker run --rm --platform "${{ matrix.platform }}" --user "$(id -u):$(id -g)" "${OCI_TEST_IMAGE}" doctor --json
+      - name: Run platform-specific rewrite and ownership contracts
+        env:
+          GHS_CONTAINER_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          GHS_OCI_RUNTIME: docker
+          GHS_TEST_RUNTIME: container
+        run: |
+          python3 -m venv .venv-oci-contracts
+          .venv-oci-contracts/bin/python -m pip install --requirement requirements/release-test.txt
+          .venv-oci-contracts/bin/python -m pip install --no-deps -e .
+          tests/support/run_runtime_contracts.sh .venv-oci-contracts/bin/python
 
   prototype-history:
     name: Prototype history fixture
