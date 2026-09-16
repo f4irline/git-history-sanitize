@@ -2,6 +2,7 @@ name: Security refresh
 
 on:
   pull_request:
+    branches: [main]
     paths:
       - Containerfile
       - container/toolchain.lock.json
