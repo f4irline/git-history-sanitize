@@ -2,9 +2,9 @@
 
 **Branch:** `feat/BBQ-21-reproducible-oci-image`
 **Worktree:** `/Users/tlepola/Documents/dev/projects/personal/git-history-sanitize/.opencode/.bbq-worktrees/feat-BBQ-21-reproducible-oci-image`
-**Status:** Complete
+**Status:** In Progress
 **Started:** 2026-09-16
-**Last Updated:** 2026-09-16 11:14
+**Last Updated:** 2026-09-16 11:44
 
 ## Overview
 
@@ -18,10 +18,10 @@ and operator-documentation plan for reproducible multi-platform releases.
 
 ### Phase 1: Implementation
 - [x] Write/modify tests (TDD)
-- [x] Implement changes
-- [x] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
-- [x] Commit implementation changes — use `git-commit` skill
-- [x] Pass implementation review gate
+- [ ] Implement changes
+- [ ] Validate (lint, build, tests pass) — validate-changes plugin runs automatically
+- [ ] Commit implementation changes — use `git-commit` skill
+- [ ] Pass implementation review gate
 
 ### Phase 2: Learnings
 - [x] Extract learnings (or note: nothing noteworthy)
@@ -29,10 +29,10 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Commit learnings if any — use `git-commit` skill
 
 ### Phase 3: Finalize & Push (DO NOT SKIP)
-- [x] Update this progress doc to "Complete" status
+- [ ] Update this progress doc to "Complete" status
 - [ ] Commit progress doc update — use `git-commit` skill
-- [ ] Push all commits to remote — use `git-push-remote` skill
-- [ ] Create pull request — use GitHub MCP
+- [x] Push all commits to remote — use `git-push-remote` skill
+- [x] Create pull request — use GitHub MCP
 - [ ] Move ticket to "In Review" — use Linear MCP
 
 ## Tasks
@@ -40,10 +40,33 @@ and operator-documentation plan for reproducible multi-platform releases.
 - [x] Add locked OCI toolchain manifest, deterministic verifier, and sentinel contract.
 - [x] Build a minimal, non-root OCI runtime from pinned artifacts.
 - [x] Extend doctor and OCI contract coverage with fail-closed metadata checks.
-- [x] Add multi-platform CI/release, SBOM/provenance, scanning, and refresh controls.
+- [ ] Add multi-platform CI/release, SBOM/provenance, scanning, and refresh controls.
 - [x] Document hardened usage and security update process.
 
 ## Progress Log
+
+### 2026-09-16
+
+Committed Git compatibility patch input/output hash checks (`0140a01`) after
+syntax, static-contract, and full builder validation succeeded. Committed
+per-platform OCI contracts (`227892e`): CI now asserts the non-root image
+account, exercises `doctor` under the caller UID:GID, and runs the existing
+fixture rewrite suite (including output UID:GID assertions) for amd64 and
+arm64. The locked OCI test target passes all 210 tests. Direct native source
+tests remain unsuitable because the host does not use the locked Git 2.47.0
+toolchain.
+
+The remaining security-refresh requirement needs an approved authoritative
+source for a new base digest and per-architecture APT snapshot/package lock.
+The current repository has no lock-regeneration tool or source of truth for
+those values, so the scheduled workflow cannot safely invent a mutable update.
+
+### 2026-09-16
+
+After opening PR #16, the Linear technical plan review surfaced unimplemented
+requirements: a reviewed security-refresh PR path, per-platform runtime
+contracts beyond `doctor`, and Git compatibility patch hashes. The progress
+state is reopened; the PR remains open while those requirements are completed.
 
 ### 2026-09-16
 
@@ -132,6 +155,7 @@ Loaded House Rules and relevant OCI learnings. No approved House Rules exception
 - `src/git_history_sanitize/git.py` - doctor toolchain provenance reporting.
 - `scripts/verify-container-toolchain.py` - deterministic manifest generator.
 - `tests/test_oci_contracts.py` - OCI lock and runtime contracts.
+- `tests/test_output_cleanup_contracts.py` - caller-owned output contract.
 - `tests/test_release_workflow.py` - release, CI, scanning, and provenance contracts.
 - `.github/workflows/` - CI platform matrix, release promotion, and security refresh.
 - `docs/security-update-process.md` - image refresh and exception process.
