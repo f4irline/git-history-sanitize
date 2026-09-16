@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 import re
@@ -43,6 +44,33 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn('scripts/release.py check --version "$version" --output dist', workflow)
         self.assertIn('GHS_WHEEL="$(realpath dist/distributions/*.whl)"', workflow)
 
+    def test_ci_builds_and_runs_each_supported_oci_platform(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        start = workflow.index("oci-platform-contract:")
+        end = workflow.index("prototype-history:", start)
+        oci = workflow[start:end]
+
+        self.assertIn("platform: [linux/amd64, linux/arm64]", oci)
+        self.assertIn("docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130", oci)
+        self.assertIn("docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f", oci)
+        self.assertIn('--platform "${{ matrix.platform }}"', oci)
+        self.assertIn('"${OCI_TEST_IMAGE}" doctor', oci)
+        self.assertNotIn("--entrypoint", oci)
+
+    def test_oci_documentation_preserves_caller_ownership_and_release_evidence(self) -> None:
+        documents = {
+            "README.md": (ROOT / "README.md").read_text(),
+            "PUBLISHING_PLAN.md": (ROOT / "PUBLISHING_PLAN.md").read_text(),
+            "docs/release-notes.md": (ROOT / "docs/release-notes.md").read_text(),
+        }
+
+        for name, document in documents.items():
+            with self.subTest(document=name):
+                self.assertIn('--user "$(id -u):$(id -g)"', document)
+                self.assertIn(":ro", document)
+                self.assertIn("digest-first", document)
+                self.assertIn("gh attestation verify", document)
+
     def test_release_workflows_never_publish_trusted_diagnostics_or_receipts(self) -> None:
         for name in ("ci.yml", "release.yml", "testpypi.yml"):
             workflow = (ROOT / ".github/workflows" / name).read_text()
@@ -50,3 +78,41 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 self.assertNotIn("--diagnostics", workflow)
                 self.assertNotIn("--receipt", workflow)
                 self.assertNotIn("git-history-sanitize-scope.json", workflow)
+
+    def test_release_promotes_only_a_scanned_and_attested_digest(self) -> None:
+        workflow = (ROOT / ".github/workflows/release.yml").read_text()
+        image = workflow[workflow.index("publish-image:"):workflow.index("github-release:")]
+
+        self.assertIn("push-by-digest=true", image)
+        self.assertIn("name-canonical=true", image)
+        self.assertNotIn("tags: ${{ steps.metadata.outputs.tags }}", image)
+        self.assertIn("image-ref: ${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}", image)
+        self.assertIn("subject-digest: ${{ steps.push.outputs.digest }}", image)
+        self.assertIn('docker buildx imagetools create --tag "$tag" "$IMAGE_NAME@$DIGEST"', image)
+        self.assertIn("SOURCE_DATE_EPOCH=${{ steps.source.outputs.date_epoch }}", image)
+        self.assertIn("SOURCE_REVISION=${{ github.sha }}", image)
+        self.assertIn("PACKAGE_VERSION=${{ needs.release-gate.outputs.version }}", image)
+        self.assertLess(image.index("image-ref:"), image.index("subject-digest:"))
+        self.assertLess(image.index("subject-digest:"), image.index("imagetools create"))
+
+    def test_security_refresh_scans_the_pinned_container_and_tracks_exceptions(self) -> None:
+        workflow = (ROOT / ".github/workflows/security-refresh.yml").read_text()
+        ignore = (ROOT / "security/trivyignore.yaml").read_text()
+        process = (ROOT / "docs/security-update-process.md").read_text()
+
+        self.assertIn("schedule:", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("trivyignores: security/trivyignore.yaml", workflow)
+        self.assertIn("exit-code: \"1\"", workflow)
+        self.assertIn("severity: HIGH,CRITICAL", workflow)
+        self.assertEqual(json.loads(ignore)["vulnerabilities"], [])
+        self.assertIn("expired_at", process)
+        self.assertIn("owner", process.lower())
+        self.assertIn("Review the scheduled security-refresh workflow", process)
+
+    def test_workflow_actions_are_pinned_to_full_commit_shas(self) -> None:
+        for path in (ROOT / ".github/workflows").glob("*.yml"):
+            workflow = path.read_text()
+            for action in re.findall(r"^\s*uses:\s*([^\s#]+)", workflow, re.MULTILINE):
+                with self.subTest(workflow=path.name, action=action):
+                    self.assertRegex(action, r"^[\w.-]+/[\w.-]+@[0-9a-f]{40}$")

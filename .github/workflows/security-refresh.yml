@@ -1,0 +1,27 @@
+name: Security refresh
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan-image:
+    name: Scan refreshed OCI image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Build the OCI image
+        run: docker buildx build --load --pull --tag git-history-sanitize:security-refresh -f Containerfile .
+      - name: Validate Trivy exceptions
+        run: python3 scripts/validate-trivy-exceptions.py security/trivyignore.yaml
+      - name: Scan the OCI image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: git-history-sanitize:security-refresh
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          trivyignores: security/trivyignore.yaml

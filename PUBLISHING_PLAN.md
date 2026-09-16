@@ -20,10 +20,14 @@ Publish the existing `Containerfile` as a public multi-platform image at:
 ghcr.io/f4irline/git-history-sanitize
 ```
 
-Document digest-pinned use as the recommended production integration:
+Document digest-pinned use as the digest-first recommended production
+integration. Run the container as the caller's numeric UID/GID so only the
+writable output mount receives host-owned files; source and policy remain
+read-only:
 
 ```bash
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$PWD/.git:/input.git:ro" \
   -v "$PWD/policy.yml:/policy.yml:ro" \
   -v "$PWD/build:/output" \
@@ -34,6 +38,14 @@ docker run --rm \
 Publish immutable semantic-version tags (`v1.0.0` and `1.0.0`) and a moving
 `latest` tag. Release documentation must recommend the digest, with the version
 tag offered only for convenience.
+
+Each release must include the image digest and GitHub build provenance as
+supply-chain evidence. Consumers verify the digest, not a tag, before use:
+
+```bash
+gh attestation verify "oci://ghcr.io/f4irline/git-history-sanitize@sha256:<digest>" \
+  --owner f4irline --bundle-from-oci
+```
 
 The image remains the preferred installation because it supplies the supported
 Git, Python, and `git-filter-repo` runtime together.
@@ -126,6 +138,9 @@ Jobs:
 
 4. Build Python distribution artifacts with `python -m build` and upload them
    as a short-lived CI artifact for the release workflow or inspection.
+5. Set up QEMU and Buildx, then separately build `linux/amd64` and
+   `linux/arm64` images and invoke each configured image entrypoint with
+   `doctor`.
 
 The contract matrix runs source, wheel, and OCI contracts, including Receipt v1
 source-unit and CLI contracts. SHA-256 rewrite coverage remains a compatibility
@@ -178,7 +193,9 @@ Stages:
    ```
 
    Generate build provenance for the published image and preserve its returned
-   digest in the release notes.
+   digest in the release notes as supply-chain evidence. The digest is the
+   digest-first release identity; tags are applied only after the scanned and
+   attested digest is available.
 
 5. **Create GitHub Release**
 
@@ -223,8 +240,8 @@ Release procedure:
 2. Review the local version commit and annotated `v<version>` tag.
 3. Use `python3 scripts/release.py prepare <version> --push` only when the
    local gate has passed and the explicit push is intended.
-4. Watch `release.yml`; verify the PyPI version, the GHCR digest, and the
-   GitHub Release assets.
+4. Watch `release.yml`; verify the PyPI version, the GHCR digest, the GitHub
+   Release assets, and the image provenance with `gh attestation verify`.
 5. Install the PyPI package and run the digest-pinned image once against a
    disposable fixture before announcing the release.
 
@@ -295,5 +312,5 @@ artifact upload:
 - a wheel and source distribution on PyPI;
 - a multi-platform GHCR image with a documented digest;
 - a GitHub Release containing checksums and the Python artifacts;
-- provenance attached to the published image;
+- provenance attached to and verified for the published image;
 - copy-paste installation instructions verified against the released artifacts.

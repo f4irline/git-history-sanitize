@@ -6,5 +6,11 @@
 examples/
 proto/
 
+.venv*/
+dist/
+docs/progress/
+docs/learnings/
+.opencode/
+
 __pycache__/
 *.py[cod]

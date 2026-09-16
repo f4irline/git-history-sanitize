@@ -53,16 +53,27 @@ Actions, and proto-style devcontainer integrations.
 ### Production OCI image
 
 The public image is the recommended production installation because it bundles
-the supported Git, Python, and `git-filter-repo` runtime. Pin the published
-digest rather than a mutable tag:
+the supported Git, Python, and `git-filter-repo` runtime. Use the published
+digest as the digest-first release identity rather than a mutable tag. Run with
+the caller's numeric UID and GID so the writable output remains host-owned;
+source and policy mounts remain read-only:
 
 ```bash
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$PWD/.git:/input.git:ro" \
   -v "$PWD/policy.yml:/policy.yml:ro" \
   -v "$PWD/build:/output" \
   ghcr.io/f4irline/git-history-sanitize@sha256:<published-digest> \
   rewrite --source /input.git --output /output/sanitized.git --policy /policy.yml
+```
+
+Verify the published digest's GitHub build provenance before using it in a
+trusted build step:
+
+```bash
+gh attestation verify "oci://ghcr.io/f4irline/git-history-sanitize@sha256:<published-digest>" \
+  --owner f4irline --bundle-from-oci
 ```
 
 ### PyPI command-line package
@@ -334,10 +345,12 @@ Build the OCI image:
 docker buildx build --load -t git-history-sanitize:local -f Containerfile .
 ```
 
-Use it with a read-only Git input and writable output directory:
+Use it with the caller UID/GID, read-only Git and policy inputs, and a writable
+output directory:
 
 ```bash
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$PWD/.git:/input.git:ro" \
   -v "$PWD/.git-history-sanitize.yml:/policy.yml:ro" \
   -v "$PWD/build:/output" \

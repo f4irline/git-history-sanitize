@@ -62,6 +62,31 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  oci-platform-contract:
+    name: OCI ${{ matrix.platform }} build and entrypoint
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the platform image
+        env:
+          OCI_TEST_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        run: >-
+          docker buildx build --platform "${{ matrix.platform }}" --load
+          --tag "${OCI_TEST_IMAGE}" -f Containerfile .
+      - name: Validate the configured image entrypoint
+        env:
+          OCI_TEST_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+        run: docker run --rm --platform "${{ matrix.platform }}" "${OCI_TEST_IMAGE}" doctor
+
   prototype-history:
     name: Prototype history fixture
     runs-on: ubuntu-latest
