@@ -5,6 +5,8 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'
 
 permissions:
   contents: read
@@ -62,41 +64,73 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  oci-platform-contract:
-    name: OCI ${{ matrix.platform }} build and entrypoint
+  oci-inputs:
+    name: Select OCI-sensitive inputs
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [linux/amd64, linux/arm64]
+    outputs:
+      selected: ${{ steps.select.outputs.selected }}
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          fetch-depth: 0
+      - id: select
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+          PUSH_HEAD: ${{ github.event.after }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" = "schedule" ]] || \
+            [[ "$GITHUB_EVENT_NAME" = "push" && "$GITHUB_REF_NAME" = "main" ]]; then
+            selection=true
+          elif [[ "$GITHUB_EVENT_NAME" = "pull_request" ]]; then
+            selection="$(scripts/ci-detect-oci-inputs.sh "$PR_BASE" "$PR_HEAD")"
+          else
+            selection="$(scripts/ci-detect-oci-inputs.sh "$PUSH_BASE" "$PUSH_HEAD")"
+          fi
+          printf 'selected=%s\n' "$selection" >> "$GITHUB_OUTPUT"
+
+  oci-arm64-contract:
+    name: Native arm64 OCI contract
+    needs: oci-inputs
+    if: needs.oci-inputs.outputs.selected == 'true'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Assert native arm64 runner
+        run: test "$(uname -m)" = "aarch64"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - name: Build the platform image
+      - name: Build the arm64 image
         env:
-          OCI_TEST_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        run: >-
-          docker buildx build --platform "${{ matrix.platform }}" --load
-          --tag "${OCI_TEST_IMAGE}" -f Containerfile .
+          OCI_TEST_IMAGE: git-history-sanitize:ci-arm64
+        run: |
+          cache_args=()
+          if [[ "$GITHUB_EVENT_NAME" = "pull_request" ]]; then
+            cache_args=(
+              --cache-from type=gha,scope=oci-linux-arm64
+              --cache-to type=gha,mode=max,scope=oci-linux-arm64
+            )
+          fi
+          docker buildx build --platform linux/arm64 --load "${cache_args[@]}" \
+            --tag "$OCI_TEST_IMAGE" -f Containerfile .
       - name: Validate the configured image entrypoint
         env:
-          OCI_TEST_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-        run: docker run --rm --platform "${{ matrix.platform }}" "${OCI_TEST_IMAGE}" doctor
+          OCI_TEST_IMAGE: git-history-sanitize:ci-arm64
+        run: docker run --rm --platform linux/arm64 "${OCI_TEST_IMAGE}" doctor
       - name: Validate runtime identity and caller-owned output mode
         env:
-          OCI_TEST_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          OCI_TEST_IMAGE: git-history-sanitize:ci-arm64
         run: |
           test "$(docker image inspect --format '{{.Config.User}}' "${OCI_TEST_IMAGE}")" = "65532:65532"
-          docker run --rm --platform "${{ matrix.platform }}" --user "$(id -u):$(id -g)" "${OCI_TEST_IMAGE}" doctor --json
+          docker run --rm --platform linux/arm64 --user "$(id -u):$(id -g)" "${OCI_TEST_IMAGE}" doctor --json
       - name: Run platform-specific rewrite and ownership contracts
         env:
-          GHS_CONTAINER_IMAGE: git-history-sanitize:ci-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          GHS_CONTAINER_IMAGE: git-history-sanitize:ci-arm64
           GHS_OCI_RUNTIME: docker
-          GHS_OCI_PLATFORM: ${{ matrix.platform }}
+          GHS_OCI_PLATFORM: linux/arm64
           GHS_TEST_RUNTIME: container
         run: |
           python3 -m venv .venv-oci-contracts
@@ -104,6 +138,32 @@ jobs:
           .venv-oci-contracts/bin/python -m pip install --no-deps -e .
           .venv-oci-contracts/bin/python -m unittest -v \
             tests.test_output_cleanup_contracts.OutputContractTests.test_output_is_bare_and_has_no_cleanup_artifacts
+
+  oci-arm64-validation:
+    name: OCI arm64 validation
+    needs: [oci-inputs, oci-arm64-contract]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Report the selected validation outcome
+        env:
+          SELECTOR_RESULT: ${{ needs.oci-inputs.result }}
+          SELECTED: ${{ needs.oci-inputs.outputs.selected }}
+          CONTRACT_RESULT: ${{ needs.oci-arm64-contract.result }}
+        run: |
+          if [[ "$SELECTOR_RESULT" != "success" ]]; then
+            echo "OCI input selection failed; selected validation is required."
+            exit 1
+          fi
+          if [[ "$SELECTED" = "true" && "$CONTRACT_RESULT" != "success" ]]; then
+            echo "Selected arm64 validation did not succeed: $CONTRACT_RESULT"
+            exit 1
+          fi
+          if [[ "$SELECTED" = "false" ]]; then
+            echo "OCI inputs are unchanged; arm64 validation was intentionally skipped."
+          else
+            echo "Selected arm64 validation succeeded."
+          fi
 
   prototype-history:
     name: Prototype history fixture

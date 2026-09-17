@@ -115,6 +115,7 @@ Triggers:
 
 - pushes to the default branch;
 - pull requests targeting the default branch.
+- a weekly scheduled arm64 validation.
 
 Jobs:
 
@@ -138,9 +139,21 @@ Jobs:
 
 4. Build Python distribution artifacts with `python -m build` and upload them
    as a short-lived CI artifact for the release workflow or inspection.
-5. Set up QEMU and Buildx, then separately build `linux/amd64` and
-   `linux/arm64` images and invoke each configured image entrypoint with
-   `doctor`.
+5. Select OCI-sensitive paths with the repository-owned
+   `scripts/ci-detect-oci-inputs.sh` before starting the expensive platform
+   job. The selector fails closed when it cannot resolve the revision range.
+   The always-run `OCI arm64 validation` gate is the single required check: it
+   reports a successful intentional skip for unrelated pull requests and fails
+   when selected arm64 validation does not succeed.
+6. Build `linux/arm64` on a native `ubuntu-24.04-arm` runner rather than through
+   QEMU, then run its configured entrypoint, non-root identity, caller-owned
+   output, and focused rewrite/output-cleanup contract. Selected pull requests
+   may use Buildx GitHub Actions cache layers scoped to `oci-linux-arm64` with
+   `mode=max`; main and scheduled validation bypass imported cache for a clean
+   solve. Standard hosted arm64 runners are free/unlimited for this public
+   repository, but runner availability and billing must be re-evaluated if its
+   visibility changes. An administrator must confirm the runner label and
+   require this stable gate instead of the conditional job directly.
 
 The contract matrix runs source, wheel, and OCI contracts, including Receipt v1
 source-unit and CLI contracts. SHA-256 rewrite coverage remains a compatibility
@@ -180,9 +193,12 @@ Stages:
 
 4. **Build and publish the image**
 
-   Build the root `Containerfile` for `linux/amd64` and `linux/arm64`, push it
-   to GHCR, and apply the immutable version tags plus `latest`. Configure this
-   job with:
+   Build each root `Containerfile` platform on its native runner and push the
+   platform digests without consumer tags. The arm64 runner first performs the
+   same focused runtime contract against the pushed arm64 digest. Assemble the
+   two verified platform digests into the multi-platform manifest, scan and
+   attest that manifest, then apply immutable version tags plus `latest`.
+   Configure these jobs with:
 
    ```yaml
    permissions:

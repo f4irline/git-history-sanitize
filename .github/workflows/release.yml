@@ -73,10 +73,94 @@ jobs:
         with:
           packages-dir: release-assets/distributions/
 
+  build-amd64-image:
+    name: Build OCI amd64 image
+    needs: release-gate
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - id: source
+        run: printf 'date_epoch=%s\n' "$(git show -s --format=%ct "$GITHUB_SHA^{commit}")" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Containerfile
+          platforms: linux/amd64
+          build-args: |
+            SOURCE_DATE_EPOCH=${{ steps.source.outputs.date_epoch }}
+            SOURCE_REVISION=${{ github.sha }}
+            PACKAGE_VERSION=${{ needs.release-gate.outputs.version }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+
+  validate-arm64-image:
+    name: Validate OCI arm64 image
+    needs: release-gate
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Assert native arm64 runner
+        run: test "$(uname -m)" = "aarch64"
+      - id: source
+        run: printf 'date_epoch=%s\n' "$(git show -s --format=%ct "$GITHUB_SHA^{commit}")" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Containerfile
+          platforms: linux/arm64
+          build-args: |
+            SOURCE_DATE_EPOCH=${{ steps.source.outputs.date_epoch }}
+            SOURCE_REVISION=${{ github.sha }}
+            PACKAGE_VERSION=${{ needs.release-gate.outputs.version }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+      - name: Validate the pushed arm64 image
+        env:
+          OCI_TEST_IMAGE: ${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+        run: |
+          docker pull --platform linux/arm64 "$OCI_TEST_IMAGE"
+          docker run --rm --platform linux/arm64 "$OCI_TEST_IMAGE" doctor
+          test "$(docker image inspect --format '{{.Config.User}}' "$OCI_TEST_IMAGE")" = "65532:65532"
+          docker run --rm --platform linux/arm64 --user "$(id -u):$(id -g)" "$OCI_TEST_IMAGE" doctor --json
+      - name: Run platform-specific rewrite and ownership contracts
+        env:
+          GHS_CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          GHS_OCI_RUNTIME: docker
+          GHS_OCI_PLATFORM: linux/arm64
+          GHS_TEST_RUNTIME: container
+        run: |
+          python3 -m venv .venv-oci-contracts
+          .venv-oci-contracts/bin/python -m pip install --requirement requirements/release-test.txt
+          .venv-oci-contracts/bin/python -m pip install --no-deps -e .
+          .venv-oci-contracts/bin/python -m unittest -v \
+            tests.test_output_cleanup_contracts.OutputContractTests.test_output_is_bare_and_has_no_cleanup_artifacts
+
   publish-image:
     name: Publish OCI image
-    needs: release-gate
-    runs-on: ubuntu-latest
+    needs: [release-gate, build-amd64-image, validate-arm64-image]
+    runs-on: ubuntu-24.04
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     permissions:
@@ -86,8 +170,6 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - id: source
-        run: printf 'date_epoch=%s\n' "$(git show -s --format=%ct "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -105,19 +187,15 @@ jobs:
           labels: |
             org.opencontainers.image.version=${{ needs.release-gate.outputs.version }}
       - id: push
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          file: Containerfile
-          platforms: linux/amd64,linux/arm64
-          provenance: mode=max
-          sbom: true
-          build-args: |
-            SOURCE_DATE_EPOCH=${{ steps.source.outputs.date_epoch }}
-            SOURCE_REVISION=${{ github.sha }}
-            PACKAGE_VERSION=${{ needs.release-gate.outputs.version }}
-          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          labels: ${{ steps.metadata.outputs.labels }}
+        env:
+          AMD64_DIGEST: ${{ needs.build-amd64-image.outputs.digest }}
+          ARM64_DIGEST: ${{ needs.validate-arm64-image.outputs.digest }}
+        run: |
+          staging_tag="validation-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker buildx imagetools create --tag "$IMAGE_NAME:$staging_tag" \
+            "$IMAGE_NAME@$AMD64_DIGEST" "$IMAGE_NAME@$ARM64_DIGEST"
+          digest="sha256:$(docker buildx imagetools inspect "$IMAGE_NAME:$staging_tag" --raw | sha256sum | cut -d ' ' -f 1)"
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
       - name: Validate Trivy exceptions
         run: python3 scripts/validate-trivy-exceptions.py security/trivyignore.yaml
       - name: Scan the pushed image digest

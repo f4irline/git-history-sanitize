@@ -167,6 +167,21 @@ docker run --rm --entrypoint python3 -v "$PWD/tests/support/toolchain.py:/toolch
 PATH="$PWD/.venv-source/bin:$PATH" env -u PYTHONPATH GHS_TEST_RUNTIME=container GHS_CONTAINER_IMAGE=git-history-sanitize:local tests/support/run_runtime_contracts.sh .venv-source/bin/python
 ```
 
+OCI-sensitive pull requests also run the focused arm64 runtime contract on a
+native `ubuntu-24.04-arm` runner. This avoids measuring QEMU emulation as CI
+performance while retaining the image entrypoint, configured non-root identity,
+caller-owned output, rewrite cleanup, and `fsck` checks. Pull requests affecting
+only unrelated paths complete the stable `OCI arm64 validation` gate without
+running that build; main and the weekly scheduled run always build arm64 without
+an imported cache. Selected pull requests may use GitHub Actions Buildx cache
+layers scoped to `oci-linux-arm64`; cache contents never replace validation.
+
+To reproduce arm64 locally from a non-arm64 host, register binfmt/QEMU first and
+then use `docker buildx build --platform linux/arm64 --load ...` with
+`GHS_OCI_PLATFORM=linux/arm64`. That is a functional check, not a native-runner
+timing measurement. The `type=gha` cache backend is available only in GitHub
+Actions.
+
 Fixtures use safe markers for sensitive values. Failure diagnostics and test
 assertions must not print source secrets or host-only fixture paths.
 
