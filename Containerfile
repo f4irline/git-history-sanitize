@@ -3,7 +3,7 @@ ARG SOURCE_DATE_EPOCH=0
 ARG SOURCE_REVISION=unknown
 ARG PACKAGE_VERSION=0.1.2
 
-FROM ubuntu@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b AS builder
+FROM ubuntu@sha256:cd21a4f68a617580279d4b091cb18e3af9fa8a87500665f0ae5f7f757d17d367 AS builder
 ARG SOURCE_DATE_EPOCH
 ARG SOURCE_REVISION
 ARG PACKAGE_VERSION
@@ -41,7 +41,7 @@ FROM builder AS test
 COPY . .
 RUN PATH=/opt/git-2.47.0/bin:/opt/runtime/bin:$PATH env -u PYTHONPATH /opt/runtime/bin/python -m unittest discover -s tests -t . -v
 
-FROM ubuntu@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b AS runtime
+FROM ubuntu@sha256:cd21a4f68a617580279d4b091cb18e3af9fa8a87500665f0ae5f7f757d17d367 AS runtime
 ARG SOURCE_DATE_EPOCH
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH} \
     PATH=/opt/git-2.47.0/bin:/opt/runtime/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
