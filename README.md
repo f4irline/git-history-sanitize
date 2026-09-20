@@ -204,6 +204,9 @@ history:
   prefixMessage: "[sanitized]"
 
 paths:
+  include:
+    - src/
+    - README.md
   exclude:
     - secret.json
     - infra/
@@ -225,12 +228,25 @@ compared with committer timestamps; the cutoff commit itself is retained.
 `cutoffCommit` must be a lowercase, full storage-format commit OID reachable
 from source HEAD; abbreviations, refs, expressions, and uppercase values fail.
 
-### Excluded paths
+### Path allowlists and exclusions
 
-Each `paths.exclude` entry is a canonical, repository-relative POSIX path. An
-exact-file rule has no trailing slash (`secret.json`); a directory rule ends in
-one slash (`infra/`) and removes every descendant. These two forms remain
-distinct, so `name` and `name/` may both be configured.
+`paths.include` is optional. When it is absent, v1 preserves the existing
+exclusion-only behavior. When present, it must be a non-empty list and permits
+only the listed tracked tree paths. `paths.exclude` remains optional, and the
+effective order-independent predicate is:
+
+```text
+retained(path) = (include is absent OR path matches include)
+                 AND path does not match exclude
+```
+
+Exclusion wins when lists overlap. This permits a broad allowlist with a narrow
+deny rule without allowing policy ordering to weaken a denial. Each rule is a
+canonical, repository-relative POSIX path. An exact-file rule has no trailing
+slash (`secret.json`); a directory rule ends in one slash (`infra/`) and
+matches descendants only. These forms remain distinct, so `name` does not
+match `name/child`, `name/` does not match a file, symlink, or gitlink named
+`name`, and both forms may be configured for file/directory transitions.
 
 Entries must be non-empty and UTF-8 encodable, use only `/` separators, and
 contain non-empty segments other than `.` and `..`. Spaces, Unicode,
@@ -240,12 +256,13 @@ duplicate separators, repeated trailing slashes, duplicate rules, and a rule
 that is already covered by a configured directory. Errors identify only the
 escaped policy entry and its reason; they never inspect repository contents.
 
-`plan` reports its ordered `excluded_paths` value in JSON and its exclusions in
-human output. It also reports `retained_head_path_count` in JSON and `Retained
-HEAD paths` in human output: this is the number of paths in the source `HEAD`
-tree that remain after applying the validated exclusions. A value of `0` is a
-valid non-empty-source result; it does not describe historical content outside
-the source `HEAD` tree. The same validated tuple is used for planning,
+`plan --diagnostics=trusted` reports ordered include and exclude rules and each
+rule's `matched`, `unmatched`, or fully `shadowed` outcome for the selected,
+cutoff-eligible source graph. Unmatched and shadowed rules produce trusted
+warnings but remain valid policy. Public reports never disclose path identities
+or effects. `retained_head_path_count` is the source `HEAD` tree count after
+the combined predicate; `0` remains valid and does not describe historical
+content outside that tree. The same rule grammar is used for planning,
 filtering, and verification.
 
 ### Trusted hooks
@@ -402,6 +419,7 @@ Verification independently inspects the completed output repository. The
 artifact contract requires the exact selected branch/tag ref names and types, a
 symbolic selected `refs/heads/*` `HEAD`, a reachable DAG whose roots carry the
 configured synthetic prefix and cutoff eligibility, no excluded path in any
+retained tree, and, when an allowlist is active, no path outside it in any
 retained tree, no remotes,
 no shallow/partial/promisor/alternate object state, no reflogs or backup
 metadata, and no unreachable objects. `--forbid`, `--forbid-file`, and
@@ -414,7 +432,7 @@ patterns never match across object or hook-file boundaries.
 
 Each contract failure uses a stable, redacted invariant identifier:
 `graph.dag`, `root.synthetic`, `head.symbolic`, `refs.retained`,
-`paths.excluded`, `remotes.absent`, `repository.complete`, `metadata.clean`,
+`paths.excluded`, `paths.included`, `remotes.absent`, `repository.complete`, `metadata.clean`,
 `objects.reachable-only`, or `content.forbidden`. Human output names only that
 identifier.
 
@@ -430,7 +448,7 @@ and exits `0` on success or `2` on failure.
 | --- | --- | --- | --- |
 | Fixed protocol/status | schema version, audience, command, status, fixed catalog metadata, invariant, publication state | same | — |
 | Aggregate operation data | mode, scope, commit/path/object/boundary counts, hook action/count, dependency availability/version | same | — |
-| Repository/policy identity | — | excluded paths, retained refs, sanitized head/root IDs, hook names/warning associations | receipt bindings, source ref fingerprints, policy digests |
+| Repository/policy identity | — | include/exclude paths, plan rule effects, retained refs, sanitized head/root IDs, hook names/warning associations | receipt bindings, source ref fingerprints, policy digests |
 | Sensitive values | — | — | forbidden values or matches, removed messages, object/hook bodies, raw policy values, credentials, raw subprocess stderr, command arguments |
 
 Public v2 success envelopes have a stable `(schema_version, report_audience)`

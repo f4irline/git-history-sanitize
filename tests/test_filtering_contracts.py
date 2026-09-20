@@ -58,6 +58,81 @@ class FilteringContractTests(unittest.TestCase):
         self.assertNotIn(secret_blob, objects)
         self.assertNotIn(key_blob, objects)
 
+    def test_allowlist_retains_only_exact_and_directory_matches_with_exclude_precedence(self) -> None:
+        self.fixture.write("README.md", "read me\n")
+        self.fixture.write("app/main.py", "safe\n")
+        self.fixture.write("app/private/key.py", "secret\n")
+        self.fixture.write("notes.txt", "unlisted\n")
+        self.fixture.git(self.fixture.source, "add", "README.md", "app/main.py", "app/private/key.py", "notes.txt")
+        self.fixture.git(self.fixture.source, "commit", "-qm", "mixed")
+        removed_blob = self.fixture.git(self.fixture.source, "rev-parse", "HEAD:notes.txt")
+        policy = self.fixture.write_policy(
+            included_paths=("README.md", "app/"), excluded_paths=("app/private/",)
+        )
+
+        output = self.rewrite(policy)
+
+        self.assertEqual(
+            self.fixture.git(output, "ls-tree", "-r", "--name-only", "HEAD").splitlines(),
+            ["README.md", "app/main.py"],
+        )
+        self.assertNotIn(removed_blob, self.fixture.all_objects(output))
+
+    def test_allowlist_evaluates_rename_sides_and_file_directory_forms_per_path(self) -> None:
+        self.fixture.write("base.txt", "always retained\n")
+        self.fixture.write("outside.txt", "move in\n")
+        self.fixture.commit("outside root", "base.txt", "outside.txt")
+        (self.fixture.source / "app").mkdir()
+        self.fixture.git(self.fixture.source, "mv", "outside.txt", "app/main.py")
+        self.fixture.git(self.fixture.source, "commit", "-qm", "move into allowlist")
+        self.fixture.git(self.fixture.source, "mv", "app/main.py", "outside-again.txt")
+        self.fixture.git(self.fixture.source, "commit", "-qm", "move out of allowlist")
+        self.fixture.write("switch", "a file\n")
+        self.fixture.commit("exact form", "switch")
+        self.fixture.git(self.fixture.source, "rm", "switch")
+        self.fixture.write("switch/child.txt", "a directory\n")
+        self.fixture.git(self.fixture.source, "add", "switch/child.txt")
+        self.fixture.git(self.fixture.source, "commit", "-qm", "directory form")
+        policy = self.fixture.write_policy(included_paths=("base.txt", "app/", "switch", "switch/"))
+
+        output = self.fixture.output_dir / "renames.git"
+        result = self.fixture.run_cli(
+            "rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(output),
+            "--policy", str(policy), "--json", check=False,
+        )
+        self.assertEqual((result.returncode, result.stderr), (0, ""), result.stdout)
+
+        self.assertEqual(
+            self.fixture.git(output, "ls-tree", "-r", "--name-only", "HEAD").splitlines(),
+            ["base.txt", "switch/child.txt"],
+        )
+        history_paths = self.fixture.git(output, "log", "--format=", "--name-only", "--all").splitlines()
+        self.assertNotIn("outside.txt", history_paths)
+        self.assertNotIn("outside-again.txt", history_paths)
+
+    def test_topology_preserved_merge_with_removed_direct_changes_redacts_message(self) -> None:
+        self.fixture.write("base.txt", "base\n")
+        self.fixture.commit("root", "base.txt")
+        self.fixture.branch("side")
+        self.fixture.write("main.txt", "main\n")
+        self.fixture.write("private/shared.txt", "main secret\n")
+        self.fixture.commit("main parent", "main.txt", "private/shared.txt")
+        self.fixture.git(self.fixture.source, "checkout", "side")
+        self.fixture.write("side.txt", "side\n")
+        self.fixture.write("private/shared.txt", "side secret\n")
+        self.fixture.commit("side parent", "side.txt", "private/shared.txt")
+        self.fixture.git(self.fixture.source, "checkout", "main")
+        self.fixture.git(self.fixture.source, "merge", "--no-ff", "--no-commit", "side", check=False)
+        self.fixture.write("private/shared.txt", "merge secret\n")
+        self.fixture.git(self.fixture.source, "add", "private/shared.txt")
+        self.fixture.git(self.fixture.source, "commit", "-qm", "sensitive merge message")
+        policy = self.fixture.write_policy(included_paths=("base.txt", "main.txt", "side.txt"), mixed_message="redacted")
+
+        output = self.rewrite(policy)
+
+        messages = self.fixture.git(output, "log", "--merges", "--format=%s").splitlines()
+        self.assertEqual(messages, ["redacted"])
+
     def test_canonical_special_character_rules_reach_filtering_unchanged(self) -> None:
         paths = ("secret file.txt", "日本語/秘密.txt", "-secret.txt")
         self.fixture.write("keep.txt", "safe\n")

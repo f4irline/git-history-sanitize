@@ -342,6 +342,7 @@ class GitFixture:
         cutoff: str | None = "2026-09-03T00:00:00+00:00",
         cutoff_commit: str | None = None,
         excluded_paths: tuple[str, ...] = (),
+        included_paths: tuple[str, ...] | None = None,
         prefix_message: str = "[sanitized]",
         mixed_message: str = "[sanitized]",
         source_mode: str = "complete",
@@ -356,9 +357,15 @@ class GitFixture:
             else f"  cutoffCommit: {cutoff_commit}"
         )
         history_line = f"{history}\n" if history else ""
-        paths = "" if not excluded_paths else "paths:\n  exclude:\n" + "".join(
-            f"    - {path}\n" for path in excluded_paths
-        )
+        paths = ""
+        if included_paths is not None or excluded_paths:
+            paths = "paths:\n"
+            if included_paths is not None:
+                paths += "  include: []\n" if not included_paths else "  include:\n" + "".join(
+                    f"    - {path}\n" for path in included_paths
+                )
+            if excluded_paths:
+                paths += "  exclude:\n" + "".join(f"    - {path}\n" for path in excluded_paths)
         policy = self.root / "policy.yml"
         policy.write_text(
             "version: 1\n"

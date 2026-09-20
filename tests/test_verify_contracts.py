@@ -76,6 +76,77 @@ class VerifierContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stderr, "error: verification failed: paths.excluded\n")
 
+    def test_rejects_an_unallowlisted_path_reintroduced_after_rewrite(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("allowed.txt", "safe\n")
+        fixture.commit("allowed", "allowed.txt")
+        policy = fixture.write_policy(included_paths=("allowed.txt",))
+        output = fixture.output_dir / "sanitized.git"
+        fixture.run_cli("rewrite", "--source", str(fixture.source / ".git"), "--output", str(output), "--policy", str(policy))
+        clean_head = fixture.git(output, "rev-parse", "HEAD")
+        tree = fixture.tree_with_file(output, "unlisted.txt", "not allowed\n")
+        fixture.git(output, "update-ref", "refs/heads/main", fixture.commit_tree(output, tree, "tampered", clean_head))
+
+        result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), check=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: paths.included\n")
+
+    def test_rejects_unallowlisted_path_in_an_older_reachable_commit(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("allowed.txt", "safe\n")
+        fixture.commit("allowed", "allowed.txt")
+        fixture.write("unlisted.txt", "source only\n")
+        source_tip = fixture.commit("unlisted", "unlisted.txt")
+        policy = fixture.write_policy(included_paths=("allowed.txt",))
+        output = fixture.output_dir / "sanitized.git"
+        fixture.run_cli("rewrite", "--source", str(fixture.source / ".git"), "--output", str(output), "--policy", str(policy))
+        clean_head = fixture.git(output, "rev-parse", "HEAD")
+        fixture.git(output, "fetch", str(fixture.source / ".git"), source_tip)
+        historical = fixture.commit_tree(output, f"{source_tip}^{{tree}}", "tampered history", clean_head)
+        clean_tip = fixture.commit_tree(output, "HEAD^{tree}", "safe tip", historical)
+        fixture.git(output, "update-ref", "refs/heads/main", clean_tip)
+
+        result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), check=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: paths.included\n")
+
+    def test_exclusion_precedes_allowlist_in_verification(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("allowed.txt", "safe\n")
+        fixture.commit("allowed", "allowed.txt")
+        policy = fixture.write_policy(included_paths=("allowed.txt",), excluded_paths=("allowed.txt",))
+        output = fixture.output_dir / "sanitized.git"
+        fixture.run_cli("rewrite", "--source", str(fixture.source / ".git"), "--output", str(output), "--policy", str(policy))
+        clean_head = fixture.git(output, "rev-parse", "HEAD")
+        tree = fixture.tree_with_file(output, "allowed.txt", "doubly disallowed\n")
+        fixture.git(output, "update-ref", "refs/heads/main", fixture.commit_tree(output, tree, "tampered", clean_head))
+
+        result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), check=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: paths.excluded\n")
+
+    def test_rejects_unallowlisted_path_on_another_retained_ref(self) -> None:
+        fixture = GitFixture(self)
+        fixture.write("allowed.txt", "safe\n")
+        boundary = fixture.commit("allowed", "allowed.txt")
+        fixture.git(fixture.source, "branch", "release", boundary)
+        policy = fixture.write_policy(
+            included_paths=("allowed.txt",), retained_refs=("HEAD", "refs/heads/release")
+        )
+        output = fixture.output_dir / "sanitized.git"
+        fixture.run_cli("rewrite", "--source", str(fixture.source / ".git"), "--output", str(output), "--policy", str(policy))
+        release = fixture.git(output, "rev-parse", "refs/heads/release")
+        tree = fixture.tree_with_file(output, "unlisted.txt", "other ref\n")
+        fixture.git(output, "update-ref", "refs/heads/release", fixture.commit_tree(output, tree, "tampered release", release))
+
+        result = fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), check=False)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, "error: verification failed: paths.included\n")
+
     def test_exact_file_and_directory_rules_share_plan_and_verify_contract(self) -> None:
         fixture = GitFixture(self)
         fixture.write("allowed.txt", "safe\n")
