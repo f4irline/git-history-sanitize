@@ -66,6 +66,10 @@ def _public_plan(value: Plan) -> dict[str, Any]:
         "included_commit_count": value.included_commit_count,
         "included_object_count": value.included_object_count,
         "retained_head_path_count": value.retained_head_path_count,
+        "retained_ref_count": value.retained_ref_count,
+        "retained_branch_count": value.retained_branch_count,
+        "retained_lightweight_tag_count": value.retained_lightweight_tag_count,
+        "retained_annotated_tag_count": value.retained_annotated_tag_count,
         "hooks": _hooks(value.hooks, value.hooks_stripped),
     }
 
@@ -99,7 +103,11 @@ def _public_result(command: str, value: Any) -> dict[str, Any]:
 
 def _diagnostics(command: str, value: Any) -> dict[str, Any]:
     if command == "plan" and isinstance(value, Plan):
-        return {"excluded_paths": list(value.excluded_paths), **_hook_diagnostics(value.hooks)}
+        return {
+            "excluded_paths": list(value.excluded_paths),
+            "retained_refs": list(value.retained_refs),
+            **_hook_diagnostics(value.hooks),
+        }
     if command == "rewrite" and isinstance(value, RewriteReport):
         return {
             "head": value.verification.head,
@@ -199,6 +207,10 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
             f"Source commits: {result['source_commits']}", f"Pre-cutoff commits: {result['discarded_commits']}",
             f"Commits before path filtering: {result['retained_commits_before_path_filter']}",
             f"Retained HEAD paths: {result['retained_head_path_count']}", f"Scope: {result['scope']}",
+            "Retained refs: "
+            f"{result['retained_ref_count']} (branches: {result['retained_branch_count']}, "
+            f"lightweight tags: {result['retained_lightweight_tag_count']}, "
+            f"annotated tags: {result['retained_annotated_tag_count']})",
             f"Hooks: {result['hooks']['action']} ({result['hooks']['count']})",
         ]
         if diagnostics == "trusted":
@@ -208,6 +220,7 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
             )
             lines.extend((
                 f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
+                f"Retained refs: {', '.join(detail['retained_refs']) or 'none'}",
                 f"Hook names: {', '.join(detail['hook_names']) or 'none'}",
                 f"Hook warnings: {warnings or 'none'}",
             ))

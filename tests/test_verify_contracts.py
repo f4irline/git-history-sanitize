@@ -190,7 +190,7 @@ class VerifierContractTests(unittest.TestCase):
         result = self.verify(output)
 
         self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stderr, "error: verification failed: graph.linear\n")
+        self.assertEqual(result.stderr, "error: verification failed: root.synthetic\n")
 
     def test_rejects_forbidden_content_in_a_reachable_object(self) -> None:
         output = self.rewrite()
@@ -213,7 +213,7 @@ class VerifierContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stderr, "error: verification failed: content.forbidden\n")
 
-    def test_rejects_a_non_linear_graph_with_one_root(self) -> None:
+    def test_accepts_a_merge_dag_with_a_synthetic_root(self) -> None:
         output = self.rewrite()
         root = self.fixture.git(output, "rev-parse", "HEAD~0")
         first = self.fixture.commit_tree(output, "HEAD^{tree}", "first", root)
@@ -223,8 +223,8 @@ class VerifierContractTests(unittest.TestCase):
 
         result = self.verify(output)
 
-        self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stderr, "error: verification failed: graph.linear\n")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, "")
 
     def test_rejects_a_non_branch_symbolic_head(self) -> None:
         output = self.rewrite()

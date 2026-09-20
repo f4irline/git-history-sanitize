@@ -6,7 +6,7 @@ import hashlib
 from dataclasses import dataclass
 
 from .errors import SourceError
-from .git import GitError, Repository
+from .git import GitError, Repository, RetainedRef
 from .policy import Policy
 
 
@@ -17,6 +17,7 @@ class SourceScope:
     objects: tuple[str, ...]
     shallow_roots: tuple[str, ...]
     fingerprint: str
+    selected_refs: tuple[RetainedRef, ...]
 
     @property
     def boundary_count(self) -> int:
@@ -65,10 +66,10 @@ def _promisor(repository: Repository) -> bool:
     )
 
 
-def _closure(repository: Repository, revision: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def _closure(repository: Repository, *revisions: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     try:
-        commits = tuple(repository.text("rev-list", "--reverse", "--topo-order", revision).splitlines())
-        raw = repository.run("rev-list", "--objects", "--no-object-names", revision)
+        commits = tuple(repository.text("rev-list", "--reverse", "--topo-order", *revisions).splitlines())
+        raw = repository.run("rev-list", "--objects", "--no-object-names", *revisions)
         objects = tuple(sorted(set(raw.decode("ascii").splitlines())))
         for oid in objects:
             if repository.run("cat-file", "-e", f"{oid}^{{object}}", check=False) is None:
@@ -89,19 +90,21 @@ def inspect_source(repository: Repository, policy: Policy) -> SourceScope:
     shallow_roots = _shallow_roots(repository)
     partial = _promisor(repository)
     mode = policy.source.mode
+    selected_refs = repository.retained_refs(policy.retained_refs)
+    selected_tips = tuple(ref.target for ref in selected_refs)
     if mode == "complete":
         if shallow_roots:
             _fail("Source is shallow; fetch complete history or explicitly select bounded mode")
         if partial:
             _fail("Source is partial/promisor; explicitly materialize objects before sanitizing")
         # Complete mode must prove every local ref is materialized, but the
-        # rewrite itself retains only HEAD's graph.
+        # Rewrite output retains only the selected direct refs.
         _closure(repository, "--all")
-        commits, objects = _closure(repository, "HEAD")
+        commits, objects = _closure(repository, *selected_tips)
     elif mode == "bounded":
         if not shallow_roots:
             _fail("bounded source.mode requires a shallow source repository")
-        commits, objects = _closure(repository, "HEAD")
+        commits, objects = _closure(repository, *selected_tips)
         if not set(shallow_roots).issubset(commits):
             _fail("Cannot prove shallow history boundary; recreate the bounded clone")
     else:
@@ -121,4 +124,4 @@ def inspect_source(repository: Repository, policy: Policy) -> SourceScope:
             raise SourceError("Source has unavailable required objects; explicitly materialize them before sanitizing") from error
         commits = (head,)
     content = "\0".join((mode, *shallow_roots, *commits, *objects)).encode("ascii")
-    return SourceScope(mode, commits, objects, shallow_roots, hashlib.sha256(content).hexdigest())
+    return SourceScope(mode, commits, objects, shallow_roots, hashlib.sha256(content).hexdigest(), selected_refs)

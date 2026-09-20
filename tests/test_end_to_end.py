@@ -192,6 +192,63 @@ refs:
         self.assertEqual(failed.stderr, "error: invalid command arguments: Run the command with --help for usage.\n")
         self.fixture.assert_source_snapshot(source_snapshot)
 
+    def test_rewrite_retains_selected_merge_dag_branches_and_tags(self) -> None:
+        self.fixture.write("base.txt", "old\n")
+        self.commit("2026-09-02T23:59:59+00:00", "old base", "base.txt")
+        self.fixture.git(self.source, "checkout", "-qb", "release")
+        self.fixture.write("release.txt", "release\n")
+        release = self.fixture.commit("release", "release.txt")
+        self.fixture.git(self.source, "tag", "release-lightweight", release)
+        self.fixture.git(self.source, "checkout", "main")
+        self.fixture.write("main.txt", "main\n")
+        self.fixture.write("private/secret.txt", "private\n")
+        self.fixture.commit("main", "main.txt", "private/secret.txt")
+        self.fixture.merge("release", "merge release")
+        self.fixture.tag("merged-annotated", "unsigned release annotation")
+        self.fixture.branch("unselected", "HEAD~1")
+        source_snapshot = self.fixture.snapshot_source()
+        policy = self.fixture.write_policy(
+            excluded_paths=("private/",),
+            retained_refs=(
+                "HEAD",
+                "refs/heads/release",
+                "refs/tags/release-lightweight",
+                "refs/tags/merged-annotated",
+            )
+        )
+        output = self.fixture.output_dir / "selected-dag.git"
+
+        rewritten = self.fixture.run_cli(
+            "rewrite", "--source", str(self.source / ".git"), "--output", str(output),
+            "--policy", str(policy), "--json", check=False,
+        )
+
+        self.assertEqual(rewritten.returncode, 0, rewritten.stdout + rewritten.stderr)
+
+        self.fixture.assert_source_snapshot(source_snapshot)
+        self.assertEqual(
+            self.fixture.git(output, "for-each-ref", "--format=%(refname)").splitlines(),
+            [
+                "refs/heads/main", "refs/heads/release", "refs/tags/merged-annotated",
+                "refs/tags/release-lightweight",
+            ],
+        )
+        self.assertEqual(len(self.fixture.git(output, "show", "-s", "--format=%P", "HEAD").split()), 2)
+        self.assertIn("unsigned release annotation", self.fixture.git(output, "cat-file", "-p", "refs/tags/merged-annotated"))
+        self.assertNotIn("unselected", self.fixture.refs(output))
+        self.assertNotIn("private/secret.txt", self.fixture.git(output, "ls-tree", "-r", "--name-only", "HEAD"))
+        self.assertEqual(json.loads(rewritten.stdout)["result"]["verification"]["commit_count"], 3)
+        verified = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(policy), "--json",
+        )
+        self.assertEqual(json.loads(verified.stdout)["result"]["commit_count"], 3)
+        self.fixture.git(output, "update-ref", "-d", "refs/heads/release")
+        rejected = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(policy), check=False,
+        )
+        self.assertEqual(rejected.returncode, 2)
+        self.assertEqual(rejected.stderr, "error: verification failed: refs.retained\n")
+
 
 if __name__ == "__main__":
     unittest.main()

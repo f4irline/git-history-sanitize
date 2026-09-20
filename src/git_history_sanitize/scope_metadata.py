@@ -50,7 +50,9 @@ def read(repository: Path, mode: str, *, allow_legacy_complete: bool = False) ->
     if not isinstance(value, dict) or set(value) != {"schema_version", "mode", "coverage", "boundary_count", "included_commit_count", "included_object_count"}:
         raise VerificationError("verification failed: scope.metadata", invariant="scope.metadata")
     if value.get("schema_version") != 1 or value.get("mode") != mode or value.get("coverage") not in {
-        "complete reachable history", "declared shallow HEAD history only", "HEAD tree snapshot; inherited history excluded",
+        "complete reachable history",
+        "declared shallow HEAD history only",
+        "HEAD tree snapshot; inherited history excluded",
     } or any(type(value.get(key)) is not int or value[key] < 0 for key in ("boundary_count", "included_commit_count", "included_object_count")):
         raise VerificationError("verification failed: scope.metadata", invariant="scope.metadata")
     if data != json.dumps(value, sort_keys=True, separators=(",", ":")).encode() + b"\n":

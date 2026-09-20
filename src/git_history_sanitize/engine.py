@@ -8,9 +8,9 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .cleanup import cleanup, retain_head_only
+from .cleanup import cleanup, retain_selected_refs
 from ._version import __version__
-from .compact import CompactResult, compact, restore_empty_synthetic_root
+from .compact import CompactResult, compact, restore_selected_components
 from .errors import PublicationError, SanitizeError, UsageError
 from .filtering import filter_paths, retained_head_path_count
 from .git import Repository, ensure_dependencies
@@ -44,6 +44,11 @@ class Plan:
     excluded_paths: tuple[str, ...]
     hooks: HookInventory
     hooks_stripped: bool
+    retained_ref_count: int = 0
+    retained_branch_count: int = 0
+    retained_lightweight_tag_count: int = 0
+    retained_annotated_tag_count: int = 0
+    retained_refs: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         result = asdict(self)
@@ -96,6 +101,11 @@ def plan(source: str | Path, policy: Policy, *, preserve_hooks: bool = True) -> 
         excluded_paths=policy.excluded_paths,
         hooks=discover_hooks(repository),
         hooks_stripped=not preserve_hooks,
+        retained_ref_count=len(analysis.scope.selected_refs),
+        retained_branch_count=sum(ref.kind == "branch" for ref in analysis.scope.selected_refs),
+        retained_lightweight_tag_count=sum(ref.kind == "lightweight-tag" for ref in analysis.scope.selected_refs),
+        retained_annotated_tag_count=sum(ref.kind == "annotated-tag" for ref in analysis.scope.selected_refs),
+        retained_refs=analysis.selected_refs,
     )
 
 
@@ -161,22 +171,24 @@ def rewrite(
         rewrite_repository = source_repository.clone_to(
             temporary_root / "rewrite", template_directory=template_directory
         )
-        retain_head_only(rewrite_repository)
+        selected_names = analysis.selected_refs
+        retain_selected_refs(rewrite_repository, selected_names)
         compact_result = compact(rewrite_repository, policy, analysis)
         filter_paths(rewrite_repository, policy)
-        restore_empty_synthetic_root(rewrite_repository, compact_result.synthetic_root_context)
-        cleanup(rewrite_repository)
+        restore_selected_components(rewrite_repository, compact_result)
+        cleanup(rewrite_repository, selected_names)
 
         bare_repository = rewrite_repository.clone_to(
             temporary_root / "sanitized.git", bare=True, template_directory=template_directory
         )
         set_private_mode(bare_repository.path, 0o700)
-        cleanup(bare_repository)
+        cleanup(bare_repository, selected_names)
         if preserve_hooks:
             install_hooks(bare_repository, hooks)
         write_scope_metadata(bare_repository.path, analysis.scope)
         if receipt_path:
             roots = bare_repository.text("rev-list", "--max-parents=0", "--all").splitlines()
+            output_refs = bare_repository.retained_refs(policy.retained_refs)
             descriptor, staged_receipt_name = tempfile.mkstemp(
                 prefix=f".{receipt_path.name}.", dir=receipt_path.parent
             )
@@ -195,6 +207,11 @@ def rewrite(
                 scope_mode=analysis.scope.mode,
                 scope_fingerprint=analysis.scope.fingerprint,
                 boundary_count=analysis.scope.boundary_count,
+                **({
+                    "source_refs": tuple((ref.name, ref.kind, ref.target) for ref in analysis.scope.selected_refs),
+                    "sanitized_refs": tuple((ref.name, ref.kind, ref.target) for ref in output_refs),
+                    "sanitized_roots": tuple(sorted(roots)),
+                } if policy.retained_refs != ("HEAD",) else {}),
             )
             with os.fdopen(descriptor, "wb") as handle:
                 os.fchmod(handle.fileno(), 0o600)

@@ -6,6 +6,7 @@ import os
 import platform
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -14,10 +15,32 @@ from .oci_toolchain import ToolchainManifestError, load_required_manifest
 
 
 OCI_MANIFEST_SENTINEL = Path("/usr/local/etc/git-history-sanitize/oci-manifest-required")
+_SIGNATURE_MARKERS = (
+    b"-----BEGIN PGP SIGNATURE-----",
+    b"-----BEGIN SSH SIGNATURE-----",
+    b"-----BEGIN CMS-----",
+    b"-----BEGIN SIGNATURE-----",
+    b"-----BEGIN SIGNED MESSAGE-----",
+    b"-----BEGIN PKCS7 SIGNATURE-----",
+)
 
 
 class GitError(SourceError):
     """Raised when Git rejects an operation."""
+
+
+def _is_signed_tag(annotation: bytes) -> bool:
+    return any(marker in annotation for marker in _SIGNATURE_MARKERS)
+
+
+@dataclass(frozen=True)
+class RetainedRef:
+    """A selected direct ref and its commit target, kept out of public reports."""
+
+    name: str
+    kind: str
+    target: str
+    annotation: bytes | None = None
 
 
 def git_environment(environment: dict[str, str] | None = None) -> dict[str, str]:
@@ -166,6 +189,55 @@ class Repository:
                 raise SourceError("Cannot read source references")
             result.append((fields[0], fields[1].decode("ascii")))
         return tuple(result)
+
+    def retained_refs(self, selectors: tuple[str, ...]) -> tuple[RetainedRef, ...]:
+        """Resolve the policy's direct branch/tag selectors without revision parsing."""
+        head = self.head_ref()
+        records = self.run(
+            "for-each-ref",
+            "--sort=refname",
+            "--format=%(refname)%00%(objecttype)%00%(objectname)%00%(*objecttype)%00",
+        ).splitlines()
+        refs: dict[str, tuple[str, str, str]] = {}
+        for record in records:
+            fields = record.split(b"\0")
+            if len(fields) != 5 or fields[-1]:
+                raise SourceError("Cannot inspect retained references")
+            name = fields[0].decode("utf-8", "surrogateescape")
+            refs[name] = tuple(field.decode("ascii") for field in fields[1:4])
+
+        selected: list[RetainedRef] = []
+        for selector in selectors:
+            name = head if selector == "HEAD" else selector
+            if any(ref.name == name for ref in selected):
+                raise SourceError("refs.keep selects the symbolic HEAD branch more than once")
+            try:
+                object_type, object_id, peeled_type = refs[name]
+            except KeyError as error:
+                raise SourceError("A selected reference does not exist") from error
+            if name.startswith("refs/heads/"):
+                if object_type != "commit":
+                    raise SourceError("A selected branch must point directly to a commit")
+                selected.append(RetainedRef(name, "branch", object_id))
+                continue
+            if not name.startswith("refs/tags/"):
+                raise SourceError("A selected reference uses an unsupported namespace")
+            if object_type == "commit":
+                selected.append(RetainedRef(name, "lightweight-tag", object_id))
+                continue
+            if object_type != "tag" or peeled_type != "commit":
+                raise SourceError("A selected tag must directly target a commit")
+            annotation = self.run("cat-file", "tag", object_id)
+            headers = annotation.split(b"\n\n", 1)[0].splitlines()
+            if _is_signed_tag(annotation):
+                raise SourceError("Signed annotated tags are not supported")
+            if not any(header == b"type commit" for header in headers):
+                raise SourceError("Selected tag chains and non-commit tag targets are not supported")
+            target = self.text("rev-parse", "--verify", "--end-of-options", f"{name}^{{commit}}")
+            selected.append(RetainedRef(name, "annotated-tag", target, annotation))
+        if not any(ref.name == head for ref in selected):
+            raise SourceError("refs.keep must select the symbolic HEAD branch")
+        return tuple(selected)
 
     def resolve_cutoff_commit(self, value: str) -> str:
         object_format = self.object_format()

@@ -337,20 +337,35 @@ git-history-sanitize verify --repository /artifacts/sanitized.git \
   --policy /trusted/policy.yml
 ```
 
-`rewrite` always creates a parentless synthetic root with the configured
-prefix message. It retains the tree at the first allowed commit, removes
-pre-cutoff commits, then filters sensitive paths from the shortened history.
-Mixed commits retain allowed file changes but have their messages replaced.
-Sensitive-only commits are pruned when they become empty. If filtering removes
-every retained path from a non-empty source, the result remains a valid,
-one-commit bare repository: the synthetic root keeps its configured message
-and deterministic boundary metadata, points at Git's canonical empty tree, and
-retains its symbolic branch `HEAD`. This is distinct from an empty source,
-which remains invalid.
+Commit-cutoff receipts for explicit retained refs use private schema v3 to bind
+the selected source and output ref descriptors plus all synthetic roots.
+Legacy `[HEAD]` receipts remain v2, and verifiers continue to accept valid
+v1/v2 single-HEAD artifacts.
 
-The first release supports a single linear retained branch. Merge histories,
-non-monotonic cutoff timestamps, and unsupported refs fail closed instead of
-producing an ambiguous rewrite.
+`refs.keep` defaults to `[HEAD]` for the backward-compatible single-branch
+case. It may instead contain an ordered, duplicate-free selection of `HEAD`,
+`refs/heads/<name>`, and `refs/tags/<name>` entries. Selectors are exact full
+ref names; patterns, remote-tracking refs, notes, stashes, replace refs, and
+other namespaces fail closed. The symbolic `HEAD` branch must be selected.
+Snapshot mode remains limited to `[HEAD]`.
+
+`rewrite` reconstructs the selected commit DAG once in deterministic
+topological order. It preserves retained parent ordering; every retained
+frontier with no retained parent becomes a parentless synthetic root carrying
+the configured prefix message and that commit's supported metadata. Timestamp
+cutoffs retain selected reachable commits at or after the cutoff. Commit
+cutoffs require the cutoff commit to be reachable from every selected tip and
+cut its parent edges. A selected ref with no eligible retained tip fails
+closed. Path filtering prunes empty commits while preserving graph-correct
+remaining parents; if it removes a selected component entirely, a deterministic
+empty synthetic root restores that component.
+
+Selected branches and lightweight tags follow their rewritten commit. Unsigned
+annotated tags are recreated with their annotation, tagger, and message after
+filtering. Signed annotated tags, tag chains, and non-commit tag targets fail
+closed because their original signature or target contract cannot survive a
+rewrite. All unselected refs are removed before aggressive cleanup, so objects
+reachable only from them are physically absent from the output.
 
 ## Container image
 
@@ -383,10 +398,11 @@ docker buildx build --target test -f Containerfile .
 
 ## Verification
 
-Verification independently inspects the completed output repository. The v1
-artifact contract requires a linear retained `HEAD` graph, a parentless
-synthetic root with the configured prefix message and cutoff eligibility, one
-symbolic `refs/heads/*` ref, no excluded path in any retained tree, no remotes,
+Verification independently inspects the completed output repository. The
+artifact contract requires the exact selected branch/tag ref names and types, a
+symbolic selected `refs/heads/*` `HEAD`, a reachable DAG whose roots carry the
+configured synthetic prefix and cutoff eligibility, no excluded path in any
+retained tree, no remotes,
 no shallow/partial/promisor/alternate object state, no reflogs or backup
 metadata, and no unreachable objects. `--forbid`, `--forbid-file`, and
 `--forbid-stdin` additionally scan object bodies and active eligible hooks,
@@ -397,7 +413,7 @@ newline-delimited byte records. Inputs are limited to 64 KiB per record and
 patterns never match across object or hook-file boundaries.
 
 Each contract failure uses a stable, redacted invariant identifier:
-`graph.linear`, `root.synthetic`, `head.symbolic`, `refs.retained`,
+`graph.dag`, `root.synthetic`, `head.symbolic`, `refs.retained`,
 `paths.excluded`, `remotes.absent`, `repository.complete`, `metadata.clean`,
 `objects.reachable-only`, or `content.forbidden`. Human output names only that
 identifier.

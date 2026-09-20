@@ -1,13 +1,25 @@
-"""Cutoff compaction for a single linear retained Git branch."""
+"""Selected-ref DAG cutoff compaction and post-filter ref recovery."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from .errors import SanitizeError
-from .git import Repository
+from .git import Repository, RetainedRef
 from .policy import Policy
 from .rewrite_analysis import RewriteAnalysis
+
+_RECOVERY_PREFIX = "refs/git-history-sanitize/recovery/"
+
+
+@dataclass(frozen=True)
+class SyntheticRootContext:
+    """Identity needed to recover a selected component pruned by filtering."""
+
+    head_ref: str
+    message: bytes
+    metadata: tuple[tuple[str, str], ...]
+    recovery_ref: str = ""
 
 
 @dataclass(frozen=True)
@@ -16,34 +28,21 @@ class CompactResult:
     discarded_commits: int
     boundary_commit: str
     synthetic_root: str
-    synthetic_root_context: "SyntheticRootContext"
-
-
-@dataclass(frozen=True)
-class SyntheticRootContext:
-    """Identity needed to recover an all-pruned synthetic root."""
-
-    head_ref: str
-    message: bytes
-    metadata: tuple[tuple[str, str], ...]
+    synthetic_root_context: SyntheticRootContext
+    synthetic_roots: tuple[str, ...] = ()
+    recovery_contexts: tuple[SyntheticRootContext, ...] = ()
+    selected_refs: tuple[RetainedRef, ...] = ()
 
 
 def _metadata(repository: Repository, commit: str) -> dict[str, str]:
     fields = repository.run(
-        "show",
-        "-s",
-        "--format=%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI",
-        commit,
+        "show", "-s", "--format=%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI", commit
     ).rstrip(b"\n").split(b"\x00")
     if len(fields) != 6:
-        raise SanitizeError(f"Cannot read commit metadata for {commit}")
+        raise SanitizeError("Cannot read selected commit metadata")
     keys = (
-        "GIT_AUTHOR_NAME",
-        "GIT_AUTHOR_EMAIL",
-        "GIT_AUTHOR_DATE",
-        "GIT_COMMITTER_NAME",
-        "GIT_COMMITTER_EMAIL",
-        "GIT_COMMITTER_DATE",
+        "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
+        "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE",
     )
     return {key: value.decode("utf-8", "surrogateescape") for key, value in zip(keys, fields)}
 
@@ -53,89 +52,118 @@ def _message(repository: Repository, commit: str) -> bytes:
     try:
         return raw.split(b"\n\n", 1)[1]
     except IndexError as error:
-        raise SanitizeError(f"Malformed commit object {commit}") from error
-
-
-def _create_commit(
-    repository: Repository, source: str, parent: str | None, message: bytes
-) -> str:
-    tree = repository.text("rev-parse", f"{source}^{{tree}}")
-    return _create_commit_for_tree(repository, tree, parent, message, _metadata(repository, source))
+        raise SanitizeError("Malformed selected commit object") from error
 
 
 def _create_commit_for_tree(
-    repository: Repository,
-    tree: str,
-    parent: str | None,
-    message: bytes,
-    metadata: dict[str, str],
+    repository: Repository, tree: str, parents: tuple[str, ...], message: bytes, metadata: dict[str, str],
 ) -> str:
     arguments = ["commit-tree", tree]
-    if parent:
-        arguments.extend(["-p", parent])
-    arguments.extend(["-F", "-"])
+    for parent in parents:
+        arguments.extend(("-p", parent))
+    arguments.extend(("-F", "-"))
     try:
-        result = repository.run(
-            *arguments, input_bytes=message, environment=metadata
-        )
-    except SanitizeError:
-        raise SanitizeError("Could not recreate a sanitized commit")
-    return result.decode().strip()
+        return repository.run(*arguments, input_bytes=message, environment=metadata).decode().strip()
+    except SanitizeError as error:
+        raise SanitizeError("Could not recreate a sanitized commit") from error
 
 
-def _synthetic_root_context(
-    repository: Repository, synthetic_root: str, policy: Policy
+def _root_context(
+    repository: Repository, selected: RetainedRef, recovery_source: str, policy: Policy, index: int,
 ) -> SyntheticRootContext:
     return SyntheticRootContext(
-        head_ref=repository.head_ref(),
-        message=f"{policy.history.prefix_message}\n".encode(),
-        metadata=tuple(sorted(_metadata(repository, synthetic_root).items())),
+        selected.name,
+        f"{policy.history.prefix_message}\n".encode(),
+        tuple(sorted(_metadata(repository, recovery_source).items())),
+        f"{_RECOVERY_PREFIX}{index:04d}",
     )
 
 
-def restore_empty_synthetic_root(repository: Repository, context: SyntheticRootContext) -> bool:
-    """Restore the captured root only if filtering pruned every retained commit."""
-    head = repository.run("rev-parse", "--verify", "--quiet", "HEAD", check=False).strip()
-    if head:
-        return False
-    if repository.head_ref() != context.head_ref:
-        raise SanitizeError("Could not restore a valid sanitized HEAD")
+def _empty_root(repository: Repository, context: SyntheticRootContext) -> str:
     empty_tree = repository.run("mktree", input_bytes=b"").decode().strip()
-    root = _create_commit_for_tree(
-        repository, empty_tree, None, context.message, dict(context.metadata)
-    )
-    repository.run("update-ref", context.head_ref, root)
-    resolved = repository.run("rev-parse", "--verify", "--quiet", "HEAD", check=False).strip()
-    if not resolved or resolved.decode() != root or repository.head_ref() != context.head_ref:
-        raise SanitizeError("Could not restore a valid sanitized HEAD")
-    if repository.commit_tree(root) != empty_tree:
-        raise SanitizeError("Could not restore a valid sanitized HEAD")
-    return True
+    return _create_commit_for_tree(repository, empty_tree, (), context.message, dict(context.metadata))
 
 
 def compact(repository: Repository, policy: Policy, analysis: RewriteAnalysis) -> CompactResult:
-    if policy.source.mode == "snapshot":
-        head = repository.text("rev-parse", "HEAD")
-        synthetic_root = _create_commit(
-            repository, head, None, f"{policy.history.prefix_message}\n".encode()
-        )
-        repository.run("update-ref", repository.head_ref(), synthetic_root, head)
-        return CompactResult(1, 0, head, synthetic_root, _synthetic_root_context(repository, synthetic_root, policy))
-    commits = analysis.commits
-    boundary_index = analysis.boundary_index
-    boundary = analysis.boundary_commit
-    synthetic_root = _create_commit(
-        repository, boundary, None, f"{policy.history.prefix_message}\n".encode()
-    )
-    new_head = synthetic_root
-    for commit in commits[boundary_index + 1 :]:
-        new_head = _create_commit(repository, commit, new_head, _message(repository, commit))
+    mapped: dict[str, str] = {}
+    roots: list[str] = []
+    for source in analysis.retained_commits_list:
+        parents = tuple(mapped[parent] for parent in analysis.retained_source_parents[source])
+        if parents:
+            mapped[source] = _create_commit_for_tree(
+                repository, repository.commit_tree(source), parents, _message(repository, source), _metadata(repository, source)
+            )
+        else:
+            mapped[source] = _create_commit_for_tree(
+                repository, repository.commit_tree(source), (), f"{policy.history.prefix_message}\n".encode(), _metadata(repository, source)
+            )
+            roots.append(mapped[source])
 
-    repository.run("update-ref", repository.head_ref(), new_head, commits[-1])
-    return CompactResult(
-        original_commits=len(commits),
-        discarded_commits=boundary_index,
-        boundary_commit=boundary,
-        synthetic_root=synthetic_root,
-        synthetic_root_context=_synthetic_root_context(repository, synthetic_root, policy),
+    contexts = tuple(
+        _root_context(
+            repository,
+            selected,
+            next(
+                source for source in analysis.retained_commits_list
+                if not analysis.retained_source_parents[source]
+                and source in repository.text("rev-list", selected.target).splitlines()
+            ),
+            policy,
+            index,
+        )
+        for index, selected in enumerate(analysis.scope.selected_refs)
     )
+    for selected, context in zip(analysis.scope.selected_refs, contexts):
+        target = mapped[selected.target]
+        repository.run("update-ref", context.recovery_ref, target)
+        if selected.kind == "annotated-tag":
+            repository.run("update-ref", "-d", selected.name, check=False)
+        else:
+            repository.run("update-ref", selected.name, target)
+    if not roots:
+        raise SanitizeError("Could not create a synthetic selected-ref frontier")
+    return CompactResult(
+        len(analysis.commits), analysis.discarded_commits, analysis.boundary_commit,
+        roots[0], contexts[0], tuple(roots), contexts, analysis.scope.selected_refs,
+    )
+
+
+def _recreate_tag(repository: Repository, selected: RetainedRef, target: str) -> None:
+    assert selected.annotation is not None
+    headers, separator, body = selected.annotation.partition(b"\n\n")
+    if not separator:
+        raise SanitizeError("Cannot recreate selected annotated tag")
+    rewritten = b"\n".join(
+        f"object {target}".encode() if line.startswith(b"object ") else line
+        for line in headers.splitlines()
+    ) + separator + body
+    tag = repository.run("mktag", input_bytes=rewritten).decode().strip()
+    repository.run("update-ref", selected.name, tag)
+
+
+def restore_selected_components(repository: Repository, result: CompactResult) -> tuple[str, ...]:
+    """Restore selected refs after prune-empty and recreate unsigned annotations."""
+    targets: list[str] = []
+    for selected, context in zip(result.selected_refs, result.recovery_contexts):
+        target = repository.run("rev-parse", "--verify", "--quiet", context.recovery_ref, check=False).strip().decode()
+        if not target:
+            target = _empty_root(repository, context)
+            repository.run("update-ref", context.recovery_ref, target)
+        if selected.kind != "annotated-tag":
+            repository.run("update-ref", selected.name, target)
+        targets.append(target)
+    for selected, target in zip(result.selected_refs, targets):
+        if selected.kind == "annotated-tag":
+            _recreate_tag(repository, selected, target)
+    for context in result.recovery_contexts:
+        repository.run("update-ref", "-d", context.recovery_ref, check=False)
+    return tuple(targets)
+
+
+def restore_empty_synthetic_root(repository: Repository, context: SyntheticRootContext) -> bool:
+    """Backward-compatible one-ref recovery used by legacy callers."""
+    if repository.run("rev-parse", "--verify", "--quiet", context.head_ref, check=False).strip():
+        return False
+    root = _empty_root(repository, context)
+    repository.run("update-ref", context.head_ref, root)
+    return True

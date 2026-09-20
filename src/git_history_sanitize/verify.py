@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .errors import VerificationError
+from .errors import SourceError, VerificationError
 from .forbidden import CHUNK_SIZE, Matcher
 from .git import GitError, Repository, git_environment
 from .hooks import HookError, discover as discover_hooks
@@ -44,6 +44,7 @@ class _Invariant:
 @dataclass
 class _VerificationState:
     commits: tuple[str, ...] = ()
+    roots: tuple[str, ...] = ()
     head_ref: str = ""
     refs: tuple[str, ...] = ()
 
@@ -65,20 +66,25 @@ def _inspect(invariant: _Invariant) -> None:
         _contract_fail(invariant.name)
 
 
-def _graph(repository: Repository) -> tuple[str, ...]:
-    commits = tuple(repository.text("rev-list", "--reverse", "--topo-order", "HEAD").splitlines())
+def _graph(repository: Repository) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    commits = tuple(repository.text("rev-list", "--reverse", "--topo-order", "--all").splitlines())
     if not commits:
-        _contract_fail("graph.linear")
-    for index, commit in enumerate(commits):
+        _contract_fail("graph.dag")
+    present = set(commits)
+    roots: list[str] = []
+    for commit in commits:
         parents = tuple(repository.text("show", "-s", "--format=%P", commit).split())
-        expected = () if index == 0 else (commits[index - 1],)
-        if parents != expected:
-            _contract_fail("graph.linear")
-    return commits
+        if any(parent not in present for parent in parents):
+            _contract_fail("graph.dag")
+        if not parents:
+            roots.append(commit)
+    if not roots:
+        _contract_fail("graph.dag")
+    return commits, tuple(roots)
 
 
-def _root(repository: Repository, policy: Policy, commits: tuple[str, ...]) -> None:
-    if repository.text("show", "-s", "--format=%B", commits[0]).rstrip("\n") != policy.history.prefix_message:
+def _root(repository: Repository, policy: Policy, commits: tuple[str, ...], roots: tuple[str, ...]) -> None:
+    if any(repository.text("show", "-s", "--format=%B", root).rstrip("\n") != policy.history.prefix_message for root in roots):
         _contract_fail("root.synthetic")
     if policy.history.cutoff_epoch is not None:
         for commit in commits:
@@ -95,11 +101,19 @@ def _head(repository: Repository) -> str:
     return ref
 
 
-def _refs(repository: Repository, head_ref: str) -> tuple[str, ...]:
+def _refs(repository: Repository, policy: Policy, head_ref: str) -> tuple[str, ...]:
     refs = tuple(repository.text("for-each-ref", "--format=%(refname)").splitlines())
-    if refs != (head_ref,):
+    try:
+        selected = tuple(ref.name for ref in repository.retained_refs(policy.retained_refs))
+    except SourceError:
         _contract_fail("refs.retained")
-    return refs
+    if head_ref not in selected or tuple(sorted(refs)) != tuple(sorted(selected)):
+        _contract_fail("refs.retained")
+    return tuple(sorted(refs))
+
+
+def _set_graph(repository: Repository, state: _VerificationState) -> None:
+    state.commits, state.roots = _graph(repository)
 
 
 def _paths(repository: Repository, policy: Policy, commits: tuple[str, ...]) -> None:
@@ -235,8 +249,22 @@ def _verify_receipt(
         _fail("sanitization receipt does not match the policy")
     sanitized = payload["sanitized"]
     roots = repository.text("rev-list", "--max-parents=0", "--all").splitlines()
-    if (repository.object_format() != sanitized["object_format"] or len(roots) != 1
-            or roots[0] != sanitized["root"] or repository.text("rev-parse", "HEAD") != sanitized["head"]):
+    try:
+        output_refs = tuple(
+            {"name": ref.name, "kind": ref.kind, "target": ref.target}
+            for ref in repository.retained_refs(policy.retained_refs)
+        )
+    except SourceError:
+        _contract_fail("refs.retained")
+    output_valid = (
+        repository.object_format() == sanitized["object_format"]
+        and repository.text("rev-parse", "HEAD") == sanitized["head"]
+    )
+    if evidence.version == 3:
+        output_valid = output_valid and sorted(roots) == sanitized["roots"] and list(output_refs) == sanitized["selected_refs"]
+    else:
+        output_valid = output_valid and len(roots) == 1 and roots[0] == sanitized["root"]
+    if not output_valid:
         _fail("sanitization receipt does not match sanitized output")
     source_repository = Repository(source)
     source_binding = payload["source"]
@@ -256,12 +284,19 @@ def _verify_receipt(
             or head != source_binding["head"]
             or fingerprint != source_binding["repository_fingerprint"]):
         _fail("sanitization receipt does not match source repository")
-    if evidence.version == 2 and (
+    if evidence.version in {2, 3} and (
         source_binding["mode"] != scope.mode
         or source_binding["scope_fingerprint"] != scope.fingerprint
         or source_binding["boundary_count"] != scope.boundary_count
     ):
         _fail("sanitization receipt does not match source repository")
+    if evidence.version == 3:
+        source_refs = [
+            {"name": ref.name, "kind": ref.kind, "target": ref.target}
+            for ref in scope.selected_refs
+        ]
+        if source_refs != source_binding["selected_refs"]:
+            _fail("sanitization receipt does not match source repository")
     return evidence
 
 
@@ -275,9 +310,9 @@ def verify(
     checks = (
         _Invariant("head.symbolic", lambda: setattr(state, "head_ref", _head(repository))),
         _Invariant("repository.complete", lambda: _complete(repository)),
-        _Invariant("graph.linear", lambda: setattr(state, "commits", _graph(repository))),
-        _Invariant("root.synthetic", lambda: _root(repository, policy, state.commits)),
-        _Invariant("refs.retained", lambda: setattr(state, "refs", _refs(repository, state.head_ref))),
+        _Invariant("graph.dag", lambda: _set_graph(repository, state)),
+        _Invariant("root.synthetic", lambda: _root(repository, policy, state.commits, state.roots)),
+        _Invariant("refs.retained", lambda: setattr(state, "refs", _refs(repository, policy, state.head_ref))),
         _Invariant("paths.excluded", lambda: _paths(repository, policy, state.commits)),
         _Invariant("remotes.absent", lambda: _remotes(repository)),
         _Invariant("metadata.clean", lambda: _metadata(repository)),
@@ -295,7 +330,7 @@ def verify(
         ),
     )
     return VerificationReport(
-        head=repository.text("rev-parse", "HEAD"), commit_count=len(state.commits), root=state.commits[0],
+        head=repository.text("rev-parse", "HEAD"), commit_count=len(state.commits), root=state.roots[0],
         retained_refs=state.refs, excluded_paths=policy.excluded_paths,
         mode=policy.source.mode, scope=str(metadata["coverage"]), boundary_count=int(metadata["boundary_count"]),
         included_commit_count=int(metadata["included_commit_count"]), included_object_count=int(metadata["included_object_count"]),

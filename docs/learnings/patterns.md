@@ -4,6 +4,20 @@ How we do things around here. Follow these for consistency.
 
 ---
 
+## Carry annotated-tag targets through path filtering with private recovery refs
+**Ticket:** BBQ-25
+**Date:** 2026-09-20
+
+`git-filter-repo --prune-empty always` can delete or retarget a selected
+annotated tag's rewritten commit before its tag object can be safely recreated.
+Hold each selected target behind a temporary private recovery ref, recover an
+empty synthetic component if filtering removes it, recreate unsigned annotated
+tags only after recovery, then delete every recovery ref before final cleanup.
+This keeps tag identity out of public artifacts while preserving graph-correct
+selected output refs.
+
+---
+
 ## Test trusted diagnostics at the persistence boundary
 **Ticket:** BBQ-29
 **Date:** 2026-09-15

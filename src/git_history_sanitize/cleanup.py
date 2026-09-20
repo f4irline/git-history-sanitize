@@ -7,21 +7,28 @@ import shutil
 from .git import Repository
 
 
-def retain_head_only(repository: Repository) -> str:
+def retain_selected_refs(repository: Repository, refs: tuple[str, ...]) -> str:
     head_ref = repository.head_ref()
+    if head_ref not in refs:
+        raise RuntimeError("selected refs must retain the symbolic HEAD branch")
     for remote in repository.text("remote").splitlines():
         if remote:
             repository.run("remote", "remove", remote)
     for ref in repository.text("for-each-ref", "--format=%(refname)").splitlines():
-        if ref and ref != head_ref:
+        if ref and ref not in refs:
             repository.run("update-ref", "-d", ref)
     branch = head_ref.removeprefix("refs/heads/")
     repository.run("config", "--local", "--remove-section", f"branch.{branch}", check=False)
     return head_ref
 
 
-def cleanup(repository: Repository) -> None:
-    retain_head_only(repository)
+def retain_head_only(repository: Repository) -> str:
+    """Compatibility wrapper for legacy callers and artifacts."""
+    return retain_selected_refs(repository, (repository.head_ref(),))
+
+
+def cleanup(repository: Repository, refs: tuple[str, ...] | None = None) -> None:
+    retain_selected_refs(repository, refs or (repository.head_ref(),))
     shallow = repository.git_dir / "shallow"
     if shallow.exists():
         # Compaction creates new roots.  Retaining a source shallow marker would

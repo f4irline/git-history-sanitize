@@ -208,6 +208,32 @@ def _timestamp(value: str) -> dt.datetime:
     return parsed
 
 
+def _retained_refs(value: Any, mode: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise PolicyError("refs.keep must be a non-empty list")
+    refs: list[str] = []
+    for ref in value:
+        ref = _string(ref, "refs.keep entry")
+        if ref != "HEAD":
+            valid_namespace = ref.startswith("refs/heads/") or ref.startswith("refs/tags/")
+            suffix = ref.removeprefix("refs/heads/").removeprefix("refs/tags/")
+            if (
+                not valid_namespace
+                or not suffix
+                or ref.endswith("/")
+                or "//" in ref
+                or any(part in {".", ".."} or part.endswith(".lock") for part in ref.split("/"))
+                or any(character in ref for character in " ~^:?*[\\")
+            ):
+                raise PolicyError("refs.keep entries must be canonical HEAD, refs/heads/*, or refs/tags/*")
+        if ref in refs:
+            raise PolicyError("refs.keep entries must not be duplicate")
+        refs.append(ref)
+    if mode == "snapshot" and refs != ["HEAD"]:
+        raise PolicyError("snapshot source.mode supports only refs.keep: [HEAD]")
+    return tuple(refs)
+
+
 @dataclass(frozen=True)
 class History:
     cutoff_text: str | None
@@ -278,16 +304,14 @@ class Policy:
 
         refs_value = _mapping(root.get("refs", {"keep": ["HEAD"]}), "refs")
         _only_keys(refs_value, {"keep"}, "refs")
-        retained_refs = refs_value.get("keep", ["HEAD"])
-        if retained_refs != ["HEAD"]:
-            raise PolicyError("Version 1 supports only refs.keep: [HEAD]")
+        retained_refs = _retained_refs(refs_value.get("keep", ["HEAD"]), mode)
 
         return cls(
             history=History(cutoff_text, cutoff_epoch, cutoff_commit, prefix_message),
             source=Source(mode),
             excluded_paths=excluded_paths,
             mixed_message=mixed_message,
-            retained_refs=("HEAD",),
+            retained_refs=retained_refs,
             digest=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         )
 
