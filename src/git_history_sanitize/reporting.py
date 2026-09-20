@@ -55,6 +55,31 @@ def _hook_diagnostics(inventory: Any) -> dict[str, Any]:
     }}
 
 
+def _rule_effects(value: Plan) -> dict[str, list[dict[str, str]]]:
+    return {
+        "include": [
+            {"rule": effect.rule, "outcome": effect.outcome}
+            for effect in value.include_rule_effects
+        ],
+        "exclude": [
+            {"rule": effect.rule, "outcome": effect.outcome}
+            for effect in value.exclude_rule_effects
+        ],
+    }
+
+
+def _path_warnings(value: Plan) -> list[str]:
+    return [
+        f"{kind} rule {effect.rule!r} is {effect.outcome}"
+        for kind, effects in (
+            ("include", value.include_rule_effects),
+            ("exclude", value.exclude_rule_effects),
+        )
+        for effect in effects
+        if effect.outcome in {"unmatched", "shadowed"}
+    ]
+
+
 def _public_plan(value: Plan) -> dict[str, Any]:
     return {
         "source_commits": value.source_commits,
@@ -105,6 +130,10 @@ def _diagnostics(command: str, value: Any) -> dict[str, Any]:
     if command == "plan" and isinstance(value, Plan):
         return {
             "excluded_paths": list(value.excluded_paths),
+            "include_active": value.included_paths is not None,
+            "included_paths": list(value.included_paths or ()),
+            "path_rule_effects": _rule_effects(value),
+            "path_warnings": _path_warnings(value),
             "retained_refs": list(value.retained_refs),
             **_hook_diagnostics(value.hooks),
         }
@@ -114,6 +143,8 @@ def _diagnostics(command: str, value: Any) -> dict[str, Any]:
             "root": value.verification.root,
             "retained_refs": list(value.verification.retained_refs),
             "excluded_paths": list(value.verification.excluded_paths),
+            "include_active": value.verification.included_paths is not None,
+            "included_paths": list(value.verification.included_paths or ()),
             **_hook_diagnostics(value.hooks),
         }
     if command == "verify" and isinstance(value, VerificationReport):
@@ -122,6 +153,8 @@ def _diagnostics(command: str, value: Any) -> dict[str, Any]:
             "root": value.root,
             "retained_refs": list(value.retained_refs),
             "excluded_paths": list(value.excluded_paths),
+            "include_active": value.included_paths is not None,
+            "included_paths": list(value.included_paths or ()),
         }
     return {}
 
@@ -130,7 +163,7 @@ def _legacy_result(command: str, value: Any) -> dict[str, Any]:
     public = _public_result(command, value)
     diagnostics = _diagnostics(command, value)
     if command == "plan":
-        return {**public, "excluded_paths": diagnostics["excluded_paths"], "hooks": {
+        return {**public, "excluded_paths": diagnostics["excluded_paths"], "included_paths": diagnostics["included_paths"], "include_active": diagnostics["include_active"], "path_rule_effects": diagnostics["path_rule_effects"], "path_warnings": diagnostics["path_warnings"], "hooks": {
             **public["hooks"], "names": diagnostics["hook_names"], "warnings": diagnostics["hook_warnings"],
         }}
     if command == "rewrite":
@@ -139,6 +172,7 @@ def _legacy_result(command: str, value: Any) -> dict[str, Any]:
             **verification,
             "head": diagnostics["head"], "root": diagnostics["root"],
             "retained_refs": diagnostics["retained_refs"], "excluded_paths": diagnostics["excluded_paths"],
+            "included_paths": diagnostics["included_paths"], "include_active": diagnostics["include_active"],
         }, "hooks": {**public["hooks"], "names": diagnostics["hook_names"], "warnings": diagnostics["hook_warnings"]}}
     if command == "verify":
         return {**public, **diagnostics}
@@ -220,6 +254,14 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
             )
             lines.extend((
                 f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
+                f"Included paths: {', '.join(detail['included_paths']) if detail['include_active'] else 'inactive'}",
+                "Path rule effects: " + (
+                    "; ".join(
+                        f"{kind} {_safe_text(item['rule'])!r}: {item['outcome']}"
+                        for kind, effects in detail["path_rule_effects"].items() for item in effects
+                    ) or "none"
+                ),
+                f"Path warnings: {'; '.join(detail['path_warnings']) or 'none'}",
                 f"Retained refs: {', '.join(detail['retained_refs']) or 'none'}",
                 f"Hook names: {', '.join(detail['hook_names']) or 'none'}",
                 f"Hook warnings: {warnings or 'none'}",
@@ -236,6 +278,7 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
                 f"Sanitized HEAD: {detail['head']}", f"Sanitized root: {detail['root']}",
                 f"Retained refs: {', '.join(detail['retained_refs']) or 'none'}",
                 f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
+                f"Included paths: {', '.join(detail['included_paths']) if detail['include_active'] else 'inactive'}",
                 f"Hook names: {', '.join(detail['hook_names']) or 'none'}",
                 f"Hook warnings: {warnings or 'none'}",
             ))
@@ -247,6 +290,7 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
             f"Sanitized root: {detail['root']}",
             f"Retained refs: {', '.join(detail['retained_refs']) or 'none'}",
             f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
+            f"Included paths: {', '.join(detail['included_paths']) if detail['include_active'] else 'inactive'}",
         )) + "\n"
     return "Verification passed.\n"
 

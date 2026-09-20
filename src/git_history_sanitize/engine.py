@@ -26,7 +26,7 @@ from .publication import (
 )
 from .receipt import Receipt
 from .scope_metadata import write as write_scope_metadata
-from .rewrite_analysis import RewriteAnalysis
+from .rewrite_analysis import PathRuleEffect, RewriteAnalysis, path_rule_effects
 from .verify import VerificationReport, verify
 
 
@@ -49,6 +49,9 @@ class Plan:
     retained_lightweight_tag_count: int = 0
     retained_annotated_tag_count: int = 0
     retained_refs: tuple[str, ...] = ()
+    included_paths: tuple[str, ...] | None = None
+    include_rule_effects: tuple[PathRuleEffect, ...] = ()
+    exclude_rule_effects: tuple[PathRuleEffect, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         result = asdict(self)
@@ -88,6 +91,9 @@ def _hook_report(inventory: HookInventory, action: str) -> dict[str, object]:
 def plan(source: str | Path, policy: Policy, *, preserve_hooks: bool = True) -> Plan:
     repository = Repository(source)
     analysis = RewriteAnalysis.create(repository, policy)
+    include_rule_effects, exclude_rule_effects = path_rule_effects(
+        repository, policy, analysis.retained_commits_list
+    )
     return Plan(
         source_commits=analysis.source_commits,
         discarded_commits=analysis.discarded_commits,
@@ -106,6 +112,9 @@ def plan(source: str | Path, policy: Policy, *, preserve_hooks: bool = True) -> 
         retained_lightweight_tag_count=sum(ref.kind == "lightweight-tag" for ref in analysis.scope.selected_refs),
         retained_annotated_tag_count=sum(ref.kind == "annotated-tag" for ref in analysis.scope.selected_refs),
         retained_refs=analysis.selected_refs,
+        included_paths=policy.included_paths,
+        include_rule_effects=include_rule_effects,
+        exclude_rule_effects=exclude_rule_effects,
     )
 
 

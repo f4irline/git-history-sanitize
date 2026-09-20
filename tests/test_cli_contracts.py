@@ -107,6 +107,41 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["result"]["retained_head_path_count"], 2)
         self.assertEqual(result.stderr, "")
 
+    def test_trusted_plan_reports_ordered_effects_without_public_path_identities(self) -> None:
+        self.fixture.write("app/main.py", "safe\n")
+        self.fixture.write("app/private/key.py", "secret\n")
+        self.fixture.write("other/ignored.py", "unlisted\n")
+        self.fixture.commit("mixed", "app/main.py", "app/private/key.py", "other/ignored.py")
+        policy = self.fixture.write_policy(
+            included_paths=("app/", "missing.txt"),
+            excluded_paths=("app/private/", "other/"),
+        )
+
+        public = self.fixture.run_cli(
+            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(policy), "--json"
+        )
+        trusted = self.fixture.run_cli(
+            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(policy),
+            "--json", "--diagnostics=trusted"
+        )
+
+        diagnostics = json.loads(trusted.stdout)["diagnostics"]
+        self.assertEqual(diagnostics["included_paths"], ["app/", "missing.txt"])
+        self.assertTrue(diagnostics["include_active"])
+        self.assertEqual(diagnostics["path_rule_effects"], {
+            "include": [
+                {"rule": "app/", "outcome": "matched"},
+                {"rule": "missing.txt", "outcome": "unmatched"},
+            ],
+            "exclude": [
+                {"rule": "app/private/", "outcome": "matched"},
+                {"rule": "other/", "outcome": "shadowed"},
+            ],
+        })
+        self.assertIn("missing.txt", diagnostics["path_warnings"][0])
+        self.assertNotIn("app/", public.stdout)
+        self.assertNotIn("missing.txt", public.stdout)
+
     def test_expected_operational_failures_use_exit_two_and_actionable_stderr(self) -> None:
         failed = self.fixture.run_cli("rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(self.fixture.output_dir / "exists.git"), "--policy", str(self.fixture.root / "missing.yml"), check=False)
 

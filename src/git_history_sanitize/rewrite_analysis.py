@@ -68,6 +68,63 @@ class RewriteAnalysis:
         return len(self.retained_source_parents)
 
 
+@dataclass(frozen=True)
+class PathRuleEffect:
+    """A policy-ordered rule outcome derived from the selected source graph."""
+
+    rule: str
+    outcome: str
+
+
+def _matches(path: bytes, rule: str) -> bool:
+    encoded = rule.encode("utf-8")
+    return path == encoded or (encoded.endswith(b"/") and path.startswith(encoded))
+
+
+def path_rule_effects(
+    repository: Repository, policy: Policy, commits: tuple[str, ...]
+) -> tuple[tuple[PathRuleEffect, ...], tuple[PathRuleEffect, ...]]:
+    """Classify path rules from unique retained trees without retaining path text.
+
+    A rule is matched only when it makes an effective decision. A rule that sees
+    paths but is defeated entirely by the opposite list is shadowed; rules that
+    see no retained-graph path are unmatched.
+    """
+    includes = policy.included_paths or ()
+    excludes = policy.excluded_paths
+    include_seen = [False] * len(includes)
+    include_effective = [False] * len(includes)
+    exclude_seen = [False] * len(excludes)
+    exclude_effective = [False] * len(excludes)
+    trees: set[str] = set()
+    for commit in commits:
+        tree = repository.commit_tree(commit)
+        if tree in trees:
+            continue
+        trees.add(tree)
+        for path in repository.run("ls-tree", "-r", "-z", "--name-only", tree).split(b"\0")[:-1]:
+            matched_includes = [index for index, rule in enumerate(includes) if _matches(path, rule)]
+            matched_excludes = [index for index, rule in enumerate(excludes) if _matches(path, rule)]
+            for index in matched_includes:
+                include_seen[index] = True
+                if not matched_excludes:
+                    include_effective[index] = True
+            for index in matched_excludes:
+                exclude_seen[index] = True
+                if policy.included_paths is None or matched_includes:
+                    exclude_effective[index] = True
+
+    def effects(rules: tuple[str, ...], seen: list[bool], effective: list[bool]) -> tuple[PathRuleEffect, ...]:
+        return tuple(
+            PathRuleEffect(rule, "matched" if effective[index] else "shadowed" if seen[index] else "unmatched")
+            for index, rule in enumerate(rules)
+        )
+
+    return effects(includes, include_seen, include_effective), effects(
+        excludes, exclude_seen, exclude_effective
+    )
+
+
 def _retained(repository: Repository, policy: Policy, scope: SourceScope) -> tuple[str, ...]:
     if policy.history.cutoff_commit:
         cutoff = repository.resolve_cutoff_commit(policy.history.cutoff_commit)

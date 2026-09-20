@@ -30,6 +30,7 @@ class VerificationReport:
     boundary_count: int
     included_commit_count: int
     included_object_count: int
+    included_paths: tuple[str, ...] | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), sort_keys=True)
@@ -118,11 +119,18 @@ def _set_graph(repository: Repository, state: _VerificationState) -> None:
 
 def _paths(repository: Repository, policy: Policy, commits: tuple[str, ...]) -> None:
     excluded = tuple(path.encode("utf-8", "surrogateescape") for path in policy.excluded_paths)
+    included = None if policy.included_paths is None else tuple(
+        path.encode("utf-8", "surrogateescape") for path in policy.included_paths
+    )
     for commit in commits:
         paths = repository.run("ls-tree", "-r", "-z", "--name-only", commit).split(b"\0")
         for path in paths[:-1]:
             if any(path == item or (item.endswith(b"/") and path.startswith(item)) for item in excluded):
                 _contract_fail("paths.excluded")
+            if included is not None and not any(
+                path == item or (item.endswith(b"/") and path.startswith(item)) for item in included
+            ):
+                _contract_fail("paths.included")
 
 
 def _remotes(repository: Repository) -> None:
@@ -331,7 +339,7 @@ def verify(
     )
     return VerificationReport(
         head=repository.text("rev-parse", "HEAD"), commit_count=len(state.commits), root=state.roots[0],
-        retained_refs=state.refs, excluded_paths=policy.excluded_paths,
+        retained_refs=state.refs, excluded_paths=policy.excluded_paths, included_paths=policy.included_paths,
         mode=policy.source.mode, scope=str(metadata["coverage"]), boundary_count=int(metadata["boundary_count"]),
         included_commit_count=int(metadata["included_commit_count"]), included_object_count=int(metadata["included_object_count"]),
     )

@@ -46,6 +46,8 @@ def _scalar(value: str, line_number: int) -> Any:
         return int(value)
     if value in ("true", "false"):
         return value == "true"
+    if value == "[]":
+        return []
     if any(token in value for token in ("[", "]", "{", "}", "&", "*", "!")):
         raise PolicyError(f"Unsupported YAML syntax on line {line_number}")
     return value
@@ -144,22 +146,24 @@ def _message(value: Any, location: str) -> str:
     return message
 
 
-def _paths(value: Any) -> tuple[str, ...]:
+def _paths(value: Any, name: str, *, nonempty: bool = False) -> tuple[str, ...]:
     if not isinstance(value, list):
-        raise PolicyError("paths.exclude must be a list")
+        raise PolicyError(f"paths.{name} must be a list")
+    if nonempty and not value:
+        raise PolicyError(f"paths.{name} must be a non-empty list")
     paths: list[str] = []
     for path in value:
         if not isinstance(path, str):
-            raise PolicyError("paths.exclude entries must be strings")
-        _canonical_path(path)
+            raise PolicyError(f"paths.{name} entries must be strings")
+        _canonical_path(path, name)
         paths.append(path)
-    _validate_path_rules(paths)
+    _validate_path_rules(paths, name)
     return tuple(paths)
 
 
-def _canonical_path(path: str) -> None:
+def _canonical_path(path: str, name: str) -> None:
     def invalid(reason: str) -> None:
-        raise PolicyError(f"Invalid excluded path ({reason}): {path!r}")
+        raise PolicyError(f"Invalid {name}d path ({reason}): {path!r}")
 
     if not path:
         invalid("empty")
@@ -185,16 +189,16 @@ def _canonical_path(path: str) -> None:
             invalid("parent traversal")
 
 
-def _validate_path_rules(paths: list[str]) -> None:
+def _validate_path_rules(paths: list[str], name: str) -> None:
     for index, path in enumerate(paths):
         for other in paths[:index]:
             if path == other:
-                raise PolicyError(f"Excluded path rule is duplicate: {path!r}")
+                raise PolicyError(f"{name.capitalize()}d path rule is duplicate: {path!r}")
             if (path.endswith("/") and other.startswith(path)) or (
                 other.endswith("/") and path.startswith(other)
             ):
                 raise PolicyError(
-                    f"Excluded path rules overlap: {other!r} and {path!r}"
+                    f"{name.capitalize()}d path rules overlap: {other!r} and {path!r}"
                 )
 
 
@@ -252,6 +256,7 @@ class Policy:
     history: History
     source: Source
     excluded_paths: tuple[str, ...]
+    included_paths: tuple[str, ...] | None
     mixed_message: str
     retained_refs: tuple[str, ...]
     digest: str
@@ -293,8 +298,13 @@ class Policy:
                 raise PolicyError("snapshot source.mode requires history.prefixMessage")
 
         paths_value = _mapping(root.get("paths", {"exclude": []}), "paths")
-        _only_keys(paths_value, {"exclude"}, "paths")
-        excluded_paths = _paths(paths_value.get("exclude", []))
+        _only_keys(paths_value, {"exclude", "include"}, "paths")
+        excluded_paths = _paths(paths_value.get("exclude", []), "exclude")
+        included_paths = (
+            _paths(paths_value["include"], "include", nonempty=True)
+            if "include" in paths_value
+            else None
+        )
 
         commits_value = _mapping(root.get("commits", {}), "commits")
         _only_keys(commits_value, {"mixedMessage"}, "commits")
@@ -310,6 +320,7 @@ class Policy:
             history=History(cutoff_text, cutoff_epoch, cutoff_commit, prefix_message),
             source=Source(mode),
             excluded_paths=excluded_paths,
+            included_paths=included_paths,
             mixed_message=mixed_message,
             retained_refs=retained_refs,
             digest=hashlib.sha256(text.encode("utf-8")).hexdigest(),
@@ -327,6 +338,6 @@ class Policy:
             except UnicodeDecodeError as error:
                 raise PolicyError("Policy file must be valid UTF-8") from error
             policy = cls.from_text(text)
-            return cls(policy.history, policy.source, policy.excluded_paths, policy.mixed_message, policy.retained_refs, hashlib.sha256(data).hexdigest())
+            return cls(policy.history, policy.source, policy.excluded_paths, policy.included_paths, policy.mixed_message, policy.retained_refs, hashlib.sha256(data).hexdigest())
         except OSError as error:
             raise PolicyError(f"Cannot read policy file {path!r}: {error.strerror}") from error

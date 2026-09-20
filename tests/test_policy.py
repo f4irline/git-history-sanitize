@@ -39,6 +39,31 @@ refs:
 
         self.assertEqual(policy.history.cutoff_epoch, 1788382800)
         self.assertEqual(policy.excluded_paths, ("secret.json", "private/"))
+        self.assertIsNone(policy.included_paths)
+
+    def test_parses_active_include_and_preserves_cross_list_overlap(self) -> None:
+        policy = Policy.from_text(
+            """
+version: 1
+history:
+  cutoffCommit: deadbeef
+paths:
+  include:
+    - app/
+    - README.md
+  exclude:
+    - app/private/
+"""
+        )
+
+        self.assertEqual(policy.included_paths, ("app/", "README.md"))
+        self.assertEqual(policy.excluded_paths, ("app/private/",))
+
+    def test_rejects_explicit_empty_include(self) -> None:
+        with self.assertRaisesRegex(PolicyError, "paths.include must be a non-empty list"):
+            Policy.from_text(
+                "version: 1\nhistory:\n  cutoffCommit: deadbeef\npaths:\n  include: []\n"
+            )
 
     def test_rejects_ambiguous_cutoff(self) -> None:
         with self.assertRaisesRegex(PolicyError, "exactly one"):
@@ -114,6 +139,19 @@ paths:
         policy = Policy.from_text(self.policy_with_paths("private", "private/"))
 
         self.assertEqual(policy.excluded_paths, ("private", "private/"))
+
+    def test_validates_include_rules_like_exclusions(self) -> None:
+        for paths, error in (
+            (("private/", "private/key"), "overlap"),
+            (("private/", "private/"), "duplicate"),
+            (("../private",), "Invalid included path"),
+        ):
+            entries = "".join(f"    - {path}\n" for path in paths)
+            with self.subTest(paths=paths), self.assertRaisesRegex(PolicyError, error):
+                Policy.from_text(
+                    "version: 1\nhistory:\n  cutoffCommit: deadbeef\npaths:\n  include:\n"
+                    + entries
+                )
 
     def test_source_mode_defaults_to_complete(self) -> None:
         policy = Policy.from_text("version: 1\nhistory:\n  cutoff: 2026-09-03T00:00:00+00:00\n")

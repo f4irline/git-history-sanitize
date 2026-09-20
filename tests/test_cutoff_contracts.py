@@ -40,7 +40,7 @@ class CutoffContractTests(unittest.TestCase):
         self.fixture.commit("old", "old.txt", timestamp="2026-09-02T23:59:59+00:00")
         self.fixture.write("boundary.txt", "retained\n")
         self.fixture.commit("boundary", "boundary.txt", timestamp="2026-09-03T00:00:00+00:00")
-        policy = self.fixture.write_policy()
+        policy = self.fixture.write_policy(included_paths=("boundary.txt",))
 
         plan = json.loads(self._plan(policy).stdout)["result"]
         output = self.fixture.output_dir / "sanitized.git"
@@ -68,7 +68,9 @@ class CutoffContractTests(unittest.TestCase):
         boundary = self.fixture.commit("boundary", "boundary.txt")
         self.fixture.write("retained.txt", "retained\n")
         self.fixture.commit("retained", "retained.txt")
-        policy = self.fixture.write_policy(cutoff=None, cutoff_commit=boundary)
+        policy = self.fixture.write_policy(
+            cutoff=None, cutoff_commit=boundary, included_paths=("boundary.txt", "retained.txt")
+        )
 
         plan = json.loads(self._plan(policy).stdout)["result"]
         output = self.fixture.output_dir / "sanitized.git"
@@ -153,7 +155,8 @@ class CutoffContractTests(unittest.TestCase):
             "sensitive boundary", "private/secret.txt", timestamp="2026-09-03T01:00:00+00:00"
         )
         policy = self.fixture.write_policy(
-            cutoff=None, cutoff_commit=boundary, excluded_paths=("private/",), prefix_message="empty root"
+            cutoff=None, cutoff_commit=boundary, included_paths=("missing.txt",),
+            excluded_paths=("private/",), prefix_message="empty root"
         )
 
         plan = json.loads(self._plan(policy).stdout)["result"]
