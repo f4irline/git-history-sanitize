@@ -51,7 +51,7 @@ class CliContractTests(unittest.TestCase):
             self.assertIn("result", payload)
         self.assertEqual(
             set(json.loads(plan.stdout)["result"]),
-            {"source_commits", "discarded_commits", "retained_commits_before_path_filter", "mode", "scope", "boundary_count", "included_commit_count", "included_object_count", "retained_head_path_count", "hooks"},
+            {"source_commits", "discarded_commits", "retained_commits_before_path_filter", "mode", "scope", "boundary_count", "included_commit_count", "included_object_count", "retained_head_path_count", "retained_ref_count", "retained_branch_count", "retained_lightweight_tag_count", "retained_annotated_tag_count", "hooks"},
         )
         self.assertIn("verification", json.loads(rewrite.stdout)["result"])
         self.assertNotIn("root", json.loads(verify.stdout)["result"])
@@ -72,7 +72,8 @@ class CliContractTests(unittest.TestCase):
         self.assertEqual(
             plan.stdout,
             "Source commits: 1\nPre-cutoff commits: 0\nCommits before path filtering: 1\n"
-            "Retained HEAD paths: 1\nScope: complete reachable history\nHooks: preserved (0)\n",
+            "Retained HEAD paths: 1\nScope: complete reachable history\n"
+            "Retained refs: 1 (branches: 1, lightweight tags: 0, annotated tags: 0)\nHooks: preserved (0)\n",
         )
         self.assertEqual(
             rewrite.stdout,
@@ -89,6 +90,7 @@ class CliContractTests(unittest.TestCase):
         )
 
         self.assertEqual(json.loads(result.stdout)["diagnostics"]["excluded_paths"], ["secret file.txt", "private/"])
+        self.assertEqual(json.loads(result.stdout)["diagnostics"]["retained_refs"], ["refs/heads/main"])
         self.assertEqual(result.stderr, "")
 
     def test_plan_counts_paths_with_the_same_exact_and_directory_rules_as_filtering(self) -> None:

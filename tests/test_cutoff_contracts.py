@@ -89,6 +89,62 @@ class CutoffContractTests(unittest.TestCase):
         verified = self.fixture.run_cli("verify", "--repository", str(output), "--policy", str(policy), "--source", str(self.source / ".git"), "--receipt", str(receipt))
         self.assertEqual(verified.stderr, "")
 
+    def test_commit_cutoff_receipt_binds_selected_dag_refs_and_roots(self) -> None:
+        self.fixture.write("base.txt", "base\n")
+        boundary = self.fixture.commit("boundary", "base.txt")
+        self.fixture.git(self.source, "checkout", "-qb", "release")
+        self.fixture.write("release.txt", "release\n")
+        self.fixture.commit("release", "release.txt")
+        self.fixture.git(self.source, "checkout", "main")
+        self.fixture.write("main.txt", "main\n")
+        self.fixture.commit("main", "main.txt")
+        self.fixture.merge("release", "merge release")
+        policy = self.fixture.write_policy(
+            cutoff=None,
+            cutoff_commit=boundary,
+            retained_refs=("HEAD", "refs/heads/release"),
+        )
+        output = self.fixture.output_dir / "dag.git"
+        receipt = self.fixture.receipt_dir / "dag.json"
+
+        self._rewrite(policy, output, receipt=receipt)
+
+        proof = json.loads(receipt.read_text())
+        self.assertEqual(proof["version"], 3)
+        self.assertEqual(
+            [entry["name"] for entry in proof["sanitized"]["selected_refs"]],
+            ["refs/heads/main", "refs/heads/release"],
+        )
+        self.assertEqual(len(proof["sanitized"]["roots"]), 1)
+        verified = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(policy),
+            "--source", str(self.source / ".git"), "--receipt", str(receipt),
+        )
+        self.assertEqual(verified.stderr, "")
+
+    def test_commit_cutoff_head_merge_dag_receipt_remains_v2(self) -> None:
+        self.fixture.write("base.txt", "base\n")
+        boundary = self.fixture.commit("boundary", "base.txt")
+        self.fixture.git(self.source, "checkout", "-qb", "release")
+        self.fixture.write("release.txt", "release\n")
+        self.fixture.commit("release", "release.txt")
+        self.fixture.git(self.source, "checkout", "main")
+        self.fixture.write("main.txt", "main\n")
+        self.fixture.commit("main", "main.txt")
+        self.fixture.merge("release", "merge release")
+        policy = self.fixture.write_policy(cutoff=None, cutoff_commit=boundary)
+        output = self.fixture.output_dir / "head-dag.git"
+        receipt = self.fixture.receipt_dir / "head-dag.json"
+
+        self._rewrite(policy, output, receipt=receipt)
+
+        self.assertEqual(json.loads(receipt.read_text())["version"], 2)
+        verified = self.fixture.run_cli(
+            "verify", "--repository", str(output), "--policy", str(policy),
+            "--source", str(self.source / ".git"), "--receipt", str(receipt),
+        )
+        self.assertEqual(verified.stderr, "")
+
     def test_cutoff_commit_all_excluded_history_recovers_before_receipt_creation(self) -> None:
         self.fixture.write("private/old.txt", "old\n")
         self.fixture.commit("old", "private/old.txt", timestamp="2026-09-02T23:59:59+00:00")

@@ -37,7 +37,7 @@ class RewriteAnalysisTests(unittest.TestCase):
         self.assertEqual(analysis.discarded_commits, 1)
         self.assertEqual(analysis.retained_commits, 1)
 
-    def test_complete_history_rejects_timestamp_recrossing(self) -> None:
+    def test_rejects_selected_ref_without_an_eligible_timestamp_tip(self) -> None:
         self.fixture.write("old.txt", "old\n")
         self.fixture.commit("old", "old.txt", timestamp="2026-09-02T23:59:59+00:00")
         self.fixture.write("retained.txt", "retained\n")
@@ -45,7 +45,7 @@ class RewriteAnalysisTests(unittest.TestCase):
         self.fixture.write("recrossed.txt", "recrossed\n")
         self.fixture.commit("recrossed", "recrossed.txt", timestamp="2026-09-02T23:59:59+00:00")
 
-        with self.assertRaisesRegex(SanitizeError, "timestamps cross the cutoff more than once"):
+        with self.assertRaisesRegex(SanitizeError, "selected reference has no commit eligible"):
             self._analysis(self.fixture.write_policy())
 
     def test_cutoff_commit_must_be_reachable_from_head(self) -> None:
@@ -56,7 +56,7 @@ class RewriteAnalysisTests(unittest.TestCase):
         unreachable = self.fixture.commit("side", "side.txt")
         self.fixture.git(self.fixture.source, "checkout", "main")
 
-        with self.assertRaisesRegex(SanitizeError, "cutoffCommit is not reachable from HEAD"):
+        with self.assertRaisesRegex(SanitizeError, "cutoffCommit is not reachable from every selected reference"):
             self._analysis(self.fixture.write_policy(cutoff=None, cutoff_commit=unreachable))
 
     def test_snapshot_uses_only_head_without_walking_inherited_merges(self) -> None:
@@ -85,6 +85,48 @@ class RewriteAnalysisTests(unittest.TestCase):
 
         with self.assertRaisesRegex(SanitizeError, "must have a symbolic HEAD"):
             self._analysis(self.fixture.write_policy())
+
+    def test_selected_merge_dag_preserves_shared_ancestry_and_parent_order(self) -> None:
+        self.fixture.write("base.txt", "base\n")
+        base = self.fixture.commit("base", "base.txt", timestamp="2026-09-02T23:59:59+00:00")
+        self.fixture.git(self.fixture.source, "checkout", "-qb", "release")
+        self.fixture.write("release.txt", "release\n")
+        release = self.fixture.commit("release", "release.txt")
+        self.fixture.git(self.fixture.source, "checkout", "main")
+        self.fixture.write("main.txt", "main\n")
+        main = self.fixture.commit("main", "main.txt")
+        merge = self.fixture.merge("release", "merge release")
+
+        analysis = self._analysis(
+            self.fixture.write_policy(retained_refs=("HEAD", "refs/heads/release"))
+        )
+
+        self.assertEqual(analysis.selected_refs, ("refs/heads/main", "refs/heads/release"))
+        self.assertEqual(analysis.retained_source_parents[merge], (main, release))
+        self.assertEqual(analysis.retained_source_parents[main], ())
+        self.assertEqual(analysis.retained_source_parents[release], ())
+        self.assertNotIn(base, analysis.retained_source_parents)
+
+    def test_selected_nested_merges_preserve_each_parent_order(self) -> None:
+        self.fixture.write("base.txt", "base\n")
+        self.fixture.commit("base", "base.txt", timestamp="2026-09-02T23:59:59+00:00")
+        self.fixture.git(self.fixture.source, "checkout", "-qb", "side")
+        self.fixture.write("side.txt", "side\n")
+        side = self.fixture.commit("side", "side.txt")
+        self.fixture.git(self.fixture.source, "checkout", "main")
+        self.fixture.write("main.txt", "main\n")
+        main = self.fixture.commit("main", "main.txt")
+        first_merge = self.fixture.merge("side", "merge side")
+        self.fixture.git(self.fixture.source, "checkout", "-qb", "nested", main)
+        self.fixture.write("nested.txt", "nested\n")
+        nested = self.fixture.commit("nested", "nested.txt")
+        self.fixture.git(self.fixture.source, "checkout", "main")
+        second_merge = self.fixture.merge("nested", "merge nested")
+
+        analysis = self._analysis(self.fixture.write_policy())
+
+        self.assertEqual(analysis.retained_source_parents[first_merge], (main, side))
+        self.assertEqual(analysis.retained_source_parents[second_merge], (first_merge, nested))
 
 
 if __name__ == "__main__":

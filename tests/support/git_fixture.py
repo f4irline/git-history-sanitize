@@ -345,6 +345,7 @@ class GitFixture:
         prefix_message: str = "[sanitized]",
         mixed_message: str = "[sanitized]",
         source_mode: str = "complete",
+        retained_refs: tuple[str, ...] = ("HEAD",),
     ) -> Path:
         """Write a minimal deterministic v1 policy owned by this fixture."""
         if source_mode != "snapshot" and (cutoff is None) == (cutoff_commit is None):
@@ -371,7 +372,7 @@ class GitFixture:
             f"  mixedMessage: \"{mixed_message}\"\n"
             "refs:\n"
             "  keep:\n"
-            "    - HEAD\n"
+            + "".join(f"    - {ref}\n" for ref in retained_refs)
         )
         return policy
 

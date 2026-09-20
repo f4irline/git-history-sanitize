@@ -73,7 +73,7 @@ class OutputContractTests(unittest.TestCase):
             self.fixture.git(output, "fsck", "--full", "--unreachable", "--no-reflogs"), ""
         )
 
-    def test_failed_rewrite_is_atomic_and_cleans_staging(self) -> None:
+    def test_merge_rewrite_cleans_staging_and_preserves_source(self) -> None:
         base = self.fixture.git(self.fixture.source, "rev-parse", "HEAD")
         side = self.fixture.commit_tree(self.fixture.source, "HEAD^{tree}", "side", base)
         self.fixture.write("main.txt", "main\n")
@@ -85,7 +85,7 @@ class OutputContractTests(unittest.TestCase):
         source_snapshot = self.fixture.snapshot_source()
         output = self.fixture.output_dir / "sanitized.git"
 
-        failed = self.fixture.run_cli(
+        rewritten = self.fixture.run_cli(
             "rewrite",
             "--source",
             str(self.fixture.source / ".git"),
@@ -93,12 +93,11 @@ class OutputContractTests(unittest.TestCase):
             str(output),
             "--policy",
             str(self.policy),
-            check=False,
         )
 
-        self.assertEqual(failed.returncode, 2)
-        self.assertEqual(failed.stderr, "error: source repository unavailable\n")
-        self.assertFalse(output.exists())
+        self.assertEqual(rewritten.stderr, "")
+        self.assertTrue(output.is_dir())
+        self.assertFalse((output / "filter-repo").exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)
 

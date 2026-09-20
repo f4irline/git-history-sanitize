@@ -2,6 +2,7 @@ import re
 import unittest
 
 from git_history_sanitize.errors import PolicyError
+from git_history_sanitize.git import _is_signed_tag
 from git_history_sanitize.policy import Policy
 
 
@@ -117,6 +118,56 @@ paths:
     def test_source_mode_defaults_to_complete(self) -> None:
         policy = Policy.from_text("version: 1\nhistory:\n  cutoff: 2026-09-03T00:00:00+00:00\n")
         self.assertEqual(policy.source.mode, "complete")
+
+    def test_accepts_ordered_explicit_branch_and_tag_refs(self) -> None:
+        policy = Policy.from_text(
+            """
+version: 1
+history:
+  cutoff: 2026-09-03T00:00:00+00:00
+refs:
+  keep:
+    - HEAD
+    - refs/heads/release
+    - refs/tags/v1.0.0
+"""
+        )
+
+        self.assertEqual(
+            policy.retained_refs,
+            ("HEAD", "refs/heads/release", "refs/tags/v1.0.0"),
+        )
+
+    def test_rejects_noncanonical_duplicate_and_snapshot_retained_refs(self) -> None:
+        cases = (
+            ("    - main\n", "canonical"),
+            ("    - refs/remotes/origin/main\n", "refs.keep"),
+            ("    - refs/heads/release\n    - refs/heads/release\n", "duplicate"),
+        )
+        for entries, error in cases:
+            with self.subTest(entries=entries), self.assertRaisesRegex(PolicyError, error):
+                Policy.from_text(
+                    "version: 1\nhistory:\n  cutoff: 2026-09-03T00:00:00+00:00\n"
+                    "refs:\n  keep:\n    - HEAD\n" + entries
+                )
+        with self.assertRaisesRegex(PolicyError, "snapshot"):
+            Policy.from_text(
+                "version: 1\nsource:\n  mode: snapshot\nhistory:\n  prefixMessage: '[snapshot]'\n"
+                "refs:\n  keep:\n    - HEAD\n    - refs/heads/release\n"
+            )
+
+    def test_detects_all_supported_annotated_tag_signature_armor(self) -> None:
+        for marker in (
+            b"-----BEGIN PGP SIGNATURE-----",
+            b"-----BEGIN SSH SIGNATURE-----",
+            b"-----BEGIN CMS-----",
+            b"-----BEGIN SIGNATURE-----",
+            b"-----BEGIN SIGNED MESSAGE-----",
+            b"-----BEGIN PKCS7 SIGNATURE-----",
+        ):
+            with self.subTest(marker=marker):
+                self.assertTrue(_is_signed_tag(b"tag data\n\n" + marker))
+        self.assertFalse(_is_signed_tag(b"tag data\n\nunsigned annotation"))
 
     def test_snapshot_rejects_cutoff(self) -> None:
         with self.assertRaisesRegex(PolicyError, "does not accept"):

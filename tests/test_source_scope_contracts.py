@@ -187,7 +187,7 @@ class SourceScopeContracts(unittest.TestCase):
         self.assertEqual(rewrite.stderr, expected)
         self.assertFalse(output.exists())
 
-    def test_merge_history_has_identical_plan_and_rewrite_failure(self) -> None:
+    def test_merge_history_is_planned_and_rewritten_without_source_mutation(self) -> None:
         base = self.fixture.git(self.fixture.source, "rev-parse", "HEAD")
         side = self.fixture.commit_tree(self.fixture.source, "HEAD^{tree}", "side", base)
         self.fixture.write("main.txt", "main\n")
@@ -201,16 +201,14 @@ class SourceScopeContracts(unittest.TestCase):
         plan = self._plan(policy)
         rewrite = self.fixture.run_cli(
             "rewrite", "--source", str(self.fixture.source / ".git"), "--policy", str(policy),
-            "--output", str(output), check=False,
+            "--output", str(output),
         )
 
-        self.assertEqual(plan.returncode, 2)
-        self.assertEqual(json.loads(plan.stdout)["code"], "source.invalid")
+        self.assertEqual(plan.returncode, 0)
         self.assertEqual(plan.stderr, "")
-        self.assertEqual(rewrite.returncode, plan.returncode)
-        self.assertEqual(rewrite.stdout, "")
-        self.assertEqual(rewrite.stderr, "error: source repository unavailable\n")
-        self.assertFalse(output.exists())
+        self.assertEqual(rewrite.stderr, "")
+        self.assertTrue(output.is_dir())
+        self.assertEqual(len(self.fixture.git(output, "show", "-s", "--format=%P", "HEAD").split()), 2)
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)
 
