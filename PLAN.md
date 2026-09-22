@@ -225,7 +225,8 @@ runtime responsibilities.
 
 ### M4: Security readiness
 
-- Document the threat model and trust boundaries.
+- [x] Document the threat model and trust boundaries in
+  [`docs/threat-model.md`](docs/threat-model.md).
 - Test final artifacts and image layers for original objects.
 - Benchmark large repositories.
 - Commission an external security review.

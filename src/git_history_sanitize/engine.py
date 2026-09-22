@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import os
-import shutil
-import tempfile
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -13,7 +12,7 @@ from ._version import __version__
 from .compact import CompactResult, compact, restore_selected_components
 from .errors import PublicationError, SanitizeError, UsageError
 from .filtering import filter_paths, retained_head_path_count
-from .git import Repository, ensure_dependencies
+from .git import Repository, ensure_dependencies, hold_process_lock
 from .hooks import HookInventory, discover as discover_hooks, install as install_hooks
 from .policy import Policy
 from .publication import (
@@ -28,6 +27,7 @@ from .receipt import Receipt
 from .scope_metadata import write as write_scope_metadata
 from .rewrite_analysis import PathRuleEffect, RewriteAnalysis, path_rule_effects
 from .verify import VerificationReport, verify
+from .workspace import Workspace
 
 
 @dataclass(frozen=True)
@@ -167,93 +167,92 @@ def rewrite(
     source_format, source_head, source_fingerprint, tree_lookup = _source_fingerprint(source_repository)
     boundary_tree = tree_lookup(boundary)
 
-    temporary_root = Path(
-        tempfile.mkdtemp(prefix=".git-history-sanitize-", dir=output_path.parent)
-    )
-    set_private_mode(temporary_root, 0o700)
-    staged_receipt: Path | None = None
     receipt_published = False
     output_published = False
     try:
-        template_directory = temporary_root / "template"
-        template_directory.mkdir(mode=0o700)
-        rewrite_repository = source_repository.clone_to(
-            temporary_root / "rewrite", template_directory=template_directory
-        )
-        selected_names = analysis.selected_refs
-        retain_selected_refs(rewrite_repository, selected_names)
-        compact_result = compact(rewrite_repository, policy, analysis)
-        filter_paths(rewrite_repository, policy)
-        restore_selected_components(rewrite_repository, compact_result)
-        cleanup(rewrite_repository, selected_names)
+        with ExitStack() as workspaces:
+            workspace = workspaces.enter_context(Workspace.create(output_path.parent))
+            workspaces.enter_context(hold_process_lock(workspace.lock_descriptor))
+            temporary_root = workspace.path
+            template_directory = temporary_root / "template"
+            template_directory.mkdir(mode=0o700)
+            rewrite_repository = source_repository.clone_to(
+                temporary_root / "rewrite", template_directory=template_directory
+            )
+            selected_names = analysis.selected_refs
+            retain_selected_refs(rewrite_repository, selected_names)
+            compact_result = compact(rewrite_repository, policy, analysis)
+            filter_paths(rewrite_repository, policy)
+            restore_selected_components(rewrite_repository, compact_result)
+            cleanup(rewrite_repository, selected_names)
 
-        bare_repository = rewrite_repository.clone_to(
-            temporary_root / "sanitized.git", bare=True, template_directory=template_directory
-        )
-        set_private_mode(bare_repository.path, 0o700)
-        cleanup(bare_repository, selected_names)
-        if preserve_hooks:
-            install_hooks(bare_repository, hooks)
-        write_scope_metadata(bare_repository.path, analysis.scope)
-        if receipt_path:
-            roots = bare_repository.text("rev-list", "--max-parents=0", "--all").splitlines()
-            output_refs = bare_repository.retained_refs(policy.retained_refs)
-            descriptor, staged_receipt_name = tempfile.mkstemp(
-                prefix=f".{receipt_path.name}.", dir=receipt_path.parent
+            bare_repository = rewrite_repository.clone_to(
+                temporary_root / "sanitized.git", bare=True, template_directory=template_directory
             )
-            staged_receipt = Path(staged_receipt_name)
-            evidence = Receipt.create(
-                generator_version=__version__,
-                source_object_format=source_format,
-                source_fingerprint=source_fingerprint,
-                source_head=source_head,
-                cutoff_commit=boundary,
-                boundary_tree=boundary_tree,
-                policy_digest=policy.digest,
-                sanitized_object_format=bare_repository.object_format(),
-                sanitized_root=roots[0],
-                sanitized_head=bare_repository.text("rev-parse", "HEAD"),
-                scope_mode=analysis.scope.mode,
-                scope_fingerprint=analysis.scope.fingerprint,
-                boundary_count=analysis.scope.boundary_count,
-                **({
-                    "source_refs": tuple((ref.name, ref.kind, ref.target) for ref in analysis.scope.selected_refs),
-                    "sanitized_refs": tuple((ref.name, ref.kind, ref.target) for ref in output_refs),
-                    "sanitized_roots": tuple(sorted(roots)),
-                } if policy.retained_refs != ("HEAD",) else {}),
-            )
-            with os.fdopen(descriptor, "wb") as handle:
-                os.fchmod(handle.fileno(), 0o600)
-                handle.write(evidence.to_bytes())
-                handle.flush()
-                os.fsync(handle.fileno())
-            verification = verify(bare_repository.path, policy, source=source, receipt=staged_receipt)
-            sync_staged_file(staged_receipt)
-            sync_staged_tree(bare_repository.path)
-            sync_staged_directory(temporary_root)
-            publish(staged_receipt, receipt_path)
-            receipt_published = True
-            sync_published_parent(
-                receipt_path.parent,
-                "Receipt was published but output was not; parent-directory durability could not be confirmed",
-            )
-            publish(bare_repository.path, output_path)
-            output_published = True
-            sync_published_parent(output_path.parent)
-        else:
-            verification = verify(bare_repository.path, policy)
-            sync_staged_tree(bare_repository.path)
-            sync_staged_directory(temporary_root)
-            publish(bare_repository.path, output_path)
-            output_published = True
-            sync_published_parent(output_path.parent)
-        return RewriteReport(compact_result, verification, hooks, not preserve_hooks)
+            set_private_mode(bare_repository.path, 0o700)
+            cleanup(bare_repository, selected_names)
+            if preserve_hooks:
+                install_hooks(bare_repository, hooks)
+            write_scope_metadata(bare_repository.path, analysis.scope)
+            if receipt_path:
+                roots = bare_repository.text("rev-list", "--max-parents=0", "--all").splitlines()
+                output_refs = bare_repository.retained_refs(policy.retained_refs)
+                receipt_workspace = workspace
+                if receipt_path.parent != output_path.parent:
+                    receipt_workspace = workspaces.enter_context(
+                        Workspace.create(receipt_path.parent, workspace_id=workspace.id, role="receipt")
+                    )
+                    workspaces.enter_context(hold_process_lock(receipt_workspace.lock_descriptor))
+                evidence = Receipt.create(
+                    generator_version=__version__,
+                    source_object_format=source_format,
+                    source_fingerprint=source_fingerprint,
+                    source_head=source_head,
+                    cutoff_commit=boundary,
+                    boundary_tree=boundary_tree,
+                    policy_digest=policy.digest,
+                    sanitized_object_format=bare_repository.object_format(),
+                    sanitized_root=roots[0],
+                    sanitized_head=bare_repository.text("rev-parse", "HEAD"),
+                    scope_mode=analysis.scope.mode,
+                    scope_fingerprint=analysis.scope.fingerprint,
+                    boundary_count=analysis.scope.boundary_count,
+                    **({
+                        "source_refs": tuple((ref.name, ref.kind, ref.target) for ref in analysis.scope.selected_refs),
+                        "sanitized_refs": tuple((ref.name, ref.kind, ref.target) for ref in output_refs),
+                        "sanitized_roots": tuple(sorted(roots)),
+                    } if policy.retained_refs != ("HEAD",) else {}),
+                )
+                descriptor, staged_receipt = receipt_workspace.create_file("receipt")
+                with os.fdopen(descriptor, "wb") as handle:
+                    handle.write(evidence.to_bytes())
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                verification = verify(bare_repository.path, policy, source=source, receipt=staged_receipt)
+                sync_staged_file(staged_receipt)
+                sync_staged_tree(bare_repository.path)
+                sync_staged_directory(temporary_root)
+                if receipt_workspace is not workspace:
+                    sync_staged_directory(receipt_workspace.path)
+                publish(staged_receipt, receipt_path)
+                receipt_published = True
+                sync_published_parent(
+                    receipt_path.parent,
+                    "Receipt was published but output was not; parent-directory durability could not be confirmed",
+                )
+                publish(bare_repository.path, output_path)
+                output_published = True
+                sync_published_parent(output_path.parent)
+            else:
+                verification = verify(bare_repository.path, policy)
+                sync_staged_tree(bare_repository.path)
+                sync_staged_directory(temporary_root)
+                publish(bare_repository.path, output_path)
+                output_published = True
+                sync_published_parent(output_path.parent)
+            return RewriteReport(compact_result, verification, hooks, not preserve_hooks)
     except PublicationError as error:
         state = "output_published" if output_published else (
             "receipt_published" if receipt_published else "not_published"
         )
         raise error.with_publication_state(state) from error
-    finally:
-        if staged_receipt and not receipt_published:
-            staged_receipt.unlink(missing_ok=True)
-        shutil.rmtree(temporary_root, ignore_errors=True)

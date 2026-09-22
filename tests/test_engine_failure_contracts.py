@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import os
 import stat
+import signal
 import threading
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -13,7 +14,8 @@ from unittest.mock import patch
 
 from git_history_sanitize.cli import main
 from git_history_sanitize.engine import _destination
-from git_history_sanitize.errors import SanitizeError, VerificationError
+from git_history_sanitize.errors import InterruptionError, SanitizeError, VerificationError
+from git_history_sanitize.workspace import clean_workspace, list_workspaces
 from tests.support.git_fixture import GitFixture
 
 
@@ -86,6 +88,40 @@ class EngineFailureContractTests(unittest.TestCase):
             "error: sanitization failed\n",
         )
         self.assert_atomic_failure(status, stdout, stderr, staging_root)
+
+    def test_interruption_retains_private_owned_workspace_with_redacted_recovery(self) -> None:
+        staging_root: Path | None = None
+
+        def interrupt(repository: object, _policy: object) -> None:
+            nonlocal staging_root
+            staging_root = repository.path.parent  # type: ignore[attr-defined]
+            self.assertEqual(stat.S_IMODE(staging_root.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE((staging_root / "ownership.json").stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE((staging_root / "lock").stat().st_mode), 0o600)
+            raise InterruptionError(signal.SIGTERM)
+
+        with patch("git_history_sanitize.engine.filter_paths", side_effect=interrupt):
+            status, stdout, stderr = self.run_rewrite()
+
+        self.assertEqual(status, 143)
+        self.assertEqual(stdout, "")
+        self.assertEqual(
+            stderr,
+            "error: sanitization interrupted: List sanitizer workspaces under the output parent "
+            "and clean the stale ID before retrying.\n",
+        )
+        self.assertIsNotNone(staging_root)
+        assert staging_root is not None
+        self.assertTrue(staging_root.is_dir())
+        records = list_workspaces(self.output.parent)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].state, "interrupted")
+        self.assertNotIn(str(staging_root), stderr)
+        self.assertFalse(self.output.exists())
+        self.fixture.assert_source_snapshot(self.source_snapshot)
+
+        clean_workspace(self.output.parent, records[0].id)
+        self.assertFalse(staging_root.exists())
 
     def test_staged_sync_failure_is_atomic_and_reports_an_actionable_error(self) -> None:
         with (
@@ -223,7 +259,8 @@ class EngineFailureContractTests(unittest.TestCase):
         def fail_verify(
             _repository: object, _policy: object, *, source: object, receipt: Path
         ) -> None:
-            self.assertEqual(receipt.parent, self.fixture.receipt_dir)
+            self.assertEqual(receipt.parent.parent, self.fixture.receipt_dir)
+            self.assertTrue(receipt.parent.name.startswith(".git-history-sanitize-"))
             self.assertNotEqual(receipt, self.fixture.receipt_dir / "receipt.json")
             self.assertEqual(stat.S_IMODE(receipt.stat().st_mode), 0o600)
             raise VerificationError("Post-rewrite verification failed; output was not published")
@@ -244,6 +281,39 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertEqual(list(self.fixture.receipt_dir.iterdir()), [])
         self.fixture.assert_no_staging_directories(self.output.parent)
         self.fixture.assert_source_snapshot(self.source_snapshot)
+
+    def test_receipt_interruption_retains_matching_owned_workspaces_on_both_filesystems(self) -> None:
+        receipt = self.fixture.receipt_dir / "receipt.json"
+        commit_policy = self.fixture.write_policy(
+            cutoff=None,
+            cutoff_commit=self.fixture.git(self.fixture.source, "rev-parse", "HEAD"),
+            excluded_paths=("private/",),
+        )
+
+        with patch(
+            "git_history_sanitize.engine.verify",
+            side_effect=InterruptionError(signal.SIGINT),
+        ):
+            status, stdout, stderr = self.run_rewrite(policy=commit_policy, receipt=receipt)
+
+        output_records = list_workspaces(self.output.parent)
+        receipt_records = list_workspaces(receipt.parent)
+        self.assertEqual(status, 130)
+        self.assertEqual(stdout, "")
+        self.assertIn("sanitization interrupted", stderr)
+        self.assertEqual(len(output_records), 1)
+        self.assertEqual(len(receipt_records), 1)
+        self.assertEqual(output_records[0].id, receipt_records[0].id)
+        self.assertEqual(output_records[0].state, "interrupted")
+        self.assertEqual(receipt_records[0].state, "interrupted")
+        self.assertEqual(receipt_records[0].role, "receipt")
+        self.assertFalse(self.output.exists())
+        self.assertFalse(receipt.exists())
+
+        clean_workspace(self.output.parent, output_records[0].id)
+        clean_workspace(receipt.parent, receipt_records[0].id)
+        self.assertEqual(list(self.output.parent.iterdir()), [])
+        self.assertEqual(list(receipt.parent.iterdir()), [])
 
     def test_output_publication_failure_leaves_only_an_orphan_receipt(self) -> None:
         receipt = self.fixture.receipt_dir / "receipt.json"

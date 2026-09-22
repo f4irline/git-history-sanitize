@@ -10,7 +10,7 @@ from typing import Callable, Iterator
 
 from .errors import SourceError, VerificationError
 from .forbidden import CHUNK_SIZE, Matcher
-from .git import GitError, Repository, git_environment
+from .git import GitError, Repository, finish_process, git_environment, start_process, terminate_process
 from .hooks import HookError, discover as discover_hooks
 from .policy import Policy
 from .receipt import Receipt, ReceiptError
@@ -168,7 +168,7 @@ def _objects(repository: Repository) -> None:
 def _object_body_chunks(repository: Repository) -> Iterator[bytes | None]:
     """Yield body chunks, marking each new object with ``None``."""
     width = 40 if repository.object_format() == "sha1" else 64
-    process = subprocess.Popen(
+    process = start_process(
         repository.command("cat-file", "--batch-all-objects", "--batch"),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -198,8 +198,9 @@ def _object_body_chunks(repository: Repository) -> Iterator[bytes | None]:
             raise ValueError("cat-file failed")
     finally:
         if process.poll() is None:
-            process.terminate()
-            process.wait()
+            terminate_process(process)
+        else:
+            finish_process(process)
         if process.stdout is not None:
             process.stdout.close()
 

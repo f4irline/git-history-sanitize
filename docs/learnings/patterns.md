@@ -4,6 +4,19 @@ How we do things around here. Follow these for consistency.
 
 ---
 
+## Keep workspace liveness locks in rewrite descendants
+**Ticket:** BBQ-19
+**Date:** 2026-09-22
+
+An advisory lock held only by the Python parent becomes unlocked after SIGKILL
+even while an orphaned Git child can still mutate the workspace. Register each
+workspace lock in thread-local process context and pass that descriptor to every
+rewrite-owned child. Explicit cleanup then continues to classify the workspace
+as active until the final inherited descriptor closes, without coupling
+concurrent rewrites to each other's locks.
+
+---
+
 ## Carry annotated-tag targets through path filtering with private recovery refs
 **Ticket:** BBQ-25
 **Date:** 2026-09-20

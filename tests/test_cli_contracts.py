@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import unittest
@@ -10,6 +12,8 @@ from unittest.mock import patch
 
 from git_history_sanitize import __version__
 from git_history_sanitize import cli
+from git_history_sanitize.errors import InterruptionError
+from git_history_sanitize.workspace import Workspace
 
 from tests.support.git_fixture import GitFixture
 
@@ -81,6 +85,63 @@ class CliContractTests(unittest.TestCase):
         )
         self.assertEqual(verify.stdout, "Verification passed.\n")
         self.assertEqual(plan.stderr + rewrite.stderr + verify.stderr, "")
+
+    def test_workspace_list_and_clean_use_only_parent_plus_opaque_id(self) -> None:
+        if os.environ.get("GHS_TEST_RUNTIME") == "container":
+            workspace_id = self.fixture.create_container_interrupted_workspace(
+                self.fixture.output_dir
+            )
+        else:
+            with self.assertRaises(InterruptionError):
+                with Workspace.create(self.fixture.output_dir) as workspace:
+                    workspace_id = workspace.id
+                    raise InterruptionError(15)
+
+        listed = self.fixture.run_cli(
+            "workspace", "list", "--parent", str(self.fixture.output_dir), "--json"
+        )
+
+        payload = json.loads(listed.stdout)
+        self.assertEqual(listed.stderr, "")
+        self.assertEqual(payload["command"], "workspace.list")
+        self.assertEqual(payload["result"], {
+            "workspaces": [{"id": workspace_id, "role": "rewrite", "state": "interrupted"}]
+        })
+        self.assertNotIn(str(self.fixture.output_dir), listed.stdout)
+
+        cleaned = self.fixture.run_cli(
+            "workspace", "clean", "--parent", str(self.fixture.output_dir),
+            "--id", workspace_id,
+        )
+
+        self.assertEqual(cleaned.stdout, f"Cleaned workspace {workspace_id}.\n")
+        self.assertEqual(cleaned.stderr, "")
+        self.assertEqual(list(self.fixture.output_dir.iterdir()), [])
+
+    def test_workspace_cleanup_refuses_broad_and_ambiguous_targets(self) -> None:
+        ambiguous_id = "a" * 32
+        ambiguous = self.fixture.output_dir / f".git-history-sanitize-{ambiguous_id}"
+        ambiguous.mkdir(mode=0o700)
+
+        for workspace_id in ("*", ambiguous_id):
+            with self.subTest(workspace_id=workspace_id):
+                result = self.fixture.run_cli(
+                    "workspace", "clean", "--parent", str(self.fixture.output_dir),
+                    "--id", workspace_id, check=False,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, "")
+                expected = "invalid command arguments" if workspace_id == "*" else "unsafe sanitizer workspace"
+                self.assertIn(expected, result.stderr)
+                self.assertNotIn(str(self.fixture.output_dir), result.stderr)
+        self.assertTrue(ambiguous.is_dir())
+
+    def test_rewrite_signal_boundary_maps_sigint_and_sigterm(self) -> None:
+        for number in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(number=number), self.assertRaises(InterruptionError) as raised:
+                with cli._rewrite_signals():
+                    os.kill(os.getpid(), number)
+            self.assertEqual(raised.exception.signum, number)
 
     def test_trusted_plan_reports_the_validated_ordered_exclusions(self) -> None:
         policy = self.fixture.write_policy(excluded_paths=("secret file.txt", "private/"))

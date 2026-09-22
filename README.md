@@ -35,6 +35,43 @@ may remain as a private orphan if repository publication subsequently fails. A
 receipt-parent persistence failure is reported as receipt-only publication; it
 never claims that the repository output was published.
 
+### Interrupted rewrite recovery
+
+Every rewrite workspace is a direct child of the output parent, stays on that
+filesystem, and has an exact `.git-history-sanitize-<opaque-id>` name. The tool
+creates it as `0700` before cloning and writes bounded `0600` ownership metadata
+and an advisory lock containing no source, output, receipt, repository, policy,
+or object identity. Receipt staging uses a matching private workspace beside the
+receipt when that destination has a different parent.
+
+SIGINT and SIGTERM stop the active Git process group with bounded TERM/KILL/reap
+handling, retain the private workspace for inspection, and exit 130 or 143. An
+uncatchable SIGKILL, host restart, or power failure can leave metadata in the
+`active` state, but the released advisory lock makes a valid entry report as
+`stale`. Recovery deletes validated staging and reruns the rewrite; it never
+resumes an unverified clone.
+
+List only immediate sanitizer entries under an explicit absolute, symlink-free
+parent, then clean one exact opaque ID:
+
+```bash
+git-history-sanitize workspace list --parent "$PWD/build"
+git-history-sanitize workspace clean --parent "$PWD/build" --id <opaque-id>
+```
+
+Both commands accept `--json`. Listing emits only opaque IDs, lifecycle states,
+and roles, never temporary paths or contents. Cleanup refuses active, missing,
+malformed, wrong-owner, wrong-mode, replaced, symlinked, broad, or otherwise
+ambiguous targets; it never accepts a target path or glob. When receipt staging
+uses another parent, run the same exact-ID cleanup against that parent too.
+
+Do not automate deletion of an `ambiguous` entry. Stop writers, inspect only the
+matching immediate child as the owning OS user, independently establish that it
+is sanitizer staging rather than published or unrelated data, and use an
+administrator-controlled filesystem procedure if deletion is justified. Never
+bulk-delete by prefix. See [`docs/threat-model.md`](docs/threat-model.md) for the
+trust boundary and residual-risk details.
+
 The original sandbox-specific prototype is preserved in
 [`proto/`](proto/). It demonstrates one possible consumer of a sanitized Git
 database, but is not part of this tool. The separate `examples/` namespace is
@@ -438,11 +475,14 @@ identifier.
 
 ## Reporting privacy and JSON schema v2
 
-`doctor`, `plan`, `rewrite`, and `verify` write deterministic, compact,
+`doctor`, `plan`, `rewrite`, `verify`, and `workspace` write deterministic, compact,
 ASCII-safe reports. The default human and JSON reports are safe for shared logs
 and CI artifacts: they use only fixed protocol metadata and aggregate operation
 data. JSON writes one document plus one newline to stdout, nothing to stderr,
-and exits `0` on success or `2` on failure.
+and exits `0` on success or `2` on failure. A handled rewrite interruption is
+the exception: SIGINT exits 130 and SIGTERM exits 143 after fixed redacted
+recovery guidance. Workspace reports may include the opaque ID required for
+explicit cleanup, but never its parent or resolved path.
 
 | Classification | Default public report | `--diagnostics=trusted` local report | Never emitted |
 | --- | --- | --- | --- |
