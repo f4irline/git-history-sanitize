@@ -136,7 +136,7 @@ class ForbiddenContentTests(unittest.TestCase):
         repository = Repository(fixture.source)
         with (
             patch.object(repository, "object_format", return_value="sha1"),
-            patch("git_history_sanitize.verify.subprocess.Popen", return_value=Process()),
+            patch("git_history_sanitize.verify.start_process", return_value=Process()),
         ):
             with self.assertRaises(VerificationError) as error:
                 _forbidden(repository, (b"marker",))
@@ -159,7 +159,7 @@ class ForbiddenContentTests(unittest.TestCase):
         repository = Repository(fixture.source)
         with (
             patch.object(repository, "object_format", return_value="sha1"),
-            patch("git_history_sanitize.verify.subprocess.Popen", return_value=Process()),
+            patch("git_history_sanitize.verify.start_process", return_value=Process()),
         ):
             with self.assertRaises(VerificationError) as error:
                 _forbidden(repository, (b"marker",))
@@ -182,7 +182,7 @@ class ForbiddenContentTests(unittest.TestCase):
         repository = Repository(fixture.source)
         with (
             patch.object(repository, "object_format", return_value="sha1"),
-            patch("git_history_sanitize.verify.subprocess.Popen", return_value=Process()),
+            patch("git_history_sanitize.verify.start_process", return_value=Process()),
         ):
             with self.assertRaises(VerificationError) as error:
                 _forbidden(repository, (b"marker",))

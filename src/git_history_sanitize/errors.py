@@ -90,3 +90,29 @@ class ForbiddenInputError(SanitizeError):
     metadata = ErrorMetadata(
         "forbidden_input.invalid", "forbidden_input", "Forbidden-content input is invalid."
     )
+
+
+class WorkspaceError(SanitizeError):
+    """Raised when a temporary workspace cannot be safely managed."""
+
+    metadata = ErrorMetadata(
+        "workspace.unsafe",
+        "workspace",
+        "The sanitizer workspace could not be managed safely.",
+        "List sanitizer workspaces under the parent and clean one validated stale ID.",
+    )
+
+
+class InterruptionError(SanitizeError):
+    """Raised after a handled signal requests bounded rewrite shutdown."""
+
+    metadata = ErrorMetadata(
+        "rewrite.interrupted",
+        "rewrite",
+        "Sanitization was interrupted before completion.",
+        "List sanitizer workspaces under the output parent and clean the stale ID before retrying.",
+    )
+
+    def __init__(self, signum: int):
+        super().__init__("rewrite interrupted")
+        self.signum = signum

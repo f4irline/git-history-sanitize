@@ -8,6 +8,7 @@ from typing import Any, Literal
 from .engine import Plan, RewriteReport
 from .errors import ErrorMetadata, SanitizeError, VerificationError
 from .verify import VerificationReport
+from .workspace import WorkspaceRecord
 
 SCHEMA_VERSION = 2
 LEGACY_SCHEMA_VERSION = 1
@@ -123,6 +124,13 @@ def _public_result(command: str, value: Any) -> dict[str, Any]:
         }
     if command == "verify" and isinstance(value, VerificationReport):
         return _public_verification(value)
+    if command == "workspace.list" and isinstance(value, tuple):
+        return {"workspaces": [
+            {"id": item.id, "role": item.role, "state": item.state}
+            for item in value if isinstance(item, WorkspaceRecord)
+        ]}
+    if command == "workspace.clean" and isinstance(value, WorkspaceRecord):
+        return {"id": value.id, "role": value.role, "state": value.state}
     raise TypeError("unsupported CLI reporting result")
 
 
@@ -292,6 +300,16 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
             f"Excluded paths: {', '.join(detail['excluded_paths']) or 'none'}",
             f"Included paths: {', '.join(detail['included_paths']) if detail['include_active'] else 'inactive'}",
         )) + "\n"
+    if command == "workspace.list":
+        workspaces = result["workspaces"]
+        if not workspaces:
+            return "No sanitizer workspaces found.\n"
+        return "".join(
+            f"Workspace {item['id']}: {item['state']} ({item['role']})\n"
+            for item in workspaces
+        )
+    if command == "workspace.clean":
+        return f"Cleaned workspace {result['id']}.\n"
     return "Verification passed.\n"
 
 
@@ -309,6 +327,8 @@ def error_text(error: SanitizeError | None = None) -> str:
         "publication.failed": "sanitized output publication failed",
         "verification.failed": "verification failed",
         "rewrite.failed": "sanitization failed",
+        "rewrite.interrupted": "sanitization interrupted",
+        "workspace.unsafe": "unsafe sanitizer workspace",
         "internal_error": "unexpected internal error",
     }
     remediation = f": {metadata.remediation}" if metadata.remediation else ""

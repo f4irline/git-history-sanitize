@@ -190,6 +190,13 @@ class GitFixture:
                     mounts.extend(["--mount", f"type=bind,src={host_path},dst={destination},readonly"])
                 translated[index + 1] = destination
                 continue
+            if argument == "--parent":
+                if index + 1 == len(translated):
+                    raise ValueError(f"{argument} requires a path")
+                host_path = Path(translated[index + 1]).absolute()
+                mounts.extend(["--mount", f"type=bind,src={host_path},dst=/workspace-parent"])
+                translated[index + 1] = "/workspace-parent"
+                continue
             if argument not in {*fixed_paths, "--repository", "--output", "--receipt"}:
                 continue
             if index + 1 == len(translated):
@@ -300,7 +307,10 @@ class GitFixture:
             self.template_dir,
             self.hooks_dir,
         ]
-        path_options = {"--source", "--repository", "--policy", "--output", "--receipt", "--forbid-file"}
+        path_options = {
+            "--source", "--repository", "--policy", "--output", "--receipt", "--forbid-file",
+            "--parent",
+        }
         host_paths.extend(
             Path(arguments[index + 1]).resolve()
             for index, argument in enumerate(arguments[:-1])
@@ -335,6 +345,54 @@ class GitFixture:
         if runtime == "container":
             self._assert_container_result_redacted(result, arguments)
         return result
+
+    def create_container_interrupted_workspace(self, parent: Path) -> str:
+        """Create stale metadata through the selected OCI runtime, not the host filesystem view."""
+        image = os.environ.get("GHS_CONTAINER_IMAGE")
+        runtime = shutil.which(os.environ.get("GHS_OCI_RUNTIME", "docker"))
+        if not image or not runtime:
+            raise RuntimeError("container workspace fixture requires an OCI runtime and image")
+        script = (
+            "from git_history_sanitize.errors import InterruptionError\n"
+            "from git_history_sanitize.workspace import Workspace\n"
+            "try:\n"
+            "    with Workspace.create('/workspace-parent') as workspace:\n"
+            "        workspace_id = workspace.id\n"
+            "        raise InterruptionError(15)\n"
+            "except InterruptionError:\n"
+            "    print(workspace_id)\n"
+        )
+        command = [
+            runtime,
+            "run",
+            "--rm",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            "--network=none",
+            "--read-only",
+            "--mount",
+            f"type=bind,src={parent.absolute()},dst=/workspace-parent",
+            "--entrypoint",
+            "/opt/runtime/bin/python",
+            image,
+            "-I",
+            "-c",
+            script,
+        ]
+        environment = self._runtime_environment()
+        if docker_host := os.environ.get("DOCKER_HOST"):
+            environment["DOCKER_HOST"] = docker_host
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            env=environment,
+            text=True,
+        )
+        self.assert_redacted(completed.stdout + completed.stderr, str(parent), str(self.root))
+        if completed.returncode:
+            raise RuntimeError("container workspace fixture failed")
+        return completed.stdout.strip()
 
     def write_policy(
         self,

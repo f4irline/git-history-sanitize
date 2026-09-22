@@ -5,10 +5,13 @@ from __future__ import annotations
 import os
 import platform
 import shutil
+import signal
 import subprocess
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Iterator
 
 from .errors import DependencyError, SourceError
 from .oci_toolchain import ToolchainManifestError, load_required_manifest
@@ -23,6 +26,10 @@ _SIGNATURE_MARKERS = (
     b"-----BEGIN SIGNED MESSAGE-----",
     b"-----BEGIN PKCS7 SIGNATURE-----",
 )
+_PROCESS_STOP_TIMEOUT = 1.0
+_ACTIVE_PROCESSES: set[subprocess.Popen[bytes]] = set()
+_ACTIVE_LOCK = threading.Lock()
+_PROCESS_CONTEXT = threading.local()
 
 
 class GitError(SourceError):
@@ -53,6 +60,75 @@ def git_environment(environment: dict[str, str] | None = None) -> dict[str, str]
     return env
 
 
+@contextmanager
+def hold_process_lock(descriptor: int) -> Iterator[None]:
+    """Keep a workspace active while rewrite-owned descendants can still run."""
+    previous = getattr(_PROCESS_CONTEXT, "lock_descriptors", ())
+    _PROCESS_CONTEXT.lock_descriptors = (*previous, descriptor)
+    try:
+        yield
+    finally:
+        _PROCESS_CONTEXT.lock_descriptors = previous
+
+
+def start_process(arguments: list[str], **kwargs: object) -> subprocess.Popen[bytes]:
+    """Start and register an isolated child process group."""
+    inherited = tuple(getattr(_PROCESS_CONTEXT, "lock_descriptors", ()))
+    requested = tuple(kwargs.pop("pass_fds", ()))
+    process = subprocess.Popen(  # type: ignore[arg-type]
+        arguments,
+        start_new_session=True,
+        pass_fds=tuple(dict.fromkeys((*requested, *inherited))),
+        **kwargs,
+    )
+    with _ACTIVE_LOCK:
+        _ACTIVE_PROCESSES.add(process)
+    return process
+
+
+def finish_process(process: subprocess.Popen[bytes]) -> None:
+    with _ACTIVE_LOCK:
+        _ACTIVE_PROCESSES.discard(process)
+
+
+def terminate_process(process: subprocess.Popen[bytes]) -> None:
+    """Bound child shutdown to TERM, one wait interval, KILL, and reap."""
+    if process.poll() is not None:
+        finish_process(process)
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            pass
+    try:
+        process.wait(timeout=_PROCESS_STOP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+        process.wait()
+    finally:
+        finish_process(process)
+
+
+def cancel_active_processes() -> None:
+    with _ACTIVE_LOCK:
+        processes = tuple(_ACTIVE_PROCESSES)
+    for process in processes:
+        terminate_process(process)
+
+
 def run(
     arguments: Iterable[str],
     *,
@@ -64,21 +140,28 @@ def run(
     command = ["git", *arguments]
     env = git_environment(environment)
     try:
-        result = subprocess.run(
+        process = start_process(
             command,
             cwd=str(cwd) if cwd else None,
-            input=input_bytes,
+            stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
         )
     except OSError as error:
         raise DependencyError("Git executable is unavailable") from error
-    if check and result.returncode:
-        detail = result.stderr.decode("utf-8", "replace").strip().splitlines()
+    try:
+        stdout, stderr = process.communicate(input=input_bytes)
+    except BaseException:
+        terminate_process(process)
+        raise
+    finally:
+        finish_process(process)
+    if check and process.returncode:
+        detail = stderr.decode("utf-8", "replace").strip().splitlines()
         suffix = f": {detail[-1]}" if detail else ""
         raise GitError(f"Git command failed ({' '.join(command[:2])}){suffix}")
-    return result.stdout
+    return stdout
 
 
 def ensure_dependencies() -> dict[str, str]:
@@ -90,13 +173,22 @@ def ensure_dependencies() -> dict[str, str]:
             raise DependencyError("git-filter-repo is required on PATH") from error
     else:
         try:
-            filter_repo_version = subprocess.run(
+            process = start_process(
                 ["git-filter-repo", "--version"],
-                check=True,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                text=True,
-            ).stdout.strip()
+            )
+            try:
+                stdout, _ = process.communicate()
+            except BaseException:
+                terminate_process(process)
+                raise
+            finally:
+                finish_process(process)
+            if process.returncode:
+                raise subprocess.SubprocessError("git-filter-repo failed")
+            filter_repo_version = stdout.decode().strip()
         except (OSError, subprocess.SubprocessError) as error:
             raise DependencyError("git-filter-repo is unavailable") from error
     result = {"git": git_version, "git_filter_repo": filter_repo_version}

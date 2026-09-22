@@ -7,7 +7,15 @@ import unittest
 
 from git_history_sanitize.compact import CompactResult, SyntheticRootContext
 from git_history_sanitize.engine import Plan, RewriteReport
-from git_history_sanitize.errors import DependencyError, PolicyError, PublicationError, UsageError, VerificationError
+from git_history_sanitize.errors import (
+    DependencyError,
+    InterruptionError,
+    PolicyError,
+    PublicationError,
+    UsageError,
+    VerificationError,
+    WorkspaceError,
+)
 from git_history_sanitize.filtering import filter_paths
 from git_history_sanitize.git import GitError
 from git_history_sanitize.hooks import Hook, HookInventory
@@ -149,6 +157,20 @@ class ReportingTests(unittest.TestCase):
             error_text(UsageError("private command arguments")),
             "error: invalid command arguments: Run the command with --help for usage.\n",
         )
+
+        workspace = error_text(WorkspaceError("private /path and opaque id"))
+        interrupted = error_text(InterruptionError(15))
+        self.assertEqual(
+            workspace,
+            "error: unsafe sanitizer workspace: List sanitizer workspaces under the parent "
+            "and clean one validated stale ID.\n",
+        )
+        self.assertEqual(
+            interrupted,
+            "error: sanitization interrupted: List sanitizer workspaces under the output parent "
+            "and clean the stale ID before retrying.\n",
+        )
+        self.assertNotIn("private", workspace + interrupted)
 
     def test_error_document_uses_only_catalog_metadata_and_invariant(self) -> None:
         payload = json.loads(error_document("verify", VerificationError("private /path", invariant="refs.retained")))
