@@ -61,6 +61,29 @@ class CutoffContractTests(unittest.TestCase):
         )
         self.assertEqual(self.fixture.git(output, "show", "HEAD:boundary.txt"), "retained")
 
+    def test_fractional_timestamp_cutoff_starts_at_the_next_committer_second(self) -> None:
+        self.fixture.write("old.txt", "old\n")
+        self.fixture.commit("old", "old.txt", timestamp="2026-09-02T23:59:59+00:00")
+        self.fixture.write("fractional.txt", "discarded\n")
+        self.fixture.commit("fractional", "fractional.txt", timestamp="2026-09-03T00:00:00+00:00")
+        self.fixture.write("next.txt", "retained\n")
+        self.fixture.commit("next", "next.txt", timestamp="2026-09-03T00:00:01+00:00")
+        policy = self.fixture.write_policy(
+            cutoff="2026-09-03T00:00:00.1Z", included_paths=("next.txt",)
+        )
+
+        plan = json.loads(self._plan(policy).stdout)["result"]
+        output = self.fixture.output_dir / "sanitized.git"
+        rewrite = json.loads(self._rewrite(policy, output).stdout)["result"]
+
+        self.assertEqual(plan["source_commits"], 3)
+        self.assertEqual(plan["discarded_commits"], 2)
+        self.assertEqual(plan["retained_commits_before_path_filter"], 1)
+        self.assertEqual(rewrite["history"], {"source_commits": 3, "discarded_commits": 2})
+        self.assertEqual(rewrite["verification"]["boundary_count"], plan["boundary_count"])
+        self.assertEqual(self.fixture.git(output, "rev-list", "--count", "HEAD"), "1")
+        self.assertEqual(self.fixture.git(output, "show", "HEAD:next.txt"), "retained")
+
     def test_reachable_cutoff_commit_selects_the_same_boundary_for_plan_and_rewrite(self) -> None:
         self.fixture.write("old.txt", "old\n")
         self.fixture.commit("old", "old.txt", timestamp="2026-09-02T23:59:59+00:00")

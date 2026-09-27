@@ -258,10 +258,35 @@ refs:
 
 The policy parser intentionally accepts a restricted, security-auditable YAML
 subset: mappings, indented mappings, scalar values, and `-` lists. Strings may
-be quoted. Timestamps must be RFC 3339 values with explicit timezones.
+be quoted.
+
+`history.cutoff` must use this narrow RFC 3339 profile:
+
+```text
+YYYY-MM-DD[Tt]HH:MM:SS(?:\.[0-9]{1,6})?(?:Z|z|[+-]HH:MM)
+```
+
+The date and time fields use ASCII digits with fixed widths. Uppercase and
+lowercase `T` and `Z` are accepted. Numeric offsets require a colon, whole-minute
+precision, hours from `00` through `23`, and minutes from `00` through `59`.
+The timezone is required. Fractions, when present, use a period and one through
+six digits; the six-digit maximum preserves every accepted fraction in Python's
+microsecond precision. `-00:00` is rejected because it declares an unknown local
+offset rather than a determinate instant.
+
+Spaces and other date/time separators, week and ordinal dates, comma fractions,
+fractions longer than six digits, non-ASCII digits, timezone-free values,
+colonless or second-precision offsets, invalid offset fields such as `+00:60`,
+`+05:99`, or `+24:00`, leap seconds, and impossible calendar dates are rejected.
+The parser compatibility set is CPython 3.11–3.14; update the focused CI matrix
+with any change to that supported set.
 
 Use either `history.cutoff` or `history.cutoffCommit`. A cutoff timestamp is
-compared with committer timestamps; the cutoff commit itself is retained.
+compared with integer Git committer timestamps. The timestamp is converted to
+UTC and any non-zero fractional second is rounded up to the first eligible
+integer committer second. Exact-second cutoffs remain inclusive, so a commit at
+the cutoff second is retained; a commit at the starting second of a fractional
+cutoff is not. The cutoff commit itself is retained.
 `cutoffCommit` must be a lowercase, full storage-format commit OID reachable
 from source HEAD; abbreviations, refs, expressions, and uppercase values fail.
 

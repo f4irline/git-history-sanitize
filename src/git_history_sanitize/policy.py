@@ -13,6 +13,12 @@ from .errors import PolicyError
 
 _KEY = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
 _COMMIT = re.compile(r"^[0-9a-f]+$")
+_RFC3339_CUTOFF = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}"
+    r"(?:\.[0-9]{1,6})?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])",
+    re.ASCII,
+)
+_UNIX_EPOCH = dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
 
 
 def _without_comment(value: str) -> str:
@@ -203,13 +209,24 @@ def _validate_path_rules(paths: list[str], name: str) -> None:
 
 
 def _timestamp(value: str) -> dt.datetime:
+    if not _RFC3339_CUTOFF.fullmatch(value):
+        raise PolicyError("history.cutoff must be an RFC 3339 timestamp with an explicit timezone")
+    if value.endswith("-00:00"):
+        raise PolicyError("history.cutoff must not use the unknown -00:00 offset")
+    normalized = f"{value[:-1]}+00:00" if value.endswith(("Z", "z")) else value
     try:
-        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.datetime.fromisoformat(normalized)
     except ValueError as error:
-        raise PolicyError(f"Invalid RFC 3339 cutoff: {value!r}") from error
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise PolicyError("history.cutoff must include an explicit timezone")
-    return parsed
+        raise PolicyError("history.cutoff must be a valid RFC 3339 timestamp") from error
+
+
+def _cutoff_epoch(value: dt.datetime) -> int:
+    try:
+        delta = value.astimezone(dt.timezone.utc) - _UNIX_EPOCH
+    except OverflowError as error:
+        raise PolicyError("history.cutoff is outside the supported UTC range") from error
+    seconds = delta.days * 86_400 + delta.seconds
+    return seconds + (delta.microseconds != 0)
 
 
 def _retained_refs(value: Any, mode: str) -> tuple[str, ...]:
@@ -284,7 +301,7 @@ class Policy:
         cutoff_epoch: int | None = None
         if cutoff_text is not None:
             cutoff_text = _string(cutoff_text, "history.cutoff")
-            cutoff_epoch = int(_timestamp(cutoff_text).timestamp())
+            cutoff_epoch = _cutoff_epoch(_timestamp(cutoff_text))
         if cutoff_commit is not None:
             cutoff_commit = _string(cutoff_commit, "history.cutoffCommit")
             if not _COMMIT.fullmatch(cutoff_commit):
