@@ -19,6 +19,10 @@ class PolicyTests(unittest.TestCase):
             f"{entries}"
         )
 
+    @staticmethod
+    def policy_with_cutoff(cutoff: str) -> str:
+        return f'version: 1\nhistory:\n  cutoff: "{cutoff}"\n'
+
     def test_parses_timestamp_policy(self) -> None:
         policy = Policy.from_text(
             """
@@ -40,6 +44,47 @@ refs:
         self.assertEqual(policy.history.cutoff_epoch, 1788382800)
         self.assertEqual(policy.excluded_paths, ("secret.json", "private/"))
         self.assertIsNone(policy.included_paths)
+
+    def test_accepts_the_documented_rfc_3339_cutoff_profile(self) -> None:
+        cases = (
+            ("2026-09-03T00:00:00Z", 1788393600),
+            ("2026-09-03t00:00:00z", 1788393600),
+            ("2026-09-03T02:30:00+02:30", 1788393600),
+            ("2026-09-03T00:00:00-01:00", 1788397200),
+            ("2026-09-03T00:00:00.1Z", 1788393601),
+            ("2026-09-03T00:00:00.123456Z", 1788393601),
+            ("1969-12-31T23:59:59.500000Z", 0),
+        )
+
+        for cutoff, epoch in cases:
+            with self.subTest(cutoff=cutoff):
+                self.assertEqual(Policy.from_text(self.policy_with_cutoff(cutoff)).history.cutoff_epoch, epoch)
+
+    def test_rejects_undocumented_or_indeterminate_rfc_3339_cutoff_forms(self) -> None:
+        invalid_cutoffs = (
+            "2026-09-03T00:00:00",
+            "2026-09-03 00:00:00Z",
+            "2026-09-03X00:00:00Z",
+            "2026-W36-4T00:00:00Z",
+            "2026-246T00:00:00Z",
+            "2026-09-03T00:00:00,1Z",
+            "2026-09-03T00:00:00.1234567Z",
+            "２０２６-09-03T00:00:00Z",
+            "2026-09-03T00:00:00+0000",
+            "2026-09-03T00:00:00+00:00:30",
+            "2026-09-03T00:00:00+00:60",
+            "2026-09-03T00:00:00+05:99",
+            "2026-09-03T00:00:00+24:00",
+            "2026-09-03T00:00:00-00:00",
+            "2026-09-03T00:00:60Z",
+            "2026-02-29T00:00:00Z",
+            "0001-01-01T00:00:00+14:00",
+            "9999-12-31T23:59:59.999999-23:59",
+        )
+
+        for cutoff in invalid_cutoffs:
+            with self.subTest(cutoff=cutoff), self.assertRaisesRegex(PolicyError, "history\\.cutoff"):
+                Policy.from_text(self.policy_with_cutoff(cutoff))
 
     def test_parses_active_include_and_preserves_cross_list_overlap(self) -> None:
         policy = Policy.from_text(
