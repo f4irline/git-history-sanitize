@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 SOURCE_DATE_EPOCH=$
 WORKDIR /build
 
 COPY container/toolchain.lock.json requirements/container-runtime.txt scripts/bootstrap-test-git.sh scripts/verify-container-toolchain.py ./
-RUN sed -i -e 's|http://archive.ubuntu.com/ubuntu/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' -e 's|http://ports.ubuntu.com/ubuntu-ports/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' /etc/apt/sources.list.d/ubuntu.sources \
+RUN sed -i -e 's|http://archive.ubuntu.com/ubuntu/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' -e 's|http://security.ubuntu.com/ubuntu/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' -e 's|http://ports.ubuntu.com/ubuntu-ports/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' /etc/apt/sources.list.d/ubuntu.sources \
     && apt-get -o Acquire::Retries=20 -o Acquire::https::Timeout=30 -o Acquire::https::Verify-Peer=false update -qq \
     && apt-get -o Acquire::https::Verify-Peer=false install -qq -y --no-install-recommends ca-certificates=20260601~26.04.1 \
     && apt-get -o Acquire::Retries=20 -o Acquire::https::Timeout=30 update -qq \
@@ -45,7 +45,7 @@ FROM ubuntu@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e
 ARG SOURCE_DATE_EPOCH
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH} \
     PATH=/opt/git-2.47.0/bin:/opt/runtime/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-RUN sed -i -e 's|http://archive.ubuntu.com/ubuntu/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' -e 's|http://ports.ubuntu.com/ubuntu-ports/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' /etc/apt/sources.list.d/ubuntu.sources \
+RUN sed -i -e 's|http://archive.ubuntu.com/ubuntu/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' -e 's|http://security.ubuntu.com/ubuntu/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' -e 's|http://ports.ubuntu.com/ubuntu-ports/|https://snapshot.ubuntu.com/ubuntu/20260916T000000Z/|g' /etc/apt/sources.list.d/ubuntu.sources \
     && apt-get -o Acquire::Retries=20 -o Acquire::https::Timeout=30 -o Acquire::https::Verify-Peer=false update -qq \
     && apt-get -o Acquire::https::Verify-Peer=false install -qq -y --no-install-recommends ca-certificates=20260601~26.04.1 \
     && apt-get -o Acquire::Retries=20 -o Acquire::https::Timeout=30 update -qq \
