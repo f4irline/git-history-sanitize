@@ -11,7 +11,7 @@
     "sous-chef": {
       "description": "Research and planning agent for /bbq.pantry and /bbq.prep workflows",
       "mode": "primary",
-      "model": "openai/gpt-5.6-terra",
+      "model": "openai/gpt-6.1-sol",
       "reasoningEffort": "high",
       "tools": {
         "write": false,
@@ -23,7 +23,7 @@
     "pitmaster": {
       "description": "Implementation and review-fix agent for /bbq.fire and /bbq.taste workflows",
       "mode": "primary",
-      "model": "openai/gpt-5.6-terra",
+      "model": "openai/gpt-6.1-sol",
       "reasoningEffort": "medium",
       "tools": {
         "write": true,
