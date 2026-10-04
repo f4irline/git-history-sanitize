@@ -127,6 +127,29 @@ class GitFixture:
     def _runtime_environment(self) -> dict[str, str]:
         return {key: value for key, value in self.environment.items() if key != "PYTHONPATH"}
 
+    def delete_output_ref(self, repository: Path, name: str) -> None:
+        """Tamper output refs through their owning runtime filesystem view."""
+        if repository.parent != self.output_dir:
+            raise ValueError("ref tampering requires a dedicated fixture output")
+        if os.environ.get("GHS_TEST_RUNTIME") != "container":
+            self.git(repository, "update-ref", "-d", name)
+            return
+        # --output selects the existing dedicated writable output mount. Keep
+        # all fixture metadata mounts read-only and the normal caller identity.
+        command = self._container_cli(("--output", str(repository)))
+        image, translated_path = command[-3], command[-1]
+        command = [
+            *command[:-3], "--entrypoint", "/opt/git-2.47.0/bin/git", image,
+            f"--git-dir={translated_path}", "update-ref", "-d", name,
+        ]
+        environment = self._runtime_environment()
+        if docker_host := os.environ.get("DOCKER_HOST"):
+            environment["DOCKER_HOST"] = docker_host
+        completed = subprocess.run(command, capture_output=True, env=environment, text=True)
+        self.assert_redacted(completed.stdout + completed.stderr, str(self.root))
+        if completed.returncode:
+            raise RuntimeError("container ref tampering failed")
+
     def _wheel_cli(self, arguments: tuple[str, ...]) -> list[str]:
         wheel = os.environ.get("GHS_WHEEL")
         if not wheel:

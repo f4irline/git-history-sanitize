@@ -18,6 +18,13 @@ class GitEnvironmentContracts(unittest.TestCase):
         self.assertEqual(environment["GIT_NO_LAZY_FETCH"], "1")
         self.assertEqual(environment["GIT_NO_REPLACE_OBJECTS"], "1")
 
+    def test_relative_helper_search_is_frozen_before_git_changes_directory(self) -> None:
+        import os
+
+        environment = git_environment({"PATH": "bin::/usr/bin", "GIT_EXEC_PATH": "helpers"})
+        self.assertEqual(environment["PATH"], os.pathsep.join((os.path.abspath("bin"), os.getcwd(), "/usr/bin")))
+        self.assertEqual(environment["GIT_EXEC_PATH"], os.path.abspath("helpers"))
+
     def test_git_run_passes_no_lazy_fetch_and_no_replace_objects_to_subprocess(self) -> None:
         process = Mock(pid=123, returncode=0)
         process.communicate.return_value = (b"", b"")

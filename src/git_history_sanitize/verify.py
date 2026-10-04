@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Iterator
 
-from .errors import SourceError, VerificationError
+from .errors import DependencyError, SourceError, VerificationError
 from .forbidden import CHUNK_SIZE, Matcher
 from .git import GitError, Repository, finish_process, git_environment, start_process, terminate_process
 from .hooks import HookError, discover as discover_hooks
@@ -167,14 +167,17 @@ def _objects(repository: Repository) -> None:
 
 def _object_body_chunks(repository: Repository) -> Iterator[bytes | None]:
     """Yield body chunks, marking each new object with ``None``."""
-    width = 40 if repository.object_format() == "sha1" else 64
-    process = start_process(
-        repository.command("cat-file", "--batch-all-objects", "--batch"),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        env=git_environment(),
-    )
+    try:
+        width = 40 if repository.object_format() == "sha1" else 64
+        process = start_process(
+            repository.command("cat-file", "--batch-all-objects", "--batch"),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=git_environment(),
+        )
+    except (OSError, subprocess.SubprocessError, DependencyError, SourceError) as error:
+        raise VerificationError("Cannot scan object bodies", invariant="content.forbidden") from error
     try:
         assert process.stdout is not None
         while header := process.stdout.readline(1024):
@@ -196,13 +199,18 @@ def _object_body_chunks(repository: Repository) -> Iterator[bytes | None]:
                 raise ValueError("invalid object separator")
         if process.wait() != 0:
             raise ValueError("cat-file failed")
+    except (OSError, subprocess.SubprocessError, UnicodeError, ValueError) as error:
+        raise VerificationError("Cannot scan object bodies", invariant="content.forbidden") from error
     finally:
-        if process.poll() is None:
-            terminate_process(process)
-        else:
-            finish_process(process)
-        if process.stdout is not None:
-            process.stdout.close()
+        try:
+            if process.poll() is None:
+                terminate_process(process)
+            else:
+                finish_process(process)
+            if process.stdout is not None:
+                process.stdout.close()
+        except (OSError, subprocess.SubprocessError) as error:
+            raise VerificationError("Cannot close object scan", invariant="content.forbidden") from error
 
 
 def _scan_object_bodies(repository: Repository, matcher: Matcher) -> None:

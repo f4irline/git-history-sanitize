@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from typing import Any, Literal
 
 from .engine import Plan, RewriteReport
-from .errors import ErrorMetadata, SanitizeError, VerificationError
+from .errors import DEPENDENCY_FAILURES, DependencyCheck, DependencyError, ErrorMetadata, SanitizeError, VerificationError
 from .verify import VerificationReport
 from .workspace import WorkspaceRecord
 
@@ -236,13 +237,20 @@ def error_document(
     publication_state = getattr(error, "publication_state", None)
     if publication_state in _PUBLICATION_STATES:
         payload["publication_state"] = publication_state
+    if command == "doctor" and isinstance(error, DependencyError) and error.checks:
+        payload["checks"] = [asdict(check) for check in error.checks]
     return _document(payload)
 
 
 def success_text(command: str, value: Any, *, diagnostics: Audience = "public") -> str:
     """Render the same classified contract for human-facing output."""
     if command == "doctor":
-        return "\n".join(_public_result(command, value).values()) + "\n"
+        result = _public_result(command, value)
+        lines = doctor_checks_text(tuple(DependencyCheck(**check) for check in result["checks"]))
+        return lines + "".join(
+            f"{key}: {result[key]}\n"
+            for key in ("python", "manifest_sha256", "package_version", "source_revision") if key in result
+        )
     result = _public_result(command, value)
     if command == "plan":
         lines = [
@@ -313,12 +321,22 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
     return "Verification passed.\n"
 
 
+def doctor_checks_text(checks: tuple[DependencyCheck, ...]) -> str:
+    """Escape provenance for human terminals; never print process output."""
+    return "".join(
+        f"{check.name}: {check.status}; executable={json.dumps(check.executable_path, ensure_ascii=True)[1:-1] if check.executable_path is not None else 'unavailable'}; "
+        f"detected={check.detected_version or 'unavailable'}; required={check.required_range}\n"
+        for check in checks
+    )
+
+
 def error_text(error: SanitizeError | None = None) -> str:
     """Render a fixed safe summary, with allowlisted invariant metadata only."""
     metadata = error.metadata if error is not None else _INTERNAL
     if isinstance(error, VerificationError) and error.invariant:
         return f"error: verification failed: {error.invariant}\n"
     summaries = {
+        **{metadata.code: metadata.message.removesuffix(".") for metadata in DEPENDENCY_FAILURES.values()},
         "forbidden_input.invalid": "invalid forbidden-content input",
         "policy.invalid": "invalid policy",
         "source.invalid": "source repository unavailable",

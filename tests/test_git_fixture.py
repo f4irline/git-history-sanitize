@@ -207,6 +207,26 @@ class GitFixtureTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertNotIn("DOCKER_HOST=unix:///fixture/docker.sock", command)
 
+    def test_output_ref_tampering_uses_only_runtime_owned_output_mount(self) -> None:
+        result = subprocess.CompletedProcess([], 0, "", "")
+        with (
+            patch.dict(os.environ, {"GHS_TEST_RUNTIME": "container", "GHS_CONTAINER_IMAGE": "fixture-image", "DOCKER_HOST": "unix:///fixture/docker.sock"}),
+            patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"),
+            patch("tests.support.git_fixture.subprocess.run", return_value=result) as run,
+        ):
+            self.fixture.delete_output_ref(self.fixture.output_dir / "selected.git", "refs/heads/release")
+        command = run.call_args.args[0]
+        self.assertEqual(command[command.index("fixture-image") + 1:], [
+            "--git-dir=/output/selected.git", "update-ref", "-d", "refs/heads/release",
+        ])
+        self.assertIn(f"type=bind,src={self.fixture.output_dir},dst=/output", command)
+        self.assertIn(f"type=bind,src={self.fixture.global_config},dst=/gitconfig,readonly", command)
+        self.assertIn(f"{os.getuid()}:{os.getgid()}", command)
+        self.assertEqual(run.call_args.kwargs["env"]["DOCKER_HOST"], "unix:///fixture/docker.sock")
+        self.assertNotIn(str(self.fixture.source), " ".join(command))
+        with self.assertRaises(ValueError):
+            self.fixture.delete_output_ref(self.fixture.source, "refs/heads/main")
+
     def test_container_runner_rejects_host_paths_in_expected_failure_output(self) -> None:
         arguments = self._container_rewrite_arguments()
         result = subprocess.CompletedProcess([], 2, "", f"cannot read {self.fixture.global_config}\n")

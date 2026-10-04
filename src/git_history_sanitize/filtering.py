@@ -6,7 +6,7 @@ import json
 import os
 
 from .errors import DependencyError
-from .git import GitError, Repository
+from .git import FILTER_REPO_COMMAND, GitError, Repository
 from .policy import Policy
 
 _CALLBACK = r'''
@@ -98,7 +98,7 @@ def filter_paths(repository: Repository, policy: Policy) -> None:
     environment["GIT_HISTORY_SANITIZE_MIXED_MESSAGE"] = policy.mixed_message
     try:
         repository.run(
-            "filter-repo",
+            FILTER_REPO_COMMAND,
             "--force",
             "--prune-empty",
             "always",
@@ -107,4 +107,4 @@ def filter_paths(repository: Repository, policy: Policy) -> None:
             environment=environment,
         )
     except GitError as error:
-        raise DependencyError("git-filter-repo failed during path filtering") from error
+        raise DependencyError(reason="execution_failed") from error

@@ -46,6 +46,17 @@ class CliContractTests(unittest.TestCase):
             json.loads(doctor.stdout),
             {"command": "doctor", "report_audience": "public", "result": json.loads(doctor.stdout)["result"], "schema_version": 2, "status": "success"},
         )
+        doctor_result = json.loads(doctor.stdout)["result"]
+        self.assertEqual(set(doctor_result), {"git", "git_filter_repo", "checks"} | (
+            {"python", "manifest_sha256", "package_version", "source_revision"}
+            if os.environ.get("GHS_TEST_RUNTIME") == "container" else set()
+        ))
+        self.assertEqual(doctor_result["git"], "git version 2.47.0")
+        self.assertEqual(doctor_result["git_filter_repo"], "a40bce548d2c")
+        for check in doctor_result["checks"]:
+            self.assertEqual(set(check), {"name", "executable_path", "detected_version", "required_range", "status"})
+            self.assertEqual(check["status"], "pass")
+            self.assertTrue(check["executable_path"].startswith("/"))
         for command, document in (("plan", plan), ("rewrite", rewrite), ("verify", verify)):
             payload = json.loads(document.stdout)
             self.assertEqual(payload["schema_version"], 2)

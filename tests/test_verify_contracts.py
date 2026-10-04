@@ -3,15 +3,52 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 import shutil
+import subprocess
 import unittest
+from unittest.mock import Mock, patch
 
 from git_history_sanitize._version import __version__
 from git_history_sanitize.engine import _source_fingerprint
+from git_history_sanitize.errors import VerificationError
 from git_history_sanitize.git import Repository
 from git_history_sanitize.policy import Policy
 from git_history_sanitize.receipt import Receipt
+from git_history_sanitize.verify import _object_body_chunks
 from tests.support.git_fixture import GitFixture
+
+
+class ObjectStreamContracts(unittest.TestCase):
+    def test_expected_stream_failures_have_verification_metadata_and_close_stream(self) -> None:
+        header = b"a" * 40 + b" blob 4\n"
+        for body, status in ((b"\xff\n", 0), (header + b"ab", 0), (header + b"abcd!", 0), (b"", 7)):
+            with self.subTest(body=body, status=status):
+                process = Mock(stdout=BytesIO(body))
+                process.wait.return_value = status
+                process.poll.return_value = status
+                repository = Mock()
+                repository.object_format.return_value = "sha1"
+                with patch("git_history_sanitize.verify.start_process", return_value=process):
+                    with self.assertRaises(VerificationError) as raised:
+                        list(_object_body_chunks(repository))
+                self.assertEqual(raised.exception.invariant, "content.forbidden")
+                self.assertTrue(process.stdout.closed)
+
+    def test_stream_read_and_wait_errors_are_typed(self) -> None:
+        for operation, failure in (("readline", OSError("private diagnostic")), ("wait", subprocess.SubprocessError("private diagnostic"))):
+            with self.subTest(operation=operation):
+                stream = Mock()
+                stream.readline.return_value = b""
+                process = Mock(stdout=stream)
+                process.poll.return_value = 0
+                getattr(stream if operation == "readline" else process, operation).side_effect = failure
+                repository = Mock()
+                repository.object_format.return_value = "sha1"
+                with patch("git_history_sanitize.verify.start_process", return_value=process):
+                    with self.assertRaises(VerificationError):
+                        list(_object_body_chunks(repository))
+                stream.close.assert_called_once()
 
 
 class VerifierContractTests(unittest.TestCase):

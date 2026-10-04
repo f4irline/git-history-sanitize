@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,34 @@ class UsageError(SanitizeError):
     )
 
 
+@dataclass(frozen=True)
+class DependencyCheck:
+    """Resolver-owned doctor provenance; never populated from process diagnostics."""
+
+    name: str
+    executable_path: str | None
+    detected_version: str | None
+    required_range: str
+    status: Literal["pass", "fail"]
+
+
+_DEPENDENCY_REMEDIATION = (
+    "Install Git >=2.36 and git-filter-repo==2.47.0; see README.md Requirements."
+)
+DEPENDENCY_FAILURES = {
+    reason: ErrorMetadata(f"dependency.{reason}", "dependency", message, _DEPENDENCY_REMEDIATION)
+    for reason, message in (
+        ("missing", "A required dependency is missing."),
+        ("not_executable", "A required dependency is not executable."),
+        ("startup_failed", "A required dependency could not start."),
+        ("execution_failed", "A required dependency command failed."),
+        ("invalid_output", "A required dependency returned invalid version output."),
+        ("unsupported", "A required dependency version is unsupported."),
+        ("oci_mismatch", "The required OCI toolchain declaration is invalid or mismatched."),
+    )
+}
+
+
 class DependencyError(SanitizeError):
     """Raised when a required executable cannot be used."""
 
@@ -59,6 +88,16 @@ class DependencyError(SanitizeError):
         "dependency.unavailable", "dependency", "A required dependency is unavailable.",
         "Install the supported Git and git-filter-repo toolchain.",
     )
+
+    def __init__(
+        self, message: str = "dependency check failed", *, reason: str | None = None,
+        executable_path: str | None = None, checks: tuple[DependencyCheck, ...] = (),
+    ):
+        super().__init__(message)
+        if reason is not None:
+            self.metadata = DEPENDENCY_FAILURES[reason]
+        self.executable_path = executable_path
+        self.checks = checks
 
 
 class SourceError(SanitizeError):
