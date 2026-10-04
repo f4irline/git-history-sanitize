@@ -28,6 +28,11 @@ class DiagnosticsContracts(unittest.TestCase):
         output = fixture.output_dir / "sanitized.git"
         receipt = fixture.receipt_dir / "receipt.json"
 
+        planned = fixture.run_cli("plan", "--source", str(fixture.source), "--policy", str(policy), "--json", "--diagnostics=trusted")
+        projection = json.loads(planned.stdout)
+        self.assertEqual(projection["diagnostics"]["symbolic_retained_ref"], "refs/heads/main")
+        self.assertNotIn("refs/heads/main", json.dumps(projection["result"]))
+
         result = fixture.run_cli(
             "rewrite", "--source", str(fixture.source / ".git"), "--output", str(output),
             "--policy", str(policy), "--receipt", str(receipt), "--json", "--diagnostics=trusted",
@@ -38,6 +43,8 @@ class DiagnosticsContracts(unittest.TestCase):
         self.assertIn(included_path, diagnostics["included_paths"])
         self.assertIn(hook_name, diagnostics["hook_names"])
         persisted = (output / "git-history-sanitize-scope.json").read_text() + receipt.read_text()
+        for transient in ("symbolic_retained_ref", "inspection", "working_tree_content_excluded", "committed_history_only"):
+            self.assertNotIn(transient, persisted)
         fixture.assert_redacted(persisted, "private-customer-data", "public-customer-data", hook_name)
         self.assertFalse((output / "diagnostics").exists())
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import stat
 import unittest
 
@@ -23,7 +22,7 @@ class HookContractsTests(unittest.TestCase):
     def _rewrite(self, *arguments: str):
         output = self.fixture.output_dir / "sanitized.git"
         result = self.fixture.run_cli(
-            "rewrite", "--source", str(self.fixture.source / ".git"), "--output", str(output),
+            "rewrite", "--source", str(self.fixture.source), "--output", str(output),
             "--policy", str(self.policy), *arguments,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -69,7 +68,7 @@ class HookContractsTests(unittest.TestCase):
         self.fixture.git(self.fixture.source, "config", "--local", "core.hooksPath", ".trusted-hooks")
 
         plan = self.fixture.run_cli(
-            "plan", "--source", str(self.fixture.source / ".git"), "--policy", str(self.policy), "--json", "--diagnostics=trusted"
+            "plan", "--source", str(self.fixture.source), "--policy", str(self.policy), "--json", "--diagnostics=trusted"
         )
         output, rewrite = self._rewrite("--json", "--diagnostics=trusted")
 
@@ -116,8 +115,7 @@ class HookContractsTests(unittest.TestCase):
         self.assertIn("core.hooksPath", str(error.exception))
         self.assertNotIn("foreign-hooks", str(error.exception))
 
-        output = self.fixture.root.parent / f"{self.fixture.root.name}-sanitized.git"
-        self.addCleanup(shutil.rmtree, output, ignore_errors=True)
+        output = self.fixture.output_dir / "sanitized.git"
         result = self.fixture.run_cli(
             "rewrite", "--source", str(bare), "--output", str(output), "--policy", str(self.policy),
             check=False,

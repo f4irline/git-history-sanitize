@@ -100,12 +100,42 @@ class DependencyError(SanitizeError):
         self.checks = checks
 
 
+SOURCE_FAILURES = {
+    reason: ErrorMetadata(f"source.{reason}", "source", message, remediation)
+    for reason, message, remediation in (
+        ("detached_head", "The source HEAD is detached.", "Switch to an existing branch or create a branch at the current commit, then retry."),
+        ("unborn_head", "The source HEAD has no committed history.", "Create the repository's initial commit or select a repository with committed history."),
+        ("invalid_location", "The source location is unsupported or unavailable.", "Pass a working-tree root, Git directory, bare root, or linked-worktree gitfile; omit --source only to discover from CWD."),
+        ("state_unavailable", "Working-tree state could not be inspected.", "Restore readable source state or use an accessible validated metadata-only input."),
+    )
+}
+DESTINATION_FAILURES = {
+    reason: ErrorMetadata(f"destination.{reason}", "preflight", message, remediation)
+    for reason, message, remediation in (
+        ("invalid", "An output or receipt destination is unsafe or unavailable.", "Use distinct nonexistent absolute symlink-free output/receipt paths with existing directory parents outside source roots."),
+        ("busy", "An output or receipt destination is already reserved.", "Another rewrite is using an output or receipt destination; wait for it to finish or select different destinations."),
+        ("reservation_unsafe", "The destination reservation cannot be validated.", "Stop writers and have the owning user inspect the reservation, without bulk prefix deletion."),
+    )
+}
+
+
+class DestinationError(UsageError):
+    def __init__(self, *, reason: str = "invalid"):
+        super().__init__("destination preflight failed")
+        self.metadata = DESTINATION_FAILURES[reason]
+
+
 class SourceError(SanitizeError):
     """Raised when the source repository cannot safely be inspected."""
 
     metadata = ErrorMetadata(
         "source.invalid", "source", "The source repository is invalid or unavailable."
     )
+
+    def __init__(self, message: str = "source inspection failed", *, reason: str | None = None):
+        super().__init__(message)
+        if reason is not None:
+            self.metadata = SOURCE_FAILURES[reason]
 
 
 class PublicationError(SanitizeError):

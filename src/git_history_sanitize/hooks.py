@@ -70,13 +70,13 @@ def _safe_directory(path: Path, roots: tuple[Path, ...]) -> Path:
 def _local_path(repository: Repository) -> tuple[Path, bool]:
     configured = repository.run("config", "--local", "--get", "core.hooksPath", check=False).rstrip(b"\n")
     if not configured:
-        return repository.git_dir / "hooks", False
+        return repository.git_path("hooks"), False
     try:
         value = os.fsdecode(configured)
     except UnicodeError as error:
         raise HookError("repository-local core.hooksPath is invalid") from error
     worktree = repository.worktree_root()
-    roots = tuple(root for root in (repository.git_dir, worktree) if root is not None)
+    roots = tuple(dict.fromkeys(root for root in (repository.git_dir, repository.common_dir, worktree) if root is not None))
     if not roots:
         raise HookError("repository-local core.hooksPath is unavailable")
     candidates = (Path(value),) if os.path.isabs(value) else tuple(root / value for root in roots)
@@ -101,7 +101,7 @@ def discover(repository: Repository) -> HookInventory:
         return HookInventory((), False)
     worktree = repository.worktree_root()
     directory = _safe_directory(
-        directory, (repository.git_dir, *(() if worktree is None else (worktree,)))
+        directory, (repository.git_dir, repository.common_dir, *(() if worktree is None else (worktree,)))
     )
     hooks: list[Hook] = []
     descriptor = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))

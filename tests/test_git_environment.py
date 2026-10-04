@@ -12,6 +12,11 @@ from git_history_sanitize.git import git_environment, hold_process_lock, run
 
 
 class GitEnvironmentContracts(unittest.TestCase):
+    def test_repository_location_overrides_are_removed_after_environment_merge(self) -> None:
+        keys = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_SHALLOW_FILE", "GIT_PREFIX", "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM")
+        environment = git_environment(dict.fromkeys(keys, "unsafe"))
+        self.assertFalse(set(keys) & environment.keys())
+
     def test_git_environment_forces_no_lazy_fetch_and_no_replace_objects(self) -> None:
         environment = git_environment({"GIT_NO_LAZY_FETCH": "0", "GIT_NO_REPLACE_OBJECTS": "0"})
 

@@ -66,6 +66,8 @@ def git_environment(environment: dict[str, str] | None = None) -> dict[str, str]
     env = os.environ.copy()
     if environment:
         env.update(environment)
+    for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_SHALLOW_FILE", "GIT_PREFIX", "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM"):
+        env.pop(key, None)
     # Git handles -C before helper lookup. Freeze relative search entries before
     # that repository-scoped chdir so doctor and rewrite cannot choose differently.
     env["PATH"] = os.pathsep.join(os.path.abspath(path) for path in env.get("PATH", os.defpath).split(os.pathsep))
@@ -334,28 +336,123 @@ def ensure_dependencies(environment: dict[str, str] | None = None) -> dict[str, 
     }
 
 
+@dataclass(frozen=True)
+class Discovery:
+    kind: Literal["working-tree", "bare", "linked-worktree"]
+    git_dir: Path
+    common_dir: Path
+    worktree_root: Path | None
+    clone_path: Path
+
+
+@dataclass(frozen=True)
+class SourceState:
+    kind: str
+    symbolic_retained_ref: str
+    inspection: str
+    categories: tuple[bool, ...] = ()
+
+    def public(self) -> dict[str, object]:
+        worktree: dict[str, object] = {"inspection": self.inspection}
+        worktree.update(zip(("staged", "unstaged", "untracked", "ignored", "unmerged"), self.categories))
+        return {"kind": self.kind, "head_state": "symbolic", "worktree": worktree}
+
+    def warnings(self) -> list[dict[str, str]]:
+        if self.kind == "bare":
+            return []
+        result = [{"code": "source.committed_history_only", "message": "Only committed history is sanitized; uncommitted and ignored working-tree content is excluded. Trusted hooks are preserved separately."}]
+        if any(self.categories):
+            result.append({"code": "source.working_tree_content_excluded", "message": "Staged, unstaged, untracked and ignored working-tree content is not sanitized or included in the output."})
+        if self.inspection == "unavailable":
+            result.append({"code": "source.working_tree_not_inspected", "message": "The source worktree is unavailable; working-tree state was not inspected."})
+        return result
+
+
+def parse_worktree_status(raw: bytes) -> tuple[bool, ...]:
+    categories = [False] * 5
+    if raw and not raw.endswith(b"\0"):
+        raise SourceError(reason="state_unavailable")
+    for record in raw.split(b"\0")[:-1]:
+        if len(record) < 4 or record[2:3] != b" ":
+            raise SourceError(reason="state_unavailable")
+        xy = record[:2]
+        if xy == b"??":
+            categories[2] = True
+        elif xy == b"!!":
+            categories[3] = True
+        elif xy in (b"DD", b"AU", b"UD", b"UA", b"DU", b"AA", b"UU"):
+            categories[0] = categories[1] = categories[4] = True
+        elif all(character in b" MADT" for character in xy) and xy != b"  ":
+            categories[0] |= xy[0] != 32
+            categories[1] |= xy[1] != 32
+        else:
+            raise SourceError(reason="state_unavailable")
+    return tuple(categories)
+
+
+def _path_record(raw: bytes) -> Path:
+    if not raw.endswith(b"\n") or b"\0" in raw or not raw[:-1]:
+        raise SourceError("Invalid Git path record")
+    path = Path(os.fsdecode(raw[:-1]))
+    if not path.is_absolute():
+        raise SourceError("Nonabsolute Git path record")
+    return path.resolve()
+
+
 class Repository:
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path | None, *, strict_source: bool = False):
         try:
-            self.path = Path(path).resolve()
+            self.path = Path.cwd().resolve() if path is None else Path(path).resolve()
         except (OSError, ValueError) as error:
             raise SourceError("Cannot resolve source repository") from error
-        self._bare = False
         try:
-            self.git_dir = Path(
-                run(["-C", str(self.path), "rev-parse", "--absolute-git-dir"]).decode().strip()
-            ).resolve()
-            self._bare = run(
-                ["-C", str(self.path), "rev-parse", "--is-bare-repository"]
-            ).decode().strip() == "true"
+            try:
+                # --path-format itself triggers repository setup on Git 2.47;
+                # --resolve-git-dir accepts an absolute input without that setup.
+                self.git_dir = _path_record(run(["rev-parse", "--resolve-git-dir", str(self.path)]))
+            except GitError:
+                self.git_dir = _path_record(run(["-C", str(self.path), "rev-parse", "--absolute-git-dir"]))
+            self._bare = run([f"--git-dir={self.git_dir}", "rev-parse", "--is-bare-repository"]) == b"true\n"
+            self.common_dir = _path_record(run([f"--git-dir={self.git_dir}", "rev-parse", "--path-format=absolute", "--git-common-dir"]))
+            linked = self.common_dir != self.git_dir
+            if linked and self.git_dir.parent != self.common_dir / "worktrees":
+                raise SourceError("Unsupported linked topology")
+            candidates: list[Path] = []
+            if not self._bare:
+                if self.path.is_dir():
+                    top = run(["-C", str(self.path), "rev-parse", "--show-toplevel"], check=False)
+                    if top:
+                        candidates.append(_path_record(top))
+                if self.path.is_file():
+                    candidates.append(self.path.parent)
+                if self.git_dir.name == ".git":
+                    candidates.append(self.git_dir.parent)
+                if linked:
+                    candidates.append(_path_record((self.git_dir / "gitdir").read_bytes()).parent)
+                configured = run([f"--git-dir={self.git_dir}", "config", "--get", "core.worktree"], check=False)
+                if configured:
+                    candidates.append((self.git_dir / os.fsdecode(configured.removesuffix(b"\n"))).resolve())
+            root = None
+            for candidate in candidates:
+                try:
+                    resolved = _path_record(run(["rev-parse", "--resolve-git-dir", str(candidate / ".git")]))
+                except GitError:
+                    continue
+                if resolved == self.git_dir:
+                    root = candidate
+                    break
+            if strict_source and path is not None and self.path not in {self.git_dir, root, root / ".git" if root else None}:
+                raise SourceError(reason="invalid_location")
+            kind = "bare" if self._bare else "linked-worktree" if linked else "working-tree"
+            self.discovery = Discovery(kind, self.git_dir, self.common_dir, root, self.git_dir)
         except GitError as error:
-            if (self.path / "config").is_file() and (self.path / "objects").is_dir():
-                self.git_dir = self.path
-                self._bare = True
-            else:
-                raise SourceError(f"Not a Git repository: {self.path}") from error
+            raise SourceError(reason="invalid_location") from error
         except (OSError, UnicodeError, ValueError) as error:
             raise SourceError("Cannot inspect source repository") from error
+
+    def _arguments(self, *arguments: str) -> list[str]:
+        root = self.worktree_root()
+        return [f"--git-dir={self.git_dir}", *([f"--work-tree={root}", "-C", str(root)] if root else []), *arguments]
 
     def run(
         self,
@@ -365,7 +462,7 @@ class Repository:
         check: bool = True,
     ) -> bytes:
         return run(
-            [f"--git-dir={self.git_dir}", *arguments] if self._bare else ["-C", str(self.path), *arguments],
+            self._arguments(*arguments),
             input_bytes=input_bytes,
             environment=environment,
             check=check,
@@ -373,12 +470,80 @@ class Repository:
 
     def command(self, *arguments: str) -> list[str]:
         """Return a Git command scoped to this repository."""
-        return [
-            git_command([], git_environment())[0],
-            f"--git-dir={self.git_dir}" if self._bare else "-C",
-            *(() if self._bare else (str(self.path),)),
-            *arguments,
-        ]
+        return git_command(self._arguments(*arguments), git_environment())
+
+    def git_path(self, name: str) -> Path:
+        # Default hooks are repository metadata, not inherited runner hooksPath.
+        config = ("-c", f"core.hooksPath={self.common_dir / 'hooks'}") if name == "hooks" else ()
+        return _path_record(self.run(*config, "rev-parse", "--path-format=absolute", "--git-path", name))
+
+    def validate_head(self) -> str:
+        try:
+            ref = self.run("symbolic-ref", "-q", "HEAD").decode("utf-8", "surrogateescape").removesuffix("\n")
+        except GitError as error:
+            if self.run("cat-file", "-t", "HEAD", check=False) == b"commit\n":
+                raise SourceError(reason="detached_head") from error
+            raise SourceError("Cannot validate HEAD") from error
+        if not ref.startswith("refs/heads/"):
+            raise SourceError("HEAD must select a branch")
+        records = dict(self.direct_refs())
+        if ref.encode("utf-8", "surrogateescape") not in records:
+            raise SourceError(reason="unborn_head")
+        if self.run("cat-file", "-t", ref) != b"commit\n":
+            raise SourceError("HEAD branch must target a commit")
+        return ref
+
+    def source_state(self) -> SourceState:
+        ref = self.validate_head()
+        root = self.worktree_root()
+        inspection = "not-applicable" if self._bare else "unavailable" if root is None else "inspected"
+        categories: tuple[bool, ...] = ()
+        if root is not None:
+            try:
+                categories = parse_worktree_status(self.run("--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching", "--no-renames", "--ignore-submodules=all", environment={"GIT_OPTIONAL_LOCKS": "0"}))
+            except GitError as error:
+                raise SourceError(reason="state_unavailable") from error
+        return SourceState(self.discovery.kind, ref, inspection, categories)
+
+    def protected_roots(self) -> tuple[Path, ...]:
+        roots = {self.git_dir, self.common_dir}
+        if self.worktree_root() is not None:
+            roots.add(self.worktree_root())
+        raw = self.run("worktree", "list", "--porcelain", "-z")
+        for record in raw.split(b"\0\0"):
+            fields = record.split(b"\0")
+            if not fields[0]:
+                continue
+            if not fields[0].startswith(b"worktree "):
+                raise SourceError("Invalid worktree topology")
+            candidate = Path(os.fsdecode(fields[0][9:]))
+            if not candidate.is_absolute():
+                raise SourceError("Invalid worktree topology")
+            candidate = candidate.resolve()
+            if candidate == self.common_dir.parent and self.worktree_root() is None:
+                # Git guesses the main worktree from common-dir layout. A
+                # metadata-only mount cannot establish that parent as a root.
+                try:
+                    marker = _path_record(run(["rev-parse", "--resolve-git-dir", str(candidate / ".git")]))
+                except GitError:
+                    continue
+                if marker != self.common_dir:
+                    continue
+            if b"bare" in fields:
+                roots.add(candidate)
+            elif candidate.exists():
+                try:
+                    other = Repository(candidate)
+                except SourceError:
+                    if self.discovery.kind == "linked-worktree":
+                        raise
+                    continue
+                if other.common_dir != self.common_dir:
+                    raise SourceError("Worktree backlink mismatch")
+                roots.add(candidate)
+            elif candidate != self.common_dir.parent:
+                roots.add(candidate)
+        return tuple(sorted(roots))
 
     def text(self, *arguments: str) -> str:
         return self.run(*arguments).decode("utf-8", "surrogateescape").strip()
@@ -474,14 +639,7 @@ class Repository:
         return self.text("rev-parse", "--verify", "--end-of-options", f"{commit}^{{tree}}")
 
     def worktree_root(self) -> Path | None:
-        result = self.run("rev-parse", "--show-toplevel", check=False).decode().strip()
-        if result:
-            return Path(result).resolve()
-        if not self._bare and self.path == self.git_dir:
-            marker = self.git_dir.parent / ".git"
-            if marker.exists() and marker.resolve() == self.git_dir:
-                return self.git_dir.parent
-        return None
+        return self.discovery.worktree_root
 
     def clone_to(
         self, destination: Path, *, bare: bool = False, template_directory: Path | None = None,
@@ -491,6 +649,6 @@ class Repository:
             arguments.extend(["--template", str(template_directory)])
         if bare:
             arguments.append("--bare")
-        arguments.extend([str(self.path), str(destination)])
+        arguments.extend([str(self.discovery.clone_path), str(destination)])
         run(arguments)
         return Repository(destination)

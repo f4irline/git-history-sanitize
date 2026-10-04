@@ -14,7 +14,8 @@ from unittest.mock import patch
 
 from git_history_sanitize.cli import main
 from git_history_sanitize.engine import _destination
-from git_history_sanitize.errors import InterruptionError, SanitizeError, VerificationError
+from git_history_sanitize.errors import DestinationError, InterruptionError, SanitizeError, VerificationError
+from git_history_sanitize.reporting import error_text
 from git_history_sanitize.workspace import clean_workspace, list_workspaces
 from tests.support.git_fixture import GitFixture
 
@@ -179,7 +180,7 @@ class EngineFailureContractTests(unittest.TestCase):
             with self.subTest(name=name):
                 destination = self.fixture.output_dir / name
                 create(destination)
-                with self.assertRaisesRegex(SanitizeError, "Output path"):
+                with self.assertRaises(DestinationError):
                     _destination(destination, protected, "Output")
 
     def test_competing_cli_rewrites_publish_one_verified_output(self) -> None:
@@ -218,7 +219,7 @@ class EngineFailureContractTests(unittest.TestCase):
         self.assertEqual(len(successful), 1)
         self.assertEqual(len(failed), 1)
         self.assertEqual(failed[0].stdout, "")
-        self.assertEqual(failed[0].stderr, "error: sanitized output publication failed\n")
+        self.assertIn(failed[0].stderr, (error_text(DestinationError(reason="busy")), error_text(DestinationError())))
         fixture.assert_redacted(failed[0].stderr, str(fixture.root))
         self.assertEqual(fixture.git(output, "rev-parse", "--is-bare-repository"), "true")
         fixture.assert_no_staging_directories(output.parent)
@@ -278,7 +279,7 @@ class EngineFailureContractTests(unittest.TestCase):
         )
         self.assertFalse(self.output.exists())
         self.assertFalse(receipt.exists())
-        self.assertEqual(list(self.fixture.receipt_dir.iterdir()), [])
+        self.fixture.assert_only_reservations(self.fixture.receipt_dir, receipt)
         self.fixture.assert_no_staging_directories(self.output.parent)
         self.fixture.assert_source_snapshot(self.source_snapshot)
 
@@ -312,8 +313,8 @@ class EngineFailureContractTests(unittest.TestCase):
 
         clean_workspace(self.output.parent, output_records[0].id)
         clean_workspace(receipt.parent, receipt_records[0].id)
-        self.assertEqual(list(self.output.parent.iterdir()), [])
-        self.assertEqual(list(receipt.parent.iterdir()), [])
+        self.fixture.assert_only_reservations(self.output.parent, self.output)
+        self.fixture.assert_only_reservations(receipt.parent, receipt)
 
     def test_output_publication_failure_leaves_only_an_orphan_receipt(self) -> None:
         receipt = self.fixture.receipt_dir / "receipt.json"

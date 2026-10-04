@@ -10,9 +10,10 @@ from pathlib import Path
 from .cleanup import cleanup, retain_selected_refs
 from ._version import __version__
 from .compact import CompactResult, compact, restore_selected_components
+from .destination import reserve, validate as validate_destination
 from .errors import PublicationError, SanitizeError, UsageError
 from .filtering import filter_paths, retained_head_path_count
-from .git import Repository, ensure_dependencies, hold_process_lock
+from .git import Repository, SourceState, ensure_dependencies, hold_process_lock
 from .hooks import HookInventory, discover as discover_hooks, install as install_hooks
 from .policy import Policy
 from .publication import (
@@ -52,9 +53,13 @@ class Plan:
     included_paths: tuple[str, ...] | None = None
     include_rule_effects: tuple[PathRuleEffect, ...] = ()
     exclude_rule_effects: tuple[PathRuleEffect, ...] = ()
+    source_state: SourceState | None = None
 
     def to_dict(self) -> dict[str, object]:
         result = asdict(self)
+        result.pop("source_state")
+        if self.source_state:
+            result.update(source=self.source_state.public(), warnings=self.source_state.warnings())
         result.pop("hooks")
         result.pop("hooks_stripped")
         result["hooks"] = _hook_report(self.hooks, "stripped" if self.hooks_stripped else "preserved")
@@ -67,9 +72,11 @@ class RewriteReport:
     verification: VerificationReport
     hooks: HookInventory
     hooks_stripped: bool
+    source_state: SourceState | None = None
 
     def to_dict(self) -> dict:
         return {
+            **({"source": self.source_state.public(), "warnings": self.source_state.warnings()} if self.source_state else {}),
             "history": {
                 "source_commits": self.compact.original_commits,
                 "discarded_commits": self.compact.discarded_commits,
@@ -88,8 +95,9 @@ def _hook_report(inventory: HookInventory, action: str) -> dict[str, object]:
     }
 
 
-def plan(source: str | Path, policy: Policy, *, preserve_hooks: bool = True) -> Plan:
-    repository = Repository(source)
+def plan(source: str | Path | None, policy: Policy, *, preserve_hooks: bool = True) -> Plan:
+    repository = Repository(source, strict_source=True)
+    state = repository.source_state()
     analysis = RewriteAnalysis.create(repository, policy)
     include_rule_effects, exclude_rule_effects = path_rule_effects(
         repository, policy, analysis.retained_commits_list
@@ -115,23 +123,12 @@ def plan(source: str | Path, policy: Policy, *, preserve_hooks: bool = True) -> 
         included_paths=policy.included_paths,
         include_rule_effects=include_rule_effects,
         exclude_rule_effects=exclude_rule_effects,
+        source_state=state,
     )
 
 
 def _destination(path: str | Path, protected: tuple[Path, ...], label: str) -> Path:
-    candidate = Path(path)
-    if not candidate.is_absolute() or any(part in {".", ".."} for part in candidate.parts):
-        raise UsageError(f"{label} path must be an absolute path without aliases")
-    for parent in (candidate, *candidate.parents):
-        if parent.is_symlink():
-            raise UsageError(f"{label} path must not contain symlinks")
-    if candidate.exists():
-        raise UsageError(f"{label} path already exists")
-    parent = candidate.parent.resolve()
-    resolved = parent / candidate.name
-    if any(resolved == root or root in resolved.parents for root in protected):
-        raise UsageError(f"{label} path must not be inside the source repository")
-    return resolved
+    return validate_destination(path, protected, label)
 
 
 def _source_fingerprint(repository: Repository) -> tuple[str, str, str, str]:
@@ -141,11 +138,12 @@ def _source_fingerprint(repository: Repository) -> tuple[str, str, str, str]:
 
 
 def rewrite(
-    source: str | Path, output: str | Path, policy: Policy, receipt: str | Path | None = None,
+    source: str | Path | None, output: str | Path, policy: Policy, receipt: str | Path | None = None,
     *, preserve_hooks: bool = True,
 ) -> RewriteReport:
-    source_repository = Repository(source)
-    protected = tuple(root for root in (source_repository.git_dir, source_repository.worktree_root()) if root)
+    source_repository = Repository(source, strict_source=True)
+    state = source_repository.source_state()
+    protected = source_repository.protected_roots()
     output_path = _destination(output, protected, "Output")
     if policy.source.mode == "snapshot" and receipt is not None:
         raise UsageError("snapshot source.mode does not accept --receipt")
@@ -154,11 +152,16 @@ def rewrite(
     if not policy.history.cutoff_commit and receipt is not None:
         raise UsageError("history.cutoff does not accept --receipt")
     receipt_path = _destination(receipt, (*protected, output_path), "Receipt") if receipt else None
-    if receipt_path and (output_path in receipt_path.parents or receipt_path in output_path.parents):
-        raise UsageError("Receipt path must not be inside the output path")
-    if not output_path.parent.exists():
-        raise UsageError("Output parent directory does not exist")
+    with reserve((output_path, *(() if receipt_path is None else (receipt_path,))), protected):
+        for path in (output_path, *(() if receipt_path is None else (receipt_path,))):
+            _destination(path, source_repository.protected_roots(), "Destination")
+        return _rewrite_reserved(source_repository, output_path, policy, receipt_path, preserve_hooks=preserve_hooks, state=state)
 
+
+def _rewrite_reserved(
+    source_repository: Repository, output_path: Path, policy: Policy, receipt_path: Path | None,
+    *, preserve_hooks: bool, state: SourceState,
+) -> RewriteReport:
     analysis = RewriteAnalysis.create(source_repository, policy)
     hooks = discover_hooks(source_repository)
     ensure_dependencies()
@@ -180,6 +183,8 @@ def rewrite(
                 temporary_root / "rewrite", template_directory=template_directory
             )
             selected_names = analysis.selected_refs
+            if rewrite_repository.head_ref() != state.symbolic_retained_ref or rewrite_repository.text("rev-parse", "HEAD") != source_head:
+                raise SanitizeError("Clone HEAD disagrees with source analysis")
             retain_selected_refs(rewrite_repository, selected_names)
             compact_result = compact(rewrite_repository, policy, analysis)
             filter_paths(rewrite_repository, policy)
@@ -228,7 +233,7 @@ def rewrite(
                     handle.write(evidence.to_bytes())
                     handle.flush()
                     os.fsync(handle.fileno())
-                verification = verify(bare_repository.path, policy, source=source, receipt=staged_receipt)
+                verification = verify(bare_repository.path, policy, source=source_repository.discovery.clone_path, receipt=staged_receipt)
                 sync_staged_file(staged_receipt)
                 sync_staged_tree(bare_repository.path)
                 sync_staged_directory(temporary_root)
@@ -250,7 +255,7 @@ def rewrite(
                 publish(bare_repository.path, output_path)
                 output_published = True
                 sync_published_parent(output_path.parent)
-            return RewriteReport(compact_result, verification, hooks, not preserve_hooks)
+            return RewriteReport(compact_result, verification, hooks, not preserve_hooks, state)
     except PublicationError as error:
         state = "output_published" if output_published else (
             "receipt_published" if receipt_published else "not_published"
