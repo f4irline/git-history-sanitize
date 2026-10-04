@@ -4,6 +4,35 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Git helper lookup can drift after repository-scoped chdir
+**Ticket:** BBQ-17
+**Date:** 2026-10-04
+
+Git's `setup_path()` prepends its exec path to the effective `PATH`; it does not
+independently prepend the Git executable's directory. `-C` is handled before
+helper lookup, so relative PATH or GIT_EXEC_PATH entries can select different
+helpers in doctor and rewrite. Normalize these search entries to absolute paths
+in the protected environment before invoking Git, resolve provenance in the same
+lookup order, and probe only `git filter-repo --version`, never a separately
+discovered bare helper. See `src/git_history_sanitize/git.py` and the hermetic
+dependency contracts.
+
+---
+
+## Mutate OCI output refs through the runtime filesystem view
+**Ticket:** BBQ-17
+**Date:** 2026-10-04
+
+Host-side packed-ref mutation can leave the next Colima read-only container
+seeing stale filesystem state, making unrelated HEAD resolution fail instead
+of the intended retained-ref invariant. This reproduces against both the prior
+BBQ-25 image and the new runtime, including an in-place host write. Perform
+deliberate output-ref deletion through the owning OCI runtime with its normal
+caller identity and dedicated writable output mount; keep verification mounts
+read-only and strict invariant assertions. See `GitFixture.delete_output_ref`.
+
+---
+
 ## Keep emulated platform checks focused
 **Ticket:** BBQ-21
 **Date:** 2026-09-16

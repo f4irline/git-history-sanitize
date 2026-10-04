@@ -122,7 +122,8 @@ pipx install git-history-sanitize==<version>
 git-history-sanitize doctor
 ```
 
-The PyPI package requires Git 2.36 or later and `git-filter-repo` on `PATH`.
+The PyPI package requires Git 2.36 or later and the approved `git-filter-repo`
+2.47.0 source fingerprint `a40bce548d2c`, available through `git filter-repo`.
 Use `doctor` to confirm the installed tools before processing a repository. The
 OCI image is the supported alternative when supplying those prerequisites on a
 workstation or runner is inconvenient.
@@ -149,7 +150,35 @@ tags are deliberately rejected so they cannot move `latest`.
 
 - Python 3.11 or later
 - Git 2.36 or later
-- `git-filter-repo` on `PATH`
+- `git-filter-repo==2.47.0`, reporting fingerprint `a40bce548d2c` through
+  `git filter-repo --version` (Git's exec path takes precedence over `PATH`)
+
+`doctor` and rewrite use the same absolute Git invocation and protected
+environment (`GIT_NO_LAZY_FETCH=1`, `GIT_NO_REPLACE_OBJECTS=1`). Relative
+helper search entries in `PATH` and `GIT_EXEC_PATH` are made absolute before
+Git's repository-scoped directory changes, preventing lookup drift. The exact
+filter-repo fingerprint attests support for `--force`, `--prune-empty always`,
+and `--commit-callback`; arbitrary fingerprints are not accepted. OCI also
+requires its installed versions to equal the reviewed manifest.
+
+Run `git-history-sanitize doctor --json` before processing a repository. Human
+output labels each tool's pass/fail status, executable path, detected version,
+and required range. JSON success retains `git` and `git_filter_repo` (plus OCI
+attestation fields) and adds `result.checks`; dependency failures add top-level
+`checks` to the fixed error envelope. Every check contains exactly `name`,
+`executable_path`, `detected_version`, `required_range`, and `status`.
+Unavailable paths/versions are `null`. All checks run before deciding success;
+version output is bounded and each probe has a ten-second deadline.
+
+Dependency failures exit `2` with stage `dependency` and one of
+`dependency.missing`, `dependency.not_executable`, `dependency.startup_failed`,
+`dependency.execution_failed`, `dependency.invalid_output`,
+`dependency.unsupported`, or `dependency.oci_mismatch`. Install supported Git,
+install `git-filter-repo==2.47.0` in the environment searched by Git (for
+example, `pipx install git-filter-repo==2.47.0`), then rerun doctor. Remove or
+update stale helpers in Git's exec path if they shadow that installation.
+For OCI declaration failures, use an intact digest-pinned production image;
+do not edit or bypass its manifest. Raw process output is never reported.
 
 ## Contract-Test Toolchain
 
@@ -503,7 +532,10 @@ identifier.
 `doctor`, `plan`, `rewrite`, `verify`, and `workspace` write deterministic, compact,
 ASCII-safe reports. The default human and JSON reports are safe for shared logs
 and CI artifacts: they use only fixed protocol metadata and aggregate operation
-data. JSON writes one document plus one newline to stdout, nothing to stderr,
+data, except doctor explicitly discloses dependency executable paths as local
+toolchain provenance (including failures). Review these paths before sharing
+doctor output; repository and policy paths remain excluded. JSON writes one
+document plus one newline to stdout, nothing to stderr,
 and exits `0` on success or `2` on failure. A handled rewrite interruption is
 the exception: SIGINT exits 130 and SIGTERM exits 143 after fixed redacted
 recovery guidance. Workspace reports may include the opaque ID required for
@@ -513,6 +545,7 @@ explicit cleanup, but never its parent or resolved path.
 | --- | --- | --- | --- |
 | Fixed protocol/status | schema version, audience, command, status, fixed catalog metadata, invariant, publication state | same | — |
 | Aggregate operation data | mode, scope, commit/path/object/boundary counts, hook action/count, dependency availability/version | same | — |
+| Doctor-only toolchain provenance | resolved executable paths in dependency checks | same | source/policy paths and raw version-command output |
 | Repository/policy identity | — | include/exclude paths, plan rule effects, retained refs, sanitized head/root IDs, hook names/warning associations | receipt bindings, source ref fingerprints, policy digests |
 | Sensitive values | — | — | forbidden values or matches, removed messages, object/hook bodies, raw policy values, credentials, raw subprocess stderr, command arguments |
 
@@ -526,7 +559,9 @@ contract:
 Every v2 error envelope also carries `report_audience`. It contains only the
 fixed error catalog (`code`, `stage`, `message`, optional fixed `remediation`),
 errors use the same catalog and optional invariant rather than exception text.
-The renderer never serializes an exception message, filesystem path, source or
+Doctor dependency errors additionally contain only the safe `checks` records
+described above. The renderer never serializes an exception message, filesystem
+path outside doctor dependency provenance, source or
 output object ID, receipt data, subprocess stderr, command arguments, removed
 content, or credentials by default.
 

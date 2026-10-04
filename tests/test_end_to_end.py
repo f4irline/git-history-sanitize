@@ -242,7 +242,7 @@ refs:
             "verify", "--repository", str(output), "--policy", str(policy), "--json",
         )
         self.assertEqual(json.loads(verified.stdout)["result"]["commit_count"], 3)
-        self.fixture.git(output, "update-ref", "-d", "refs/heads/release")
+        self.fixture.delete_output_ref(output, "refs/heads/release")
         rejected = self.fixture.run_cli(
             "verify", "--repository", str(output), "--policy", str(policy), check=False,
         )

@@ -12,11 +12,11 @@ from typing import Iterator
 
 from ._version import __version__
 from .engine import plan, rewrite
-from .errors import InterruptionError, SanitizeError, UsageError
+from .errors import DependencyError, InterruptionError, SanitizeError, UsageError
 from .forbidden import collect
 from .git import ensure_dependencies
 from .policy import Policy
-from .reporting import error_document, error_text, success_document, success_text
+from .reporting import doctor_checks_text, error_document, error_text, success_document, success_text
 from .verify import verify
 from .workspace import clean_workspace, list_workspaces
 
@@ -189,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
         if json_mode:
             sys.stdout.write(error_document(command, error, schema_version=schema_version if 'schema_version' in locals() else 2, diagnostics=diagnostics if 'diagnostics' in locals() else "public"))
         else:
+            if command == "doctor" and isinstance(error, DependencyError):
+                sys.stderr.write(doctor_checks_text(error.checks))
             sys.stderr.write(error_text(error))
         return 2
     except Exception:

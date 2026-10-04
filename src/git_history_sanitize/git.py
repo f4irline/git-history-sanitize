@@ -4,20 +4,31 @@ from __future__ import annotations
 
 import os
 import platform
-import shutil
+import re
+import selectors
 import signal
+import stat
 import subprocess
 import threading
+import time
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import IO, Iterable, Iterator, Literal
 
-from .errors import DependencyError, SourceError
+from .errors import DependencyCheck, DependencyError, SourceError
 from .oci_toolchain import ToolchainManifestError, load_required_manifest
 
 
 OCI_MANIFEST_SENTINEL = Path("/usr/local/etc/git-history-sanitize/oci-manifest-required")
+GIT_MINIMUM = (2, 36, 0)
+FILTER_REPO_FINGERPRINT = "a40bce548d2c"
+FILTER_REPO_COMMAND = "filter-repo"
+_GIT_VERSION = re.compile(
+    r"git version ([0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4})"
+    r"(?:\.windows\.[0-9]{1,4}| \(Apple Git-[0-9]{1,4}\))?"
+)
+_DEPENDENCY_TIMEOUT = 10.0
 _SIGNATURE_MARKERS = (
     b"-----BEGIN PGP SIGNATURE-----",
     b"-----BEGIN SSH SIGNATURE-----",
@@ -55,9 +66,38 @@ def git_environment(environment: dict[str, str] | None = None) -> dict[str, str]
     env = os.environ.copy()
     if environment:
         env.update(environment)
+    # Git handles -C before helper lookup. Freeze relative search entries before
+    # that repository-scoped chdir so doctor and rewrite cannot choose differently.
+    env["PATH"] = os.pathsep.join(os.path.abspath(path) for path in env.get("PATH", os.defpath).split(os.pathsep))
+    if env.get("GIT_EXEC_PATH"):
+        env["GIT_EXEC_PATH"] = os.path.abspath(env["GIT_EXEC_PATH"])
     env["GIT_NO_LAZY_FETCH"] = "1"
     env["GIT_NO_REPLACE_OBJECTS"] = "1"
     return env
+
+
+def _resolve_executable(name: str, search_path: str) -> str:
+    """Match executable search order, retaining only resolver-owned provenance."""
+    inaccessible: str | None = None
+    for directory in search_path.split(os.pathsep):
+        candidate = os.path.abspath(os.path.join(directory, name))
+        try:
+            mode = os.stat(candidate).st_mode
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except (OSError, ValueError) as error:
+            raise DependencyError(reason="startup_failed", executable_path=candidate) from error
+        if stat.S_ISREG(mode) and os.access(candidate, os.X_OK):
+            return candidate
+        inaccessible = inaccessible or candidate
+    raise DependencyError(
+        reason="not_executable" if inaccessible else "missing", executable_path=inaccessible,
+    )
+
+
+def git_command(arguments: Iterable[str], environment: dict[str, str]) -> list[str]:
+    """Use the same absolute Git invocation for inspection and rewrite."""
+    return [_resolve_executable("git", environment.get("PATH", os.defpath)), *arguments]
 
 
 @contextmanager
@@ -71,15 +111,19 @@ def hold_process_lock(descriptor: int) -> Iterator[None]:
         _PROCESS_CONTEXT.lock_descriptors = previous
 
 
-def start_process(arguments: list[str], **kwargs: object) -> subprocess.Popen[bytes]:
+def start_process(
+    arguments: list[str], *, cwd: str | None = None,
+    stdin: int | IO[bytes] | None = None, stdout: int | IO[bytes] | None = None,
+    stderr: int | IO[bytes] | None = None, env: dict[str, str] | None = None,
+    pass_fds: tuple[int, ...] = (),
+) -> subprocess.Popen[bytes]:
     """Start and register an isolated child process group."""
     inherited = tuple(getattr(_PROCESS_CONTEXT, "lock_descriptors", ()))
-    requested = tuple(kwargs.pop("pass_fds", ()))
-    process = subprocess.Popen(  # type: ignore[arg-type]
+    process = subprocess.Popen(
         arguments,
         start_new_session=True,
-        pass_fds=tuple(dict.fromkeys((*requested, *inherited))),
-        **kwargs,
+        pass_fds=tuple(dict.fromkeys((*pass_fds, *inherited))),
+        cwd=cwd, stdin=stdin, stdout=stdout, stderr=stderr, env=env,
     )
     with _ACTIVE_LOCK:
         _ACTIVE_PROCESSES.add(process)
@@ -137,8 +181,14 @@ def run(
     environment: dict[str, str] | None = None,
     check: bool = True,
 ) -> bytes:
-    command = ["git", *arguments]
     env = git_environment(environment)
+    command = git_command(arguments, env)
+    if cwd is not None:
+        try:
+            if not cwd.is_dir():
+                raise GitError("Git working directory is unavailable")
+        except OSError as error:
+            raise GitError("Git working directory is unavailable") from error
     try:
         process = start_process(
             command,
@@ -148,62 +198,134 @@ def run(
             stderr=subprocess.PIPE,
             env=env,
         )
-    except OSError as error:
-        raise DependencyError("Git executable is unavailable") from error
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        raise DependencyError(reason="startup_failed") from error
     try:
-        stdout, stderr = process.communicate(input=input_bytes)
+        stdout, _ = process.communicate(input=input_bytes)
+    except (OSError, subprocess.SubprocessError) as error:
+        try:
+            terminate_process(process)
+        finally:
+            raise GitError("Git operation could not complete") from error
     except BaseException:
-        terminate_process(process)
+        try:
+            terminate_process(process)
+        except (OSError, subprocess.SubprocessError) as error:
+            raise GitError("Git operation could not stop") from error
         raise
     finally:
         finish_process(process)
     if check and process.returncode:
-        detail = stderr.decode("utf-8", "replace").strip().splitlines()
-        suffix = f": {detail[-1]}" if detail else ""
-        raise GitError(f"Git command failed ({' '.join(command[:2])}){suffix}")
+        raise GitError("Git operation failed")
     return stdout
 
 
-def ensure_dependencies() -> dict[str, str]:
-    git_version = run(["--version"]).decode().strip()
-    if shutil.which("git-filter-repo") is None:
-        try:
-            filter_repo_version = run(["filter-repo", "--version"]).decode().strip()
-        except GitError as error:
-            raise DependencyError("git-filter-repo is required on PATH") from error
-    else:
-        try:
-            process = start_process(
-                ["git-filter-repo", "--version"],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-            )
-            try:
-                stdout, _ = process.communicate()
-            except BaseException:
-                terminate_process(process)
-                raise
-            finally:
-                finish_process(process)
-            if process.returncode:
-                raise subprocess.SubprocessError("git-filter-repo failed")
-            filter_repo_version = stdout.decode().strip()
-        except (OSError, subprocess.SubprocessError) as error:
-            raise DependencyError("git-filter-repo is unavailable") from error
-    result = {"git": git_version, "git_filter_repo": filter_repo_version}
-    if not OCI_MANIFEST_SENTINEL.is_file():
-        return result
+def _dependency_output(command: list[str], env: dict[str, str], *, limit: int = 256) -> str:
+    """Read a bounded version record with a deadline; discard stderr entirely."""
     try:
+        process = start_process(
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, env=env,
+        )
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        raise DependencyError(reason="startup_failed") from error
+    try:
+        assert process.stdout is not None
+        output = bytearray()
+        deadline = time.monotonic() + _DEPENDENCY_TIMEOUT
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not selector.select(remaining):
+                    raise DependencyError(reason="execution_failed")
+                chunk = os.read(process.stdout.fileno(), limit + 1 - len(output))
+                if not chunk:
+                    break
+                output.extend(chunk)
+                if len(output) > limit:
+                    raise DependencyError(reason="invalid_output")
+        if process.wait(timeout=max(0.001, deadline - time.monotonic())):
+            raise DependencyError(reason="execution_failed")
+        return output.decode("utf-8").removesuffix("\n")
+    except UnicodeError as error:
+        raise DependencyError(reason="invalid_output") from error
+    except (OSError, subprocess.SubprocessError) as error:
+        raise DependencyError(reason="execution_failed") from error
+    finally:
+        try:
+            terminate_process(process)
+            if process.stdout is not None:
+                process.stdout.close()
+        except (OSError, subprocess.SubprocessError) as error:
+            raise DependencyError(reason="execution_failed") from error
+
+
+def ensure_dependencies(environment: dict[str, str] | None = None) -> dict[str, object]:
+    env = git_environment(environment)
+    checks: list[DependencyCheck] = []
+    failures: list[DependencyError] = []
+    result: dict[str, object] = {}
+    git_executable: str | None = None
+    for name, requirement in (("git", ">=2.36"), ("git-filter-repo", f"{FILTER_REPO_FINGERPRINT} (2.47.0)")):
+        executable: str | None = None
+        detected: str | None = None
+        status: Literal["pass", "fail"]
+        try:
+            if git_executable is None:
+                git_executable = git_command([], env)[0]
+            if name == "git":
+                executable = git_executable
+                version = _dependency_output([git_executable, "--version"], env)
+                match = _GIT_VERSION.fullmatch(version)
+                if match is None:
+                    raise DependencyError(reason="invalid_output")
+                detected = match[1]
+                if tuple(map(int, detected.split("."))) < GIT_MINIMUM:
+                    raise DependencyError(reason="unsupported")
+                result["git"] = version
+            else:
+                # Git setup_path() prepends only its exec path to PATH.
+                exec_path = _dependency_output([git_executable, "--exec-path"], env, limit=4096)
+                if not exec_path or "\n" in exec_path or "\0" in exec_path:
+                    raise DependencyError(reason="invalid_output")
+                search_path = os.pathsep.join((exec_path, env.get("PATH", os.defpath)))
+                executable = _resolve_executable("git-filter-repo", search_path)
+                version = _dependency_output([git_executable, FILTER_REPO_COMMAND, "--version"], env)
+                if re.fullmatch(r"[0-9a-f]{12}", version) is None:
+                    raise DependencyError(reason="invalid_output")
+                detected = version
+                if detected != FILTER_REPO_FINGERPRINT:
+                    raise DependencyError(reason="unsupported")
+                result["git_filter_repo"] = version
+        except DependencyError as error:
+            if name == "git" or git_executable is not None:
+                executable = executable or error.executable_path
+            failures.append(error)
+            status = "fail"
+        else:
+            status = "pass"
+        checks.append(DependencyCheck(name, executable, detected, requirement, status))
+    result["checks"] = [asdict(check) for check in checks]
+    if failures:
+        failures[0].checks = tuple(checks)
+        raise failures[0]
+    try:
+        # stat() must not silently turn inaccessible or malformed sentinels into
+        # a non-OCI success path. Only a genuinely absent sentinel is optional.
+        try:
+            OCI_MANIFEST_SENTINEL.lstat()
+        except FileNotFoundError:
+            return result
         manifest = load_required_manifest(OCI_MANIFEST_SENTINEL)
-    except ToolchainManifestError as error:
-        raise DependencyError("required OCI toolchain manifest is unavailable") from error
+    except (OSError, ToolchainManifestError) as error:
+        raise DependencyError(reason="oci_mismatch", checks=tuple(checks)) from error
     if (
-        manifest["git"] != git_version
-        or manifest["git_filter_repo"] != filter_repo_version
+        manifest["git"] != result["git"]
+        or manifest["git_filter_repo"] != result["git_filter_repo"]
         or manifest["python"] != platform.python_version()
     ):
-        raise DependencyError("required OCI toolchain does not match its declaration")
+        raise DependencyError(reason="oci_mismatch", checks=tuple(checks))
     return result | {
         "python": str(manifest["python"]),
         "manifest_sha256": str(manifest["lock_sha256"]),
@@ -214,7 +336,10 @@ def ensure_dependencies() -> dict[str, str]:
 
 class Repository:
     def __init__(self, path: str | Path):
-        self.path = Path(path).resolve()
+        try:
+            self.path = Path(path).resolve()
+        except (OSError, ValueError) as error:
+            raise SourceError("Cannot resolve source repository") from error
         self._bare = False
         try:
             self.git_dir = Path(
@@ -229,6 +354,8 @@ class Repository:
                 self._bare = True
             else:
                 raise SourceError(f"Not a Git repository: {self.path}") from error
+        except (OSError, UnicodeError, ValueError) as error:
+            raise SourceError("Cannot inspect source repository") from error
 
     def run(
         self,
@@ -247,7 +374,7 @@ class Repository:
     def command(self, *arguments: str) -> list[str]:
         """Return a Git command scoped to this repository."""
         return [
-            "git",
+            git_command([], git_environment())[0],
             f"--git-dir={self.git_dir}" if self._bare else "-C",
             *(() if self._bare else (str(self.path),)),
             *arguments,
@@ -296,7 +423,7 @@ class Repository:
             if len(fields) != 5 or fields[-1]:
                 raise SourceError("Cannot inspect retained references")
             name = fields[0].decode("utf-8", "surrogateescape")
-            refs[name] = tuple(field.decode("ascii") for field in fields[1:4])
+            refs[name] = (fields[1].decode("ascii"), fields[2].decode("ascii"), fields[3].decode("ascii"))
 
         selected: list[RetainedRef] = []
         for selector in selectors:
