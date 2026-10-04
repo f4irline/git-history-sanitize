@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import shutil
 import subprocess
 import sys
@@ -189,7 +190,7 @@ class GitFixture:
             ) from error
         return [str(launcher), *arguments]
 
-    def _container_cli(self, arguments: tuple[str, ...]) -> list[str]:
+    def _container_cli(self, arguments: tuple[str, ...], *, cwd: Path | None = None) -> list[str]:
         image = os.environ.get("GHS_CONTAINER_IMAGE")
         if not image:
             raise RuntimeError("GHS_CONTAINER_IMAGE is required for the container test runtime")
@@ -199,10 +200,34 @@ class GitFixture:
 
         translated = list(arguments)
         mounts: list[str] = []
+        source_argument = next((Path(arguments[index + 1]).absolute() for index, value in enumerate(arguments[:-1]) if value == "--source"), None)
+        topology = cwd is not None or (source_argument is not None and source_argument != self.source / ".git")
+        topology_roots: list[Path] = []
+        if topology:
+            topology_roots.append(self.source)
+            if cwd is not None and not cwd.is_relative_to(self.source):
+                topology_roots.append(cwd)
+            for record in self.git(self.source, "worktree", "list", "--porcelain", "-z").split("\0"):
+                if record.startswith("worktree "):
+                    root = Path(record[9:])
+                    if root.exists():
+                        topology_roots.append(root)
+            if source_argument is not None and source_argument.exists() and not any(source_argument.is_relative_to(root) for root in topology_roots):
+                topology_roots.append(source_argument)
+            topology_roots = list(dict.fromkeys(topology_roots))
+            mounts.extend(item for root in topology_roots for item in ("--mount", f"type=bind,src={root},dst={root},readonly"))
+            with self.global_config.open("a") as config:
+                for root in topology_roots:
+                    config.write(f"[safe]\n\tdirectory = {json.dumps(str(root))}\n")
+                    if (root / ".git").is_dir():
+                        config.write(f"[safe]\n\tdirectory = {json.dumps(str(root / '.git'))}\n")
         fixed_paths = {"--source": ("/input.git", "ro"), "--policy": ("/policy.yml", "ro")}
         input_mounted = False
         forbid_file_index = 0
         for index, argument in enumerate(translated):
+            if argument == "--source" and topology:
+                translated[index + 1] = str(source_argument)
+                continue
             if argument == "--forbid-file":
                 if index + 1 == len(translated):
                     raise ValueError(f"{argument} requires a path")
@@ -226,6 +251,10 @@ class GitFixture:
                 raise ValueError(f"{argument} requires a path")
             if argument in {"--output", "--repository", "--receipt"}:
                 host_path = Path(translated[index + 1]).absolute()
+                if argument in {"--output", "--receipt"} and not host_path.is_relative_to(self.output_dir) and not host_path.is_relative_to(self.receipt_dir):
+                    if topology and any(host_path.is_relative_to(root) for root in topology_roots):
+                        continue
+                    raise ValueError("output mounts must be disjoint fixture artifact parents")
                 if argument == "--repository" and host_path == (self.source / ".git").absolute():
                     if input_mounted:
                         raise ValueError("container CLI accepts only one input repository")
@@ -237,16 +266,19 @@ class GitFixture:
                     raise ValueError(f"{argument} requires a named path")
                 if argument == "--receipt":
                     destination = "/receipt-input" if translated[0] == "verify" else "/receipt-output"
-                    output_mount = f"type=bind,src={host_path.parent},dst={destination}"
+                    mount_parent = self.receipt_dir if host_path.is_relative_to(self.receipt_dir) else self.output_dir
+                    output_mount = f"type=bind,src={mount_parent},dst={destination}"
                     if translated[0] == "verify":
                         output_mount += ",readonly"
                 else:
-                    output_mount = f"type=bind,src={host_path.parent},dst=/output"
+                    mount_parent = self.output_dir if host_path.is_relative_to(self.output_dir) else host_path.parent
+                    output_mount = f"type=bind,src={mount_parent},dst=/output"
                     if argument == "--repository":
                         output_mount += ",readonly"
-                mounts.extend(["--mount", output_mount])
+                if output_mount not in mounts:
+                    mounts.extend(["--mount", output_mount])
                 destination = "/receipt-input" if argument == "--receipt" and translated[0] == "verify" else "/receipt-output" if argument == "--receipt" else "/output"
-                translated[index + 1] = f"{destination}/{host_path.name}"
+                translated[index + 1] = f"{destination}/{host_path.relative_to(mount_parent)}"
                 continue
             fixed_path, mode = fixed_paths[argument]
             host_path = Path(translated[index + 1]).absolute()
@@ -259,7 +291,7 @@ class GitFixture:
                 input_mounted = True
             mounts.extend(["--mount", f"type=bind,src={host_path},dst={fixed_path},readonly"])
             translated[index + 1] = fixed_path
-        if any(str(self.root) in argument for argument in translated):
+        if not topology and any(str(self.root) in argument for argument in translated):
             raise ValueError("container CLI arguments must not contain fixture host paths")
 
         environment = {
@@ -311,6 +343,7 @@ class GitFixture:
             "--read-only",
             "--tmpfs",
             "/tmp",
+            *(("--workdir", str(cwd)) if cwd is not None else ()),
             *mounts,
             *(item for key, value in environment.items() for item in ("--env", f"{key}={value}")),
             image,
@@ -343,6 +376,7 @@ class GitFixture:
 
     def run_cli(
         self, *arguments: str, check: bool = True, input_text: str | None = None,
+        cwd: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         runtime = os.environ.get("GHS_TEST_RUNTIME", "source")
         environment = self._runtime_environment()
@@ -352,7 +386,7 @@ class GitFixture:
             command = self._wheel_cli(arguments)
             environment["PATH"] = os.pathsep.join([str(Path(command[0]).parent), environment["PATH"]])
         elif runtime == "container":
-            command = self._container_cli(arguments)
+            command = self._container_cli(arguments, cwd=cwd)
             if docker_host := os.environ.get("DOCKER_HOST"):
                 environment["DOCKER_HOST"] = docker_host
         else:
@@ -364,6 +398,7 @@ class GitFixture:
             env=environment,
             input=input_text,
             text=True,
+            cwd=cwd or self.root,
         )
         if runtime == "container":
             self._assert_container_result_redacted(result, arguments)
@@ -544,25 +579,28 @@ class GitFixture:
         )
         return result.stdout.strip()
 
-    def snapshot_source(self) -> SourceSnapshot:
+    def snapshot_source(self, repository: Path | None = None) -> SourceSnapshot:
+        source = repository or self.source
+        git_dir = Path(self.git(source, "rev-parse", "--absolute-git-dir"))
+        common_dir = Path(self.git(source, "rev-parse", "--path-format=absolute", "--git-common-dir"))
         worktree = tuple(
-            (str(path.relative_to(self.source)), path.read_bytes())
-            for path in sorted(self.source.rglob("*"))
+            (str(path.relative_to(source)), path.read_bytes())
+            for path in sorted(source.rglob("*"))
             if path.is_file() and ".git" not in path.parts
         )
         return SourceSnapshot(
-            refs=self.refs(self.source),
-            reachable_objects=self.reachable_objects(self.source),
-            all_objects=self.all_objects(self.source),
-            status=self.git(self.source, "status", "--porcelain=v1", "--untracked-files=all"),
-            index=(self.source / ".git" / "index").read_bytes(),
+            refs=self.refs(source),
+            reachable_objects=self.reachable_objects(source),
+            all_objects=self.all_objects(source),
+            status=self.git(source, "--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "status", "--porcelain=v1", "--untracked-files=all"),
+            index=(git_dir / "index").read_bytes(),
             worktree=worktree,
-            git_metadata=self._git_metadata(),
+            git_metadata=self._git_metadata(common_dir),
         )
 
-    def _git_metadata(self) -> tuple[tuple[str, str, int, bytes], ...]:
+    def _git_metadata(self, git_dir: Path | None = None) -> tuple[tuple[str, str, int, bytes], ...]:
         entries: list[tuple[str, str, int, bytes]] = []
-        git_dir = self.source / ".git"
+        git_dir = git_dir or self.source / ".git"
         for path in sorted(git_dir.rglob("*")):
             mode = path.lstat().st_mode
             kind = "symlink" if stat.S_ISLNK(mode) else "directory" if path.is_dir() else "file"
@@ -594,6 +632,14 @@ class GitFixture:
     def assert_no_staging_directories(self, parent: Path) -> None:
         leftovers = sorted(path.name for path in parent.glob(".git-history-sanitize-*"))
         self.assertEqual(leftovers, [], "sanitizer staging directories remain")
+
+    def assert_only_reservations(self, parent: Path, *destinations: Path) -> None:
+        from git_history_sanitize.destination import reservation_name
+
+        self.assertEqual(sorted(path.name for path in parent.iterdir()), sorted(reservation_name(path.name) for path in destinations))
+        for path in parent.iterdir():
+            info = path.lstat()
+            self.assertEqual((stat.S_ISREG(info.st_mode), stat.S_IMODE(info.st_mode), info.st_size, info.st_nlink), (True, 0o600, 0, 1))
 
     @staticmethod
     def assert_redacted(output: str, *sensitive_values: str) -> None:

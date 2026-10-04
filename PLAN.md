@@ -11,6 +11,8 @@ configuration, or runtime sandboxing.
 
 ## User experience
 
+Prepare an existing writable absolute `/artifacts` parent outside all source roots.
+
 ```bash
 # Preview the rewrite without creating output.
 git-history-sanitize plan \
@@ -20,12 +22,12 @@ git-history-sanitize plan \
 # Produce a timestamp-cutoff standalone Git database.
 git-history-sanitize rewrite \
   --source .git \
-  --output build/sanitized.git \
+  --output /artifacts/sanitized.git \
   --policy .git-history-sanitize.yml
 
 # Independently verify a timestamp-cutoff result.
 git-history-sanitize verify \
-  --repository build/sanitized.git \
+  --repository /artifacts/sanitized.git \
   --policy .git-history-sanitize.yml
 ```
 

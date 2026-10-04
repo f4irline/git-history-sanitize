@@ -189,7 +189,7 @@ refs:
         )
 
         self.assertEqual(failed.returncode, 2)
-        self.assertEqual(failed.stderr, "error: invalid command arguments: Run the command with --help for usage.\n")
+        self.assertEqual(failed.stderr, "error: An output or receipt destination is unsafe or unavailable: Use distinct nonexistent absolute symlink-free output/receipt paths with existing directory parents outside source roots.\n")
         self.fixture.assert_source_snapshot(source_snapshot)
 
     def test_rewrite_retains_selected_merge_dag_branches_and_tags(self) -> None:

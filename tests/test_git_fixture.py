@@ -9,6 +9,25 @@ from tests.support.git_fixture import GitFixture
 
 
 class GitFixtureTests(unittest.TestCase):
+    def test_linked_topology_and_implicit_cwd_are_mounted_read_only_without_translation(self) -> None:
+        fixture = self.fixture
+        fixture.write("file", "safe")
+        fixture.commit("initial", "file")
+        linked = fixture.root / "linked"
+        fixture.git(fixture.source, "worktree", "add", "-b", "linked", str(linked))
+        policy = fixture.write_policy()
+        with patch.dict(os.environ, {"GHS_CONTAINER_IMAGE": "fixture-image"}), patch("tests.support.git_fixture.shutil.which", return_value="/usr/bin/docker"):
+            for arguments, cwd in ((("plan", "--source", str(linked / ".git"), "--policy", str(policy)), None), (("plan", "--policy", str(policy)), linked)):
+                command = fixture._container_cli(arguments, cwd=cwd)
+                for root in (fixture.source, linked):
+                    self.assertIn(f"type=bind,src={root},dst={root},readonly", command)
+                self.assertNotIn(f"type=bind,src={fixture.root},dst={fixture.root}", command)
+                if cwd:
+                    self.assertEqual(command[command.index("--workdir") + 1], str(linked))
+                else:
+                    self.assertEqual(command[command.index("--source") + 1], str(linked / ".git"))
+        self.assertNotIn("directory = *", fixture.global_config.read_text())
+
     def setUp(self) -> None:
         self.fixture = GitFixture(self)
 

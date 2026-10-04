@@ -83,8 +83,9 @@ class RewriteAnalysisTests(unittest.TestCase):
         self.fixture.commit("tracked", "tracked.txt")
         self.fixture.git(self.fixture.source, "checkout", "--detach")
 
-        with self.assertRaisesRegex(SanitizeError, "must have a symbolic HEAD"):
+        with self.assertRaises(SanitizeError) as caught:
             self._analysis(self.fixture.write_policy())
+        self.assertEqual(caught.exception.metadata.code, "source.detached_head")
 
     def test_selected_merge_dag_preserves_shared_ancestry_and_parent_order(self) -> None:
         self.fixture.write("base.txt", "base\n")

@@ -87,6 +87,8 @@ sys.exit(0)
         repository.path, repository.git_dir, repository._bare = self.root, self.root, True
         policy = Mock(included_paths=None, excluded_paths=("private/",), mixed_message="[sanitized]")
         with patch.dict(os.environ, self.environment, clear=True):
+            from git_history_sanitize.git import Discovery
+            repository.discovery = Discovery("bare", repository.git_dir, repository.git_dir, None, repository.git_dir)
             filter_paths(repository, policy)
         self.assertEqual((self.root / "rewrite-route").read_text(), "--force --prune-empty always --commit-callback")
         self.assertEqual(success_text("doctor", result),

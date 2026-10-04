@@ -13,4 +13,7 @@ fi
   tests.test_filtering_contracts \
   tests.test_output_cleanup_contracts \
   tests.test_regressions \
-  tests.test_verify_contracts
+  tests.test_verify_contracts \
+  tests.test_source_discovery_contracts.SourceDiscoveryContracts \
+  tests.test_source_scope_contracts \
+  tests.test_hooks

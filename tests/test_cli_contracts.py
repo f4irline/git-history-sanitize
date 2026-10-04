@@ -66,7 +66,7 @@ class CliContractTests(unittest.TestCase):
             self.assertIn("result", payload)
         self.assertEqual(
             set(json.loads(plan.stdout)["result"]),
-            {"source_commits", "discarded_commits", "retained_commits_before_path_filter", "mode", "scope", "boundary_count", "included_commit_count", "included_object_count", "retained_head_path_count", "retained_ref_count", "retained_branch_count", "retained_lightweight_tag_count", "retained_annotated_tag_count", "hooks"},
+            {"source_commits", "discarded_commits", "retained_commits_before_path_filter", "mode", "scope", "boundary_count", "included_commit_count", "included_object_count", "retained_head_path_count", "retained_ref_count", "retained_branch_count", "retained_lightweight_tag_count", "retained_annotated_tag_count", "hooks", "source", "warnings"},
         )
         self.assertIn("verification", json.loads(rewrite.stdout)["result"])
         self.assertNotIn("root", json.loads(verify.stdout)["result"])
@@ -84,15 +84,20 @@ class CliContractTests(unittest.TestCase):
             "verify", "--repository", str(output), "--policy", str(self.policy)
         )
 
+        inspection = "unavailable" if os.environ.get("GHS_TEST_RUNTIME") == "container" else "inspected"
+        source_notice = f"Source type: working-tree; HEAD: symbolic; worktree: {inspection}\nWarning: Only committed history is sanitized; uncommitted and ignored working-tree content is excluded. Trusted hooks are preserved separately.\n"
+        if inspection == "unavailable":
+            source_notice += "Warning: The source worktree is unavailable; working-tree state was not inspected.\n"
+
         self.assertEqual(
             plan.stdout,
             "Source commits: 1\nPre-cutoff commits: 0\nCommits before path filtering: 1\n"
             "Retained HEAD paths: 1\nScope: complete reachable history\n"
-            "Retained refs: 1 (branches: 1, lightweight tags: 0, annotated tags: 0)\nHooks: preserved (0)\n",
+            "Retained refs: 1 (branches: 1, lightweight tags: 0, annotated tags: 0)\nHooks: preserved (0)\n" + source_notice,
         )
         self.assertEqual(
             rewrite.stdout,
-            "Commits in output: 1\nScope: complete reachable history\nHooks: preserved (0)\n",
+            "Commits in output: 1\nScope: complete reachable history\nHooks: preserved (0)\n" + source_notice,
         )
         self.assertEqual(verify.stdout, "Verification passed.\n")
         self.assertEqual(plan.stderr + rewrite.stderr + verify.stderr, "")

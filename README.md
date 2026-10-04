@@ -411,6 +411,36 @@ Git's no-lazy-fetch protection for every Git command.
 
 ## Usage
 
+`plan` and `rewrite` accept working-tree roots, ordinary `.git` directories,
+bare repositories, linked-worktree roots, linked `.git` files, and private linked
+Git directories. Relative **source** paths are supported; gitfile targets resolve
+relative to the gitfile. Omit `--source` to discover the enclosing repository
+from CWD (including a nested CWD). An **explicit** content subdirectory, missing
+source, or broken gitfile fails without falling back to CWD. `verify --source`
+remains explicit private-receipt evidence, never automatic discovery.
+
+The selected worktree's symbolic HEAD determines retained history. Detached
+HEAD fails with `source.detached_head`: switch to an existing branch or create
+a branch at the current commit. Unborn HEAD fails with `source.unborn_head`:
+create the initial commit or select a repository with committed history. These
+restrictions apply in every source mode, including snapshot.
+
+Only committed history is sanitized. Staged, unstaged, untracked, ignored and
+unmerged state generates aggregate warnings, never includes local file bodies
+or changes rewriting. Trusted hooks are a separate preserved metadata channel.
+Status inspection disables optional index writes, fsmonitor and untracked cache;
+submodule worktree recursion and sparse-hidden content are not certified clean.
+Bare inputs report inspection `not-applicable`; metadata-only mounts without a
+proven accessible root report `unavailable`, not clean. A failed status probe on
+an accessible worktree fails closed with `source.state_unavailable`.
+
+Output and optional receipt paths must be distinct, nonexistent, absolute and
+symlink-free, with existing directory parents outside the source's private/shared
+Git directories and all registered worktrees. Existing entries (including
+dangling symlinks), aliases, missing parents and overlap fail before graph work
+with `destination.invalid`. Prepare `/artifacts` as an existing writable absolute
+directory **outside every source root** for the examples below.
+
 ```bash
 git-history-sanitize doctor
 
@@ -421,15 +451,23 @@ git-history-sanitize plan \
 
 git-history-sanitize rewrite \
   --source .git \
-  --output build/sanitized.git \
+  --output /artifacts/sanitized.git \
   --policy .git-history-sanitize.yml
 
 git-history-sanitize verify \
-  --repository build/sanitized.git \
+  --repository /artifacts/sanitized.git \
   --policy .git-history-sanitize.yml \
   --forbid 'private marker' \
   --forbid-file /private/forbidden-records \
   --forbid-stdin < /private/more-forbidden-records
+```
+
+Host linked-worktree examples (choose a different nonexistent output per rewrite):
+
+```bash
+git-history-sanitize plan --source /trusted/linked --policy /trusted/policy.yml
+git-history-sanitize rewrite --source /trusted/linked/.git \
+  --output /artifacts/linked.git --policy /trusted/policy.yml
 ```
 
 The commands above are timestamp-cutoff commands. A commit cutoff requires a
@@ -491,12 +529,36 @@ docker run --rm \
   --user "$(id -u):$(id -g)" \
   -v "$PWD/.git:/input.git:ro" \
   -v "$PWD/.git-history-sanitize.yml:/policy.yml:ro" \
-  -v "$PWD/build:/output" \
+  -v "/artifacts:/output" \
   git-history-sanitize:local rewrite \
     --source /input.git \
     --output /output/sanitized.git \
     --policy /policy.yml
 ```
+
+This ordinary `.git` metadata-only recipe does not expose or inspect the host
+worktree. A linked gitfile alone mounted at `/input.git` is insufficient: its
+private directory, common directory and backlinks must remain reachable.
+For linked input, preserve the original absolute main/linked mount paths:
+
+```bash
+# /trusted/main contains the common .git directory; /trusted/linked is registered.
+# /artifacts already exists, is caller-writable, and is outside all source roots.
+docker run --rm --user "$(id -u):$(id -g)" --network=none --read-only --tmpfs /tmp \
+  -v /trusted/main:/trusted/main:ro \
+  -v /trusted/linked:/trusted/linked:ro \
+  -v /trusted/policy.yml:/policy.yml:ro \
+  -v /artifacts:/output \
+  git-history-sanitize:local rewrite --source /trusted/linked/.git \
+    --output /output/linked.git --policy /policy.yml
+```
+
+Mount any other accessible registered worktrees read-only at their original
+absolute paths as well. When ownership differs, use a read-only global Git config
+with exact `safe.directory` entries for `/trusted/main`, `/trusted/main/.git` and
+`/trusted/linked` (and other mounted inputs); set `GIT_CONFIG_GLOBAL` to that mount
+so clone/upload-pack children inherit the narrow trust. Never use `*`. Policy
+and artifact mounts must not provide writable aliases into source roots.
 
 Run the isolated package tests with:
 
@@ -544,13 +606,34 @@ explicit cleanup, but never its parent or resolved path.
 | Classification | Default public report | `--diagnostics=trusted` local report | Never emitted |
 | --- | --- | --- | --- |
 | Fixed protocol/status | schema version, audience, command, status, fixed catalog metadata, invariant, publication state | same | — |
-| Aggregate operation data | mode, scope, commit/path/object/boundary counts, hook action/count, dependency availability/version | same | — |
+| Aggregate operation data | mode, scope, commit/path/object/boundary counts, hook action/count, dependency availability/version, source kind/symbolic status, worktree category booleans and fixed warnings | same | — |
 | Doctor-only toolchain provenance | resolved executable paths in dependency checks | same | source/policy paths and raw version-command output |
-| Repository/policy identity | — | include/exclude paths, plan rule effects, retained refs, sanitized head/root IDs, hook names/warning associations | receipt bindings, source ref fingerprints, policy digests |
+| Repository/policy identity | — | include/exclude paths, plan rule effects, retained refs, plan symbolic retained ref, sanitized head/root IDs, hook names/warning associations | source paths, receipt bindings, source ref fingerprints, policy digests |
 | Sensitive values | — | — | forbidden values or matches, removed messages, object/hook bodies, raw policy values, credentials, raw subprocess stderr, command arguments |
 
 Public v2 success envelopes have a stable `(schema_version, report_audience)`
 contract:
+
+Plan/rewrite add `result.source = {kind, head_state: "symbolic", worktree}` and
+ordered `result.warnings` records (`code`, fixed `message`). Worktree inspection
+is `inspected`, `unavailable`, or `not-applicable`; only inspected state has the
+ordered categories `staged`, `unstaged`, `untracked`, `ignored`, `unmerged`.
+Exact symbolic HEAD is available only as trusted plan
+`diagnostics.symbolic_retained_ref` (or additive trusted v1 result field).
+These diagnostics never enter scope metadata or private receipts.
+
+Rewrite acquires private early advisory reservations for output and receipt.
+`destination.busy` means a cooperating writer already holds either target;
+wait or choose different destinations. Stable empty `0600`
+`.ghs-destination-lock-<sha256>` files remain in the existing artifact parents
+after success, failure or interruption and are reused, never removed by workspace
+cleanup. Case/Unicode-normalization-equivalent basenames deliberately contend.
+Unsafe lock entries fail with `destination.reservation_unsafe`: stop writers and
+have the owning user inspect the exact entry; do not bulk-delete prefix matches.
+Descriptors remain held through analysis, descendants, verification, publication
+and cleanup, including orphan children after parent SIGKILL. Native no-replace
+publication remains the final guard against noncooperating writers. See the
+threat model for filesystem and same-UID limitations.
 
 ```json
 {"command":"plan","report_audience":"public","result":{},"schema_version":2,"status":"success"}

@@ -4,6 +4,24 @@ Things that might bite you. Check here before you get bitten.
 
 ---
 
+## Gitfile resolution must work before repository setup
+**Ticket:** BBQ-24
+**Date:** 2026-10-04
+
+On both Git 2.36.0 and pinned 2.47.0, placing `--path-format=absolute` before
+`--resolve-git-dir` triggers repository setup and fails from a nonrepository CWD.
+Pass an absolute input to `rev-parse --resolve-git-dir` without `--path-format`,
+then validate/decode its absolute record. Use `--path-format=absolute` only after
+pinning the discovered Git directory for common/git-path queries. Tests launched
+inside this checkout can hide the bug; fixture-owned CWD is required.
+
+`rev-parse --git-path hooks` also honors runner-global `core.hooksPath`. Resolve
+standard shared hooks with an explicit default metadata override; discover local
+custom paths separately with existing containment/ambiguity rules. Otherwise
+linked discovery can accidentally import runner hooks or reject valid sources.
+
+---
+
 ## Git helper lookup can drift after repository-scoped chdir
 **Ticket:** BBQ-17
 **Date:** 2026-10-04

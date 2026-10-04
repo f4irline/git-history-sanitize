@@ -337,7 +337,8 @@ class VerifierContractTests(unittest.TestCase):
     def test_rejects_a_non_branch_symbolic_head(self) -> None:
         output = self.rewrite()
         self.fixture.git(output, "update-ref", "refs/notes/main", "HEAD")
-        self.fixture.git(output, "symbolic-ref", "HEAD", "refs/notes/main")
+        # Preserve the output HEAD inode across Colima read-only mounts (BBQ-44).
+        (output / "HEAD").write_text("ref: refs/notes/main\n")
 
         result = self.verify(output)
 

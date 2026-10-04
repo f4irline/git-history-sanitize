@@ -37,7 +37,7 @@ def _fail(message: str) -> None:
 
 
 def _shallow_roots(repository: Repository) -> tuple[str, ...]:
-    marker = repository.git_dir / "shallow"
+    marker = repository.git_path("shallow")
     if not marker.exists():
         return ()
     try:
@@ -50,11 +50,11 @@ def _shallow_roots(repository: Repository) -> tuple[str, ...]:
 
 
 def _unsupported(repository: Repository) -> None:
-    if (repository.git_dir / "info" / "grafts").exists():
+    if repository.git_path("info/grafts").exists():
         _fail("Source uses grafts; remove graft state before sanitizing")
     if repository.text("for-each-ref", "refs/replace").strip():
         _fail("Source uses replace refs; remove replacement state before sanitizing")
-    if (repository.git_dir / "objects" / "info" / "alternates").exists():
+    if repository.git_path("objects/info/alternates").exists():
         _fail("Source uses alternates; repack without alternates before sanitizing")
 
 
@@ -62,7 +62,7 @@ def _promisor(repository: Repository) -> bool:
     return bool(
         repository.run("config", "--get", "extensions.partialClone", check=False).strip()
         or repository.run("config", "--get-regexp", r"^remote\..*\.promisor$", check=False).strip()
-        or any((repository.git_dir / "objects" / "pack").glob("*.promisor"))
+        or any(repository.git_path("objects/pack").glob("*.promisor"))
     )
 
 
@@ -86,6 +86,7 @@ def _closure(repository: Repository, *revisions: str) -> tuple[tuple[str, ...], 
 
 def inspect_source(repository: Repository, policy: Policy) -> SourceScope:
     """Return the exact local graph allowed by the policy without contacting remotes."""
+    repository.validate_head()
     _unsupported(repository)
     shallow_roots = _shallow_roots(repository)
     partial = _promisor(repository)

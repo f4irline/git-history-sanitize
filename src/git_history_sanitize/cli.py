@@ -43,7 +43,7 @@ def _parser() -> argparse.ArgumentParser:
     doctor.add_argument("--json", action="store_true")
 
     preview = subcommands.add_parser("plan", help="inspect a proposed rewrite")
-    preview.add_argument("--source", required=True)
+    preview.add_argument("--source", help="repository root, Git directory or gitfile; omitted: discover enclosing repository from CWD")
     preview.add_argument("--policy", required=True)
     preview.add_argument("--json", action="store_true")
     preview.add_argument("--json-schema", type=int, choices=(1, 2))
@@ -51,7 +51,7 @@ def _parser() -> argparse.ArgumentParser:
     preview.add_argument("--strip-hooks", action="store_true")
 
     rewrite_command = subcommands.add_parser("rewrite", help="create sanitized output")
-    rewrite_command.add_argument("--source", required=True)
+    rewrite_command.add_argument("--source", help="repository root, Git directory or gitfile; omitted: discover enclosing repository from CWD")
     rewrite_command.add_argument("--output", required=True)
     rewrite_command.add_argument("--policy", required=True)
     rewrite_command.add_argument("--receipt")

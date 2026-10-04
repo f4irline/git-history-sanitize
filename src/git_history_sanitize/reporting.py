@@ -7,7 +7,7 @@ from dataclasses import asdict
 from typing import Any, Literal
 
 from .engine import Plan, RewriteReport
-from .errors import DEPENDENCY_FAILURES, DependencyCheck, DependencyError, ErrorMetadata, SanitizeError, VerificationError
+from .errors import DEPENDENCY_FAILURES, DESTINATION_FAILURES, SOURCE_FAILURES, DependencyCheck, DependencyError, ErrorMetadata, SanitizeError, VerificationError
 from .verify import VerificationReport
 from .workspace import WorkspaceRecord
 
@@ -84,6 +84,7 @@ def _path_warnings(value: Plan) -> list[str]:
 
 def _public_plan(value: Plan) -> dict[str, Any]:
     return {
+        **_source_report(value),
         "source_commits": value.source_commits,
         "discarded_commits": value.discarded_commits,
         "retained_commits_before_path_filter": value.retained_commits_before_path_filter,
@@ -112,6 +113,11 @@ def _public_verification(value: VerificationReport) -> dict[str, Any]:
     }
 
 
+def _source_report(value: Plan | RewriteReport) -> dict[str, Any]:
+    state = value.source_state
+    return {"source": state.public(), "warnings": state.warnings()} if state else {}
+
+
 def _public_result(command: str, value: Any) -> dict[str, Any]:
     if command == "doctor":
         return dict(value)
@@ -119,6 +125,7 @@ def _public_result(command: str, value: Any) -> dict[str, Any]:
         return _public_plan(value)
     if command == "rewrite" and isinstance(value, RewriteReport):
         return {
+            **_source_report(value),
             "history": {"source_commits": value.compact.original_commits, "discarded_commits": value.compact.discarded_commits},
             "verification": _public_verification(value.verification),
             "hooks": _hooks(value.hooks, value.hooks_stripped),
@@ -144,6 +151,7 @@ def _diagnostics(command: str, value: Any) -> dict[str, Any]:
             "path_rule_effects": _rule_effects(value),
             "path_warnings": _path_warnings(value),
             "retained_refs": list(value.retained_refs),
+            "symbolic_retained_ref": value.source_state.symbolic_retained_ref if value.source_state else None,
             **_hook_diagnostics(value.hooks),
         }
     if command == "rewrite" and isinstance(value, RewriteReport):
@@ -172,7 +180,7 @@ def _legacy_result(command: str, value: Any) -> dict[str, Any]:
     public = _public_result(command, value)
     diagnostics = _diagnostics(command, value)
     if command == "plan":
-        return {**public, "excluded_paths": diagnostics["excluded_paths"], "included_paths": diagnostics["included_paths"], "include_active": diagnostics["include_active"], "path_rule_effects": diagnostics["path_rule_effects"], "path_warnings": diagnostics["path_warnings"], "hooks": {
+        return {**public, "symbolic_retained_ref": diagnostics["symbolic_retained_ref"], "excluded_paths": diagnostics["excluded_paths"], "included_paths": diagnostics["included_paths"], "include_active": diagnostics["include_active"], "path_rule_effects": diagnostics["path_rule_effects"], "path_warnings": diagnostics["path_warnings"], "hooks": {
             **public["hooks"], "names": diagnostics["hook_names"], "warnings": diagnostics["hook_warnings"],
         }}
     if command == "rewrite":
@@ -282,6 +290,9 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
                 f"Hook names: {', '.join(detail['hook_names']) or 'none'}",
                 f"Hook warnings: {warnings or 'none'}",
             ))
+        lines.extend(_source_lines(result))
+        if diagnostics == "trusted" and value.source_state:
+            lines.append(f"Symbolic retained ref: {_safe_text(value.source_state.symbolic_retained_ref)!r}")
         return "\n".join(lines) + "\n"
     if command == "rewrite":
         lines = [f"Commits in output: {result['verification']['commit_count']}", f"Scope: {result['verification']['scope']}", f"Hooks: {result['hooks']['action']} ({result['hooks']['count']})"]
@@ -298,6 +309,7 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
                 f"Hook names: {', '.join(detail['hook_names']) or 'none'}",
                 f"Hook warnings: {warnings or 'none'}",
             ))
+        lines.extend(_source_lines(result))
         return "\n".join(lines) + "\n"
     if command == "verify" and diagnostics == "trusted":
         detail = _diagnostics(command, value)
@@ -321,6 +333,13 @@ def success_text(command: str, value: Any, *, diagnostics: Audience = "public") 
     return "Verification passed.\n"
 
 
+def _source_lines(result: dict[str, Any]) -> list[str]:
+    if "source" not in result:
+        return []
+    source = result["source"]
+    return [f"Source type: {source['kind']}; HEAD: symbolic; worktree: {source['worktree']['inspection']}", *(f"Warning: {warning['message']}" for warning in result["warnings"])]
+
+
 def doctor_checks_text(checks: tuple[DependencyCheck, ...]) -> str:
     """Escape provenance for human terminals; never print process output."""
     return "".join(
@@ -336,6 +355,7 @@ def error_text(error: SanitizeError | None = None) -> str:
     if isinstance(error, VerificationError) and error.invariant:
         return f"error: verification failed: {error.invariant}\n"
     summaries = {
+        **{item.code: item.message.removesuffix(".") for item in (*SOURCE_FAILURES.values(), *DESTINATION_FAILURES.values())},
         **{metadata.code: metadata.message.removesuffix(".") for metadata in DEPENDENCY_FAILURES.values()},
         "forbidden_input.invalid": "invalid forbidden-content input",
         "policy.invalid": "invalid policy",

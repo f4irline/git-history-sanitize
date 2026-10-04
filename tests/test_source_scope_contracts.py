@@ -225,11 +225,11 @@ class SourceScopeContracts(unittest.TestCase):
         )
 
         self.assertEqual(plan.returncode, 2)
-        self.assertEqual(json.loads(plan.stdout)["code"], "source.invalid")
+        self.assertEqual(json.loads(plan.stdout)["code"], "source.detached_head")
         self.assertEqual(plan.stderr, "")
         self.assertEqual(rewrite.returncode, plan.returncode)
         self.assertEqual(rewrite.stdout, "")
-        self.assertEqual(rewrite.stderr, "error: source repository unavailable\n")
+        self.assertEqual(rewrite.stderr, "error: The source HEAD is detached: Switch to an existing branch or create a branch at the current commit, then retry.\n")
         self.assertFalse(output.exists())
         self.fixture.assert_no_staging_directories(output.parent)
         self.fixture.assert_source_snapshot(source_snapshot)

@@ -24,7 +24,7 @@ filesystem and prevents normal access by other users. A bounded `0600` manifest
 contains only a version, opaque ID, UID/GID, diagnostic PID and creation time,
 lifecycle state, role, and parent/workspace device-inode bindings. It excludes
 paths, repository or policy identity, Git object IDs, command arguments, and
-content. A non-inherited exclusive advisory lock is authoritative for activity;
+content. An inherited exclusive advisory lock is authoritative for activity;
 PID values are never used to decide whether deletion is safe.
 
 Receipt staging uses the same ID in a private workspace under the receipt parent
@@ -51,10 +51,44 @@ A second signal restores immediate default termination rather than recursively
 inspecting or deleting files.
 
 SIGKILL, kernel failure, host restart, and power loss cannot execute handlers or
-state transitions. File-descriptor closure releases the advisory lock, so a
+state transitions. Closure of the last inherited descriptor releases the advisory lock, so a
 valid unlocked `active` manifest is reported as `stale`. A crash between private
 directory creation and durable manifest creation may instead leave an ambiguous
 entry; the sanitizer does not claim ownership or delete it automatically.
+
+## Source observation and destination coordination
+
+Discovery pins the selected private/common Git directories and proven worktree,
+ignoring inherited repository-location and discovery overrides. Shared scope and
+hook metadata are resolved through Git; linked convenience never skips scope
+checks. Working-tree status is a read-only category observation, not a source
+snapshot, complete cleanliness certificate or permission to mutate the source.
+Only committed trees drive rewriting; trusted hooks remain separate metadata.
+
+Before graph analysis, output and receipt destinations are checked together
+against private/common Git directories and proven/registered worktree roots.
+Parents are opened descriptor-relative with no-follow semantics. Each target
+has a stable empty single-link regular `0600` reservation owned by the caller
+UID/GID in its existing parent: `.ghs-destination-lock-<sha256>`. The versioned
+basename key uses NFC and casefold, conservatively coordinating case and Unicode
+aliases even on case-sensitive filesystems. Payloads contain no source/policy
+data, raw paths or PID. Unsafe entries are not repaired or deleted.
+
+Nonblocking advisory locks are acquired in deterministic parent-inode/key order
+and revalidated before analysis. Their descriptors remain inherited by all
+rewrite-owned descendants through verification, receipt-first publication,
+durability and unwind. Release is descriptor close only, never explicit unlock
+or unlink: orphan descendants after parent SIGKILL continue to reserve the
+destinations until their final descriptor closes. Stable unlocked entries are
+reused without PID recovery. Different targets can proceed independently.
+
+Reservations coordinate cooperating sanitizer writers only; native no-replace
+publication still guards the final rename against noncooperating writers.
+Workspace listing/cleanup never removes reservation inodes. Any administrator
+maintenance must first stop all writers and descendants and inspect exact
+entries; automatic/glob-based reservation deletion can create split-inode races.
+Same-UID source/parent mutation and filesystems that violate locking/no-follow
+semantics remain outside stronger guarantees.
 
 ## Residual risks
 
