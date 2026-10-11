@@ -113,7 +113,7 @@ Ensure all tests pass before proceeding.
 
 ## Implementation Review Gate
 
-After implementation and validation are complete, use the Task tool to spawn the `health-inspector` subagent from `worktree_path`. Give it the ticket ID, user context, `workflow_root`, `worktree_path`, and this task: review the completed implementation and its diff against the full Linear ticket, Technical Plan, House Rules, relevant learnings, and validation results.
+After implementation and validation are complete, use the `subagent` tool to spawn the `health-inspector` subagent from `worktree_path`. Give it the ticket ID, user context, `workflow_root`, `worktree_path`, and this task: review the completed implementation and its diff against the full Linear ticket, Technical Plan, House Rules, relevant learnings, and validation results.
 
 - If it returns `REVIEW_RESULT: PASS`, continue with the Learnings phase.
 - If it returns `REVIEW_RESULT: CHANGES_REQUIRED`, resolve every blocking and important finding in `worktree_path`, update tests and progress documentation as needed, run the relevant validation again, commit the revisions with the git-commit skill, then spawn a fresh `health-inspector` review.
