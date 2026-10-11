@@ -78,7 +78,7 @@ Be thorough but concise in your research documentation. Preserve the original ti
 
 ## Research Review Gate
 
-After creating or revising the Research section, use the Task tool to spawn the `health-inspector` subagent. Give it the ticket ID, user context, and this task: review the current Research section against the full Linear ticket, relevant repository evidence, learnings, and House Rules.
+After creating or revising the Research section, use the `subagent` tool to spawn the `health-inspector` subagent. Give it the ticket ID, user context, and this task: review the current Research section against the full Linear ticket, relevant repository evidence, learnings, and House Rules.
 
 - If it returns `REVIEW_RESULT: PASS`, continue the workflow.
 - If it returns `REVIEW_RESULT: CHANGES_REQUIRED`, revise the Research section to resolve every blocking and important finding, then spawn a fresh `health-inspector` review.
