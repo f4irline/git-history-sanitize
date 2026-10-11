@@ -2,7 +2,7 @@
 FROM ubuntu:26.04@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b AS base
 
 RUN apt-get update -qq && apt-get install -qq -y npm vim curl iputils-ping git git-filter-repo python3 && rm -rf /var/lib/apt/lists/*
-RUN npm install -g opencode-ai@1.18.26
+RUN npm install -g @opencode/cli@2.0.26
 
 FROM base AS git-sanitizer
 
@@ -35,7 +35,7 @@ RUN chmod 0555 /usr/local/bin/verify-git-history-sanitization /usr/local/bin/tes
 FROM base AS final
 
 COPY .devcontainer/opencode.json /root/.config/opencode/opencode.json
-COPY .devcontainer/opencode-system-prompt.md /root/.config/opencode/opencode-system-prompt.md
+COPY .devcontainer/opencode-system-prompt.md /root/.config/opencode/AGENTS.md
 COPY .devcontainer/scripts/prepare-sanitized-git.sh /usr/local/bin/prepare-sanitized-git
 COPY .devcontainer/scripts/verify-git-history-sanitization.sh /usr/local/bin/verify-git-history-sanitization
 COPY --from=git-sanitizer /sanitized/.git/ /opt/sandbox-git/
