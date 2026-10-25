@@ -6,7 +6,7 @@
     },
     "station": {
       "description": "Non-interactive branch resolver for Herdr worktree orchestration",
-      "model": "opencode-go/glm-5.3-flash"
+      "model": "opencode/glm-5.3-flash-free"
     },
     "sous-chef": {
       "description": "Research and planning agent for /bbq.pantry and /bbq.prep workflows",
